@@ -11,3 +11,4 @@ tsconfig.tsbuildinfo
 mobile/dist
 android/app/build
 gradle-*.zip
+release/
