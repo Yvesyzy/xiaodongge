@@ -37,6 +37,8 @@ https://github.com/Yvesyzy/xiaodongge/releases/latest/download/app-debug.apk
 https://github.com/Yvesyzy/xiaodongge/releases/latest
 ```
 
+当前公开下载的是 debug APK，适合测试安装；长期公开发布建议改用正式签名 APK。
+
 ## 构建 APK
 
 首次安装依赖：
@@ -63,7 +65,26 @@ android/app/build/outputs/apk/debug/app-debug.apk
 C:\Users\lenovo\AppData\Local\Android\Sdk\platform-tools\adb.exe install -r android/app/build/outputs/apk/debug/app-debug.apk
 ```
 
-正式签名发布需要后续提供 keystore。
+## 正式签名 APK
+
+当前仓库没有提交 keystore，也没有保存签名密码。正式发布前需要先准备：
+
+```text
+keystore 文件
+key alias
+store password
+key password
+```
+
+这些信息必须长期保存，不能提交到 Git。安卓应用升级时需要继续使用同一个 keystore，否则用户无法直接覆盖安装新版。
+
+最小流程：
+
+1. 生成或准备自己的 Android keystore。
+2. 在本机私有配置中保存签名路径、alias 和密码。
+3. 给 Android release 构建接入 signingConfig。
+4. 构建 release APK。
+5. 把 release APK 上传到 GitHub Releases，替换当前 debug APK。
 
 ## 本地数据
 
@@ -149,3 +170,7 @@ docs/superpowers/specs            设计说明
 ## 本地 APK 备份
 
 构建后的安装包可以复制到本地 `release/` 目录备份。该目录不提交到 Git。
+
+## License
+
+MIT
