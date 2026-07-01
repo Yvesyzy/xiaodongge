@@ -23,6 +23,20 @@
 - Android
 - Capacitor SQLite
 
+## 下载 APK
+
+最新安装包下载：
+
+```text
+https://github.com/Yvesyzy/xiaodongge/releases/latest/download/app-debug.apk
+```
+
+发布页：
+
+```text
+https://github.com/Yvesyzy/xiaodongge/releases/latest
+```
+
 ## 构建 APK
 
 首次安装依赖：
