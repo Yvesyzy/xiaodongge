@@ -1,0 +1,10 @@
+def addMirrors = { repos ->
+    repos.maven { url = uri('https://maven.aliyun.com/repository/google') }
+    repos.maven { url = uri('https://maven.aliyun.com/repository/public') }
+    repos.maven { url = uri('https://maven.aliyun.com/repository/gradle-plugin') }
+}
+
+gradle.beforeProject { project ->
+    addMirrors(project.buildscript.repositories)
+    addMirrors(project.repositories)
+}

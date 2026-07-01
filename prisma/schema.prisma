@@ -1,0 +1,42 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model ReviewEntry {
+  id         String   @id @default(cuid())
+  type       String
+  title      String
+  year       Int
+  month      Int?
+  albumName  String?
+  songName   String?
+  artistName String?
+  content    String
+  tags       String?
+  moods      String?
+  rating     Int?
+  listenedAt DateTime?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([year, month])
+  @@index([albumName])
+  @@index([songName])
+  @@index([artistName])
+}
+
+model YearlySummary {
+  id               String   @id @default(cuid())
+  year             Int      @unique
+  title            String
+  content          String
+  sourceEntryCount Int
+  generatedAt      DateTime
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
