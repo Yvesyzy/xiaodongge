@@ -28,13 +28,13 @@
 最新安装包下载：
 
 ```text
-https://github.com/Yvesyzy/xiaodongge/releases/latest/download/app-debug.apk
+https://github.com/Yvesyzy/xiaodongge/releases/download/%E5%B0%8F%E6%87%82%E5%93%A5v1.0.0/app-debug.apk
 ```
 
 发布页：
 
 ```text
-https://github.com/Yvesyzy/xiaodongge/releases/latest
+https://github.com/Yvesyzy/xiaodongge/releases/tag/%E5%B0%8F%E6%87%82%E5%93%A5v1.0.0
 ```
 
 当前公开下载的是 debug APK，适合测试安装；长期公开发布建议改用正式签名 APK。
