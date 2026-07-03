@@ -1,6 +1,8 @@
-import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Capacitor, registerPlugin } from "@capacitor/core";
 import { Link, NavLink, Route, Routes, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { GENRE_TAGS, GENRE_TREE, findGenrePath, genreChildren, isKnownGenreTag } from "../../shared/genres";
+import { ABSTRACT_MAP_REGION_DEFS, UNCLASSIFIED_REGION_ID, UNIVERSE_GROUP_BY_OPTIONS, type AbstractMapRegion, type AbstractMapResult, type EmotionUniverseResult, type EmotionUniverseSong, type UniverseGroupBy, type VisualizationFilters, type VisualizationOptions, type VisualizationSong } from "../../shared/visualizations";
 import { findSimilarEntry } from "./entryDuplicate";
 import { excerpt, formatDate, formatDateOnly, monthLabel } from "./format";
 import { parseMusicInfoText, type MusicInfoFields } from "./ocr";
@@ -16,10 +18,31 @@ const nav = [
 ];
 
 type BackupPreview = { exportedAt: string; entryCount: number; summaryCount: number; coverCount: number };
+type ExportKind = "json" | "txt" | "csv";
+type ExportedData = { kind: ExportKind; content: string; fileName: string; mimeType: string };
 type HomeEntry = ReviewEntry & { coverDataUrl: string | null };
 type ScreenshotOcrLine = { text: string; left: number; top: number; right: number; bottom: number };
 type ScreenshotOcrResult = { text: string; width: number; height: number; lines: ScreenshotOcrLine[] };
 type ScreenshotOcrPlugin = { recognize(options: { dataUrl: string }): Promise<ScreenshotOcrResult> };
+type FilterDraft = { year: string; month: string; artistName: string; albumName: string; mood: string; tag: string; minRating: string; maxRating: string; groupBy: UniverseGroupBy };
+type GenreSelection = { level1: string; level2: string; level3: string };
+
+const EMPTY_VISUALIZATION_OPTIONS: VisualizationOptions = { years: [], months: [], artistNames: [], albumNames: [], moods: [], tags: [] };
+const EXPORT_LABELS: Record<ExportKind, string> = { json: "JSON", txt: "TXT", csv: "CSV" };
+const EXPORT_FILE_META: Record<ExportKind, { extension: string; mimeType: string }> = {
+  json: { extension: "json", mimeType: "application/json;charset=utf-8" },
+  txt: { extension: "txt", mimeType: "text/plain;charset=utf-8" },
+  csv: { extension: "csv", mimeType: "text/csv;charset=utf-8" },
+};
+const GROUP_BY_LABELS: Record<UniverseGroupBy, string> = {
+  year: "按年份分组",
+  artist: "按艺术家分组",
+  album: "按专辑分组",
+  mood: "按情绪分组",
+  tag: "按曲风分组",
+};
+const MOOD_GROUPS = ABSTRACT_MAP_REGION_DEFS.filter((region) => region.id !== UNCLASSIFIED_REGION_ID && region.moods.length);
+const EmotionUniverseScene = lazy(() => import("./EmotionUniverseScene"));
 
 const ScreenshotOcr = registerPlugin<ScreenshotOcrPlugin>("ScreenshotOcr");
 
@@ -27,7 +50,7 @@ export default function App() {
   return (
     <div className="app-shell">
       <header className="app-header">
-        <Link to="/" className="brand">小懂哥 v1</Link>
+        <Link to="/" className="brand">小懂哥 v2</Link>
         <Link to="/more" className="header-menu" aria-label="更多"><span /></Link>
       </header>
       <main className="app-main">
@@ -43,6 +66,8 @@ export default function App() {
           <Route path="/songs/detail" element={<AggregateDetail kind="song" />} />
           <Route path="/search" element={<SearchPage />} />
           <Route path="/summary" element={<YearlySummaryPage />} />
+          <Route path="/abstract-map" element={<AbstractMusicMapPage />} />
+          <Route path="/emotion-universe" element={<EmotionUniversePage />} />
           <Route path="/backup" element={<BackupPage />} />
           <Route path="/more" element={<MorePage />} />
         </Routes>
@@ -90,6 +115,21 @@ function HomePage() {
         <Stat label="今年记录" value={`${stats?.totalEntries ?? 0} 条`} />
         <Stat label="今年专辑" value={`${stats?.albumCount ?? 0} 张`} />
         <Stat label="今年歌曲" value={`${stats?.songCount ?? 0} 首`} />
+      </div>
+      <div className="home-section-title">
+        <h2>可视化记忆</h2>
+      </div>
+      <div className="home-visual-links">
+        <Link to="/abstract-map" className="visual-entry-card map">
+          <span>抽象地图</span>
+          <h2>我的听歌地图</h2>
+          <p>把情绪、标签和乐评放进几片听歌大陆。</p>
+        </Link>
+        <Link to="/emotion-universe" className="visual-entry-card universe">
+          <span>情绪宇宙</span>
+          <h2>我的情绪宇宙</h2>
+          <p>用 3D 星图回看每首歌在记忆里的位置。</p>
+        </Link>
       </div>
       <div className="home-section-title">
         <h2>最近记录</h2>
@@ -196,6 +236,10 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
   const [ocrText, setOcrText] = useState("");
   const [recognizedFields, setRecognizedFields] = useState<MusicInfoFields | null>(null);
   const [ocrBusy, setOcrBusy] = useState(false);
+  const [selectedMoodGroupId, setSelectedMoodGroupId] = useState<string>(() => defaultMoodGroupId([]));
+  const [selectedMoods, setSelectedMoods] = useState<string[]>([]);
+  const [genreSelection, setGenreSelection] = useState<GenreSelection>(() => defaultGenreSelection(null));
+  const [selectedGenreTags, setSelectedGenreTags] = useState<string[]>([]);
 
   useEffect(() => {
     if (mode !== "edit") {
@@ -237,6 +281,18 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
       active = false;
     };
   }, [entry]);
+
+  useEffect(() => {
+    const moods = mode === "edit" ? entry?.moods ?? [] : [];
+    setSelectedMoods(moods);
+    setSelectedMoodGroupId(defaultMoodGroupId(moods));
+  }, [entry, mode]);
+
+  useEffect(() => {
+    const genreTags = (mode === "edit" ? entry?.tags ?? [] : []).filter(isKnownGenreTag);
+    setSelectedGenreTags(genreTags);
+    setGenreSelection(defaultGenreSelection(genreTags[0] ?? null));
+  }, [entry, mode]);
 
   async function chooseCover(event: ChangeEvent<HTMLInputElement>) {
     const file = event.currentTarget.files?.[0];
@@ -290,6 +346,14 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
     setNotice(changed ? `${recognitionNotice(recognizedFields)}，已应用到表单` : "识别结果没有可应用的字段");
   }
 
+  function toggleMood(mood: string) {
+    setSelectedMoods((current) => current.includes(mood) ? current.filter((item) => item !== mood) : [...current, mood]);
+  }
+
+  function toggleGenre(tag: string) {
+    setSelectedGenreTags((current) => current.includes(tag) ? current.filter((item) => item !== tag) : [...current, tag]);
+  }
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (saving) return;
@@ -307,7 +371,7 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
         songName: readNullable(form, "songName"),
         artistName: readNullable(form, "artistName"),
         content: readText(form, "content"),
-        tags: parseList(readText(form, "tags")),
+        tags: mergeTagLists(parseList(readText(form, "genreTags")), parseList(readText(form, "tags"))),
         moods: parseList(readText(form, "moods")),
         rating: readNumber(form, "rating"),
         listenedAt: readDate(form, "listenedAt"),
@@ -406,8 +470,19 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
           </div>
         </section>
         <label>听歌或感受日期<input name="listenedAt" type="date" defaultValue={source?.listenedAt?.slice(0, 10) ?? ""} /></label>
-        <label>标签<input name="tags" defaultValue={source?.tags.join(", ") ?? ""} /></label>
-        <label>情绪关键词<input name="moods" defaultValue={source?.moods.join(", ") ?? ""} /></label>
+        <GenrePicker
+          selection={genreSelection}
+          selectedTags={selectedGenreTags}
+          onSelectionChange={setGenreSelection}
+          onToggleTag={toggleGenre}
+        />
+        <label>标签<input name="tags" defaultValue={source ? freeTags(source.tags).join(", ") : ""} /></label>
+        <MoodPicker
+          groupId={selectedMoodGroupId}
+          selectedMoods={selectedMoods}
+          onGroupChange={setSelectedMoodGroupId}
+          onToggleMood={toggleMood}
+        />
         <label>评分<input name="rating" type="number" min="1" max="10" defaultValue={source?.rating ?? ""} /></label>
         <label>正文<textarea name="content" rows={12} defaultValue={source?.content ?? ""} required /></label>
         {notice ? <p className="hint">{notice}</p> : null}
@@ -416,6 +491,162 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
       </form>
     </Page>
   );
+}
+
+function GenrePicker({ selection, selectedTags, onSelectionChange, onToggleTag }: {
+  selection: GenreSelection;
+  selectedTags: string[];
+  onSelectionChange: (selection: GenreSelection) => void;
+  onToggleTag: (tag: string) => void;
+}) {
+  const [genreQuery, setGenreQuery] = useState("");
+  const selectedTagSet = new Set(selectedTags);
+  const level2Options = genreChildren(selection.level1);
+  const level3Options = selection.level2 ? genreChildren(selection.level2) : [];
+  const currentTag = selectedGenreValue(selection);
+  const searchResults = genreSearchMatches(genreQuery);
+  const searchGroups = groupGenreSearchResults(searchResults, (label) => selectedTagSet.has(label));
+  function selectSearchResult(label: string) {
+    onSelectionChange(defaultGenreSelection(label));
+    setGenreQuery("");
+  }
+  return (
+    <section className="choice-panel">
+      <strong>曲风</strong>
+      <label>搜索曲风<input type="search" value={genreQuery} onChange={(event) => setGenreQuery(event.target.value)} placeholder="输入关键词快速定位" /></label>
+      {searchResults.length ? (
+        <GenreSearchResultGroups groups={searchGroups} onSelect={selectSearchResult} />
+      ) : genreQuery.trim() ? (
+        <p className="genre-empty-hint">没有匹配曲风</p>
+      ) : null}
+      <div className="genre-select-grid">
+        <label>一级<select value={selection.level1} onChange={(event) => onSelectionChange({ level1: event.target.value, level2: "", level3: "" })}>
+          {GENRE_TREE.map((genre) => <option key={genre.label} value={genre.label}>{genre.label}</option>)}
+        </select></label>
+        <label>二级<select value={selection.level2} onChange={(event) => onSelectionChange({ ...selection, level2: event.target.value, level3: "" })}>
+          <option value="">选择二级</option>
+          {level2Options.map((genre) => <option key={genre.label} value={genre.label}>{genre.label}</option>)}
+        </select></label>
+        {level3Options.length ? (
+          <label>三级<select value={selection.level3} onChange={(event) => onSelectionChange({ ...selection, level3: event.target.value })}>
+            <option value="">选择三级</option>
+            {level3Options.map((genre) => <option key={genre.label} value={genre.label}>{genre.label}</option>)}
+          </select></label>
+        ) : null}
+      </div>
+      <button className="secondary-button" type="button" onClick={() => onToggleTag(currentTag)}>{selectedTagSet.has(currentTag) ? "移除曲风" : "添加曲风"}</button>
+      {selectedTags.length ? (
+        <div className="selected-chip-row" aria-label="已选曲风">
+          {selectedTags.map((tag) => (
+            <button key={tag} type="button" onClick={() => onToggleTag(tag)}>
+              {tag} ×
+            </button>
+          ))}
+        </div>
+      ) : null}
+      <input type="hidden" name="genreTags" value={selectedTags.join(", ")} />
+    </section>
+  );
+}
+
+function MoodPicker({ groupId, selectedMoods, onGroupChange, onToggleMood }: {
+  groupId: string;
+  selectedMoods: string[];
+  onGroupChange: (groupId: string) => void;
+  onToggleMood: (mood: string) => void;
+}) {
+  const group = MOOD_GROUPS.find((item) => item.id === groupId) ?? MOOD_GROUPS[0];
+  const selectedMoodSet = new Set(selectedMoods);
+  return (
+    <section className="choice-panel">
+      <label>情绪关键词
+        <select value={group?.id ?? ""} onChange={(event) => onGroupChange(event.target.value)}>
+          {MOOD_GROUPS.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+        </select>
+      </label>
+      <div className="choice-chip-row" aria-label="二级情绪">
+        {(group?.moods ?? []).map((mood) => (
+          <button key={mood} type="button" className={selectedMoodSet.has(mood) ? "selected" : ""} onClick={() => onToggleMood(mood)}>
+            {mood}
+          </button>
+        ))}
+      </div>
+      {selectedMoods.length ? (
+        <div className="selected-chip-row" aria-label="已选情绪">
+          {selectedMoods.map((mood) => (
+            <button key={mood} type="button" onClick={() => onToggleMood(mood)}>
+              {mood} ×
+            </button>
+          ))}
+        </div>
+      ) : null}
+      <input type="hidden" name="moods" value={selectedMoods.join(", ")} />
+    </section>
+  );
+}
+
+function defaultMoodGroupId(moods: string[]) {
+  return MOOD_GROUPS.find((group) => group.moods.some((mood) => moods.includes(mood)))?.id ?? MOOD_GROUPS[0]?.id ?? "";
+}
+
+function defaultGenreSelection(value: string | null): GenreSelection {
+  const path = value ? findGenrePath(value) : [];
+  return {
+    level1: path[0] ?? GENRE_TREE[0]?.label ?? "",
+    level2: path[1] ?? "",
+    level3: path[2] ?? "",
+  };
+}
+
+function selectedGenreValue(selection: GenreSelection) {
+  return selection.level3 || selection.level2 || selection.level1;
+}
+
+function genreSearchMatches(query: string) {
+  const normalizedQuery = normalizeGenreQuery(query);
+  if (!normalizedQuery) return [];
+  return GENRE_TAGS.filter((tag) => normalizeGenreQuery(tag).includes(normalizedQuery)).slice(0, 12);
+}
+
+function groupGenreSearchResults(results: string[], isSelected: (label: string) => boolean) {
+  return [
+    { label: "已选", values: results.filter(isSelected), selected: true },
+    { label: "未选", values: results.filter((label) => !isSelected(label)), selected: false },
+  ].filter((group) => group.values.length);
+}
+
+function GenreSearchResultGroups({ groups, onSelect }: {
+  groups: { label: string; values: string[]; selected: boolean }[];
+  onSelect: (label: string) => void;
+}) {
+  return (
+    <div className="genre-search-groups" aria-label="曲风搜索结果">
+      {groups.map((group) => (
+        <div key={group.label} className="genre-search-group">
+          <span className="genre-search-group-label">{group.label}</span>
+          <div className="genre-search-results">
+            {group.values.map((label) => (
+              <button key={label} type="button" className={group.selected ? "selected" : ""} onClick={() => onSelect(label)}>
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function normalizeGenreQuery(value: string) {
+  return value.toLocaleLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function freeTags(tags: string[]) {
+  return tags.filter((tag) => !isKnownGenreTag(tag));
+}
+
+function mergeTagLists(...lists: string[][]) {
+  return Array.from(new Set(lists.flat().filter(Boolean)));
 }
 
 function EntryDetailPage() {
@@ -606,6 +837,182 @@ function SearchPage() {
   );
 }
 
+function AbstractMusicMapPage() {
+  const [filters, setFilters] = useState<VisualizationFilters>({});
+  const [result, setResult] = useState<AbstractMapResult | null>(null);
+  const [selectedRegion, setSelectedRegion] = useState<AbstractMapRegion | null>(null);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setError("");
+    void store.abstractMusicMap(filters).then((nextResult) => {
+      if (!active) return;
+      setResult(nextResult);
+      setSelectedRegion((current) => current ? nextResult.regions.find((region) => region.id === current.id) ?? null : null);
+    }).catch((err) => {
+      if (active) setError(err instanceof Error ? err.message : "抽象地图读取失败");
+    }).finally(() => {
+      if (active) setLoading(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, [filters]);
+
+  return (
+    <VisualPage title="抽象地图" text="按情绪把你的音乐记忆放进不同大陆。">
+      <VisualToolbar
+        count={result?.totalCount ?? 0}
+        summary={filterSummary(filters, true, false)}
+        onFilter={() => setFilterOpen(true)}
+      />
+      {loading ? <VisualLoading text="正在绘制听歌地图。" /> : null}
+      {error ? <VisualError text={error} /> : null}
+      {!loading && !error && result && !result.totalCount ? <VisualEmpty text="当前筛选下没有记录。换一个年份、艺术家或情绪试试。" /> : null}
+      {!loading && !error && result ? (
+        <section className="abstract-map-grid" aria-label="抽象听歌地图">
+          {result.regions.map((region) => (
+            <button key={region.id} className={`map-region-card ${region.id}`} type="button" onClick={() => setSelectedRegion(region)}>
+              <span className="map-region-glow" style={{ backgroundColor: region.color }} />
+              <span className="map-region-kicker">{region.tone}</span>
+              <strong>{region.name}</strong>
+              <span>{region.songCount} 首</span>
+              <p>{region.description}</p>
+              <div className="map-feature-list">
+                {region.featuredSongs.length ? region.featuredSongs.map((song) => <em key={song.id}>{song.title}</em>) : <em>暂无代表歌曲</em>}
+              </div>
+            </button>
+          ))}
+        </section>
+      ) : null}
+      {filterOpen ? (
+        <VisualizationFilterSheet
+          title="筛选抽象地图"
+          filters={filters}
+          options={result?.options ?? EMPTY_VISUALIZATION_OPTIONS}
+          includeMonth
+          onApply={(nextFilters) => {
+            setFilters(nextFilters);
+            setFilterOpen(false);
+          }}
+          onReset={() => {
+            setFilters({});
+            setFilterOpen(false);
+          }}
+          onClose={() => setFilterOpen(false)}
+        />
+      ) : null}
+      {selectedRegion ? (
+        <BottomSheet title={selectedRegion.name} text={`${selectedRegion.songCount} 首 / ${selectedRegion.description}`} onClose={() => setSelectedRegion(null)}>
+          <VisualSongList songs={selectedRegion.songs} emptyText="这片区域暂时没有歌曲。" />
+        </BottomSheet>
+      ) : null}
+    </VisualPage>
+  );
+}
+
+function EmotionUniversePage() {
+  const [filters, setFilters] = useState<VisualizationFilters>({ groupBy: "year" });
+  const [result, setResult] = useState<EmotionUniverseResult | null>(null);
+  const [selectedSong, setSelectedSong] = useState<EmotionUniverseSong | null>(null);
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [cameraDistance, setCameraDistance] = useState(118);
+  const [sceneResetKey, setSceneResetKey] = useState(0);
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setError("");
+    void store.emotionUniverse(filters).then((nextResult) => {
+      if (!active) return;
+      setResult(nextResult);
+      setSelectedSong(null);
+    }).catch((err) => {
+      if (active) setError(err instanceof Error ? err.message : "情绪宇宙读取失败");
+    }).finally(() => {
+      if (active) setLoading(false);
+    });
+    return () => {
+      active = false;
+    };
+  }, [filters]);
+
+  function zoom(delta: number) {
+    setCameraDistance((current) => Math.max(66, Math.min(178, current + delta)));
+  }
+
+  function resetScene() {
+    setCameraDistance(118);
+    setSceneResetKey((current) => current + 1);
+  }
+
+  return (
+    <VisualPage title="情绪宇宙" text="每首歌是一颗 3D 星球，位置来自时间、评分和分组深度。">
+      <VisualToolbar
+        count={result?.totalCount ?? 0}
+        summary={filterSummary(filters, false, true)}
+        onFilter={() => setFilterOpen(true)}
+      />
+      {loading ? <VisualLoading text="正在排布 3D 星图。" /> : null}
+      {error ? <VisualError text={error} /> : null}
+      {!loading && !error && result && !result.totalCount ? <VisualEmpty text="当前筛选下没有星球。重置筛选后再看一次。" /> : null}
+      {!loading && !error && result && result.songs.length ? (
+        <>
+          <section className="universe-panel">
+            <div className="universe-panel-head">
+              <div>
+                <strong>{GROUP_BY_LABELS[filters.groupBy ?? "year"]}</strong>
+                <span>{result.displayedCount} / {result.totalCount} 首</span>
+              </div>
+              <div className="zoom-controls" aria-label="缩放控制">
+                <button type="button" onClick={() => zoom(12)} aria-label="缩小">-</button>
+                <button type="button" onClick={resetScene} aria-label="重置视图">1x</button>
+                <button type="button" onClick={() => zoom(-12)} aria-label="放大">+</button>
+              </div>
+            </div>
+            {result.truncated ? <p className="visual-limit-note">当前展示前 {result.displayedCount} 首，继续缩小筛选可查看更聚焦的星图。</p> : null}
+            <Suspense fallback={<div className="universe-stage universe-stage-loading">正在加载 3D 星图。</div>}>
+              <EmotionUniverseScene songs={result.songs} cameraDistance={cameraDistance} resetKey={sceneResetKey} onSelect={setSelectedSong} />
+            </Suspense>
+          </section>
+          <div className="group-chip-row">
+            {result.groups.slice(0, 8).map((group) => <span key={`${group.type}-${group.name}`}>{group.name} · {group.songCount}</span>)}
+          </div>
+        </>
+      ) : null}
+      {filterOpen ? (
+        <VisualizationFilterSheet
+          title="筛选情绪宇宙"
+          filters={filters}
+          options={result?.options ?? EMPTY_VISUALIZATION_OPTIONS}
+          includeRating
+          includeGroup
+          onApply={(nextFilters) => {
+            setFilters({ ...nextFilters, groupBy: nextFilters.groupBy ?? "year" });
+            setFilterOpen(false);
+          }}
+          onReset={() => {
+            setFilters({ groupBy: "year" });
+            setFilterOpen(false);
+          }}
+          onClose={() => setFilterOpen(false)}
+        />
+      ) : null}
+      {selectedSong ? (
+        <BottomSheet title={selectedSong.title} text={selectedSong.artistName ?? "未填写艺术家"} onClose={() => setSelectedSong(null)}>
+          <VisualSongDetail song={selectedSong} />
+        </BottomSheet>
+      ) : null}
+    </VisualPage>
+  );
+}
+
 function YearlySummaryPage() {
   const [entries, setEntries] = useState<ReviewEntry[]>([]);
   const [year, setYear] = useState(new Date().getFullYear());
@@ -644,7 +1051,7 @@ function YearlySummaryPage() {
 }
 
 function BackupPage() {
-  const [backup, setBackup] = useState("");
+  const [exported, setExported] = useState<ExportedData | null>(null);
   const [importText, setImportText] = useState("");
   const [preview, setPreview] = useState<BackupPreview | null>(null);
   const [undoPreview, setUndoPreview] = useState<BackupPreview | null>(() => store.previewImportUndo());
@@ -652,23 +1059,53 @@ function BackupPage() {
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
 
-  async function exportData() {
+  async function exportData(kind: ExportKind) {
     setMessage("");
     setError("");
     try {
-      setBackup(await store.exportBackup());
-      setMessage("备份 JSON 已生成");
+      const content = kind === "json" ? await store.exportBackup() : kind === "txt" ? await store.exportTxt() : await store.exportCsv();
+      const meta = EXPORT_FILE_META[kind];
+      setExported({ kind, content, fileName: exportFileName(kind), mimeType: meta.mimeType });
+      setMessage(`${EXPORT_LABELS[kind]} 已生成`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "导出失败");
     }
   }
 
-  async function copyBackup() {
+  async function saveExportFile() {
+    if (!exported) return;
+    setMessage("");
+    setError("");
+    const file = new File([exported.content], exported.fileName, { type: exported.mimeType });
+    try {
+      if (typeof navigator.canShare === "function" && navigator.canShare({ files: [file] }) && typeof navigator.share === "function") {
+        await navigator.share({ files: [file], title: exported.fileName, text: "小懂哥导出文件" });
+        setMessage("已打开系统分享");
+        return;
+      }
+      downloadExportFile(file);
+      setMessage("已尝试保存文件，请查看系统下载记录");
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        setMessage("已取消分享");
+        return;
+      }
+      try {
+        downloadExportFile(file);
+        setMessage("系统分享失败，已尝试保存文件");
+      } catch {
+        setError("保存/分享失败，请复制内容");
+      }
+    }
+  }
+
+  async function copyExport() {
+    if (!exported) return;
     setMessage("");
     setError("");
     try {
-      await navigator.clipboard.writeText(backup);
-      setMessage("备份 JSON 已复制");
+      await navigator.clipboard.writeText(exported.content);
+      setMessage(`${EXPORT_LABELS[exported.kind]} 已复制`);
     } catch {
       setError("复制失败，请手动复制");
     }
@@ -732,7 +1169,7 @@ function BackupPage() {
       await store.importBackup(importText);
       setUndoPreview(store.previewImportUndo());
       setMessage("导入完成");
-      setBackup("");
+      setExported(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "导入失败");
     } finally {
@@ -749,7 +1186,7 @@ function BackupPage() {
     try {
       await store.restoreImportUndo();
       setUndoPreview(store.previewImportUndo());
-      setBackup("");
+      setExported(null);
       setMessage("已撤销上次导入");
     } catch (err) {
       setError(err instanceof Error ? err.message : "撤销失败");
@@ -759,14 +1196,22 @@ function BackupPage() {
   }
 
   return (
-    <Page title="备份" text="导出或导入手机本地 JSON 备份。">
-      <button className="primary-button full" type="button" onClick={exportData}>导出 JSON</button>
-      {backup ? (
-        <label className="form-card">
-          导出的 JSON
-          <textarea readOnly rows={10} value={backup} />
-          <button className="secondary-button" type="button" onClick={copyBackup}>复制 JSON</button>
-        </label>
+    <Page title="备份" text="JSON 用于恢复备份；TXT 和 CSV 用于手机查看。">
+      <div className="backup-export-actions">
+        <button className="primary-button" type="button" onClick={() => exportData("json")}>导出 JSON</button>
+        <button className="secondary-button" type="button" onClick={() => exportData("txt")}>导出 TXT</button>
+        <button className="secondary-button" type="button" onClick={() => exportData("csv")}>导出 CSV</button>
+      </div>
+      {exported ? (
+        <section className="form-card">
+          <strong>导出的 {EXPORT_LABELS[exported.kind]}</strong>
+          <p className="hint">{exported.fileName}</p>
+          <textarea readOnly rows={10} value={exported.content} />
+          <div className="export-output-actions">
+            <button className="primary-button" type="button" onClick={saveExportFile}>保存/分享文件</button>
+            <button className="secondary-button" type="button" onClick={copyExport}>复制内容</button>
+          </div>
+        </section>
       ) : null}
       {undoPreview ? (
         <section className="form-card">
@@ -795,6 +1240,8 @@ function BackupPage() {
 
 function MorePage() {
   const items = [
+    ["/abstract-map", "抽象地图", "按情绪把记录放进听歌大陆。"],
+    ["/emotion-universe", "情绪宇宙", "用 3D 星图查看歌曲情绪位置。"],
     ["/albums", "专辑", "按专辑名称聚合记录。"],
     ["/songs", "歌曲", "按歌曲名称聚合记录。"],
     ["/backup", "备份", "导出或导入本地 JSON 备份。"],
@@ -811,6 +1258,284 @@ function MorePage() {
       </div>
     </Page>
   );
+}
+
+function VisualPage({ title, text, children }: { title: string; text: string; children: React.ReactNode }) {
+  return (
+    <section className="visual-page">
+      <div className="visual-page-head">
+        <h1>{title}</h1>
+        <p>{text}</p>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function VisualToolbar({ count, summary, onFilter }: { count: number; summary: string; onFilter: () => void }) {
+  return (
+    <section className="visual-toolbar">
+      <div>
+        <strong>{count} 条记录</strong>
+        <span>{summary}</span>
+      </div>
+      <button type="button" className="secondary-button" onClick={onFilter}>筛选</button>
+    </section>
+  );
+}
+
+function VisualizationFilterSheet({ title, filters, options, includeMonth = false, includeRating = false, includeGroup = false, onApply, onReset, onClose }: {
+  title: string;
+  filters: VisualizationFilters;
+  options: VisualizationOptions;
+  includeMonth?: boolean;
+  includeRating?: boolean;
+  includeGroup?: boolean;
+  onApply: (filters: VisualizationFilters) => void;
+  onReset: () => void;
+  onClose: () => void;
+}) {
+  const [draft, setDraft] = useState<FilterDraft>(() => draftFromFilters(filters));
+
+  useEffect(() => {
+    setDraft(draftFromFilters(filters));
+  }, [filters]);
+
+  function update(key: keyof FilterDraft, value: string) {
+    setDraft((current) => ({ ...current, [key]: key === "groupBy" ? readGroupBy(value) : value }));
+  }
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    onApply(filtersFromDraft(draft, includeMonth, includeRating, includeGroup));
+  }
+
+  return (
+    <BottomSheet title={title} text="应用后会立即刷新当前图。勾选留空表示不限制。" onClose={onClose}>
+      <form className="filter-sheet-form" onSubmit={submit}>
+        <div className="form-grid">
+          <label>年份<select value={draft.year} onChange={(event) => update("year", event.target.value)}>
+            <option value="">全部年份</option>
+            {options.years.map((year) => <option key={year} value={year}>{year}</option>)}
+          </select></label>
+          {includeMonth ? (
+            <label>月份<select value={draft.month} onChange={(event) => update("month", event.target.value)}>
+              <option value="">全部月份</option>
+              {options.months.map((month) => <option key={month} value={month}>{month} 月</option>)}
+            </select></label>
+          ) : null}
+        </div>
+        <label>艺术家<select value={draft.artistName} onChange={(event) => update("artistName", event.target.value)}>
+          <option value="">全部艺术家</option>
+          {options.artistNames.map((name) => <option key={name} value={name}>{name}</option>)}
+        </select></label>
+        <label>专辑<select value={draft.albumName} onChange={(event) => update("albumName", event.target.value)}>
+          <option value="">全部专辑</option>
+          {options.albumNames.map((name) => <option key={name} value={name}>{name}</option>)}
+        </select></label>
+        <GenreFilterPicker value={draft.tag} onChange={(value) => update("tag", value)} />
+        <label>情绪<select value={draft.mood} onChange={(event) => update("mood", event.target.value)}>
+          <option value="">全部情绪</option>
+          {options.moods.map((mood) => <option key={mood} value={mood}>{mood}</option>)}
+        </select></label>
+        {includeRating ? (
+          <div className="form-grid">
+            <label>最低评分<input type="number" min="0" max="10" value={draft.minRating} onChange={(event) => update("minRating", event.target.value)} /></label>
+            <label>最高评分<input type="number" min="0" max="10" value={draft.maxRating} onChange={(event) => update("maxRating", event.target.value)} /></label>
+          </div>
+        ) : null}
+        {includeGroup ? (
+          <label>分组模式<select value={draft.groupBy} onChange={(event) => update("groupBy", event.target.value)}>
+            {UNIVERSE_GROUP_BY_OPTIONS.map((groupBy) => <option key={groupBy} value={groupBy}>{GROUP_BY_LABELS[groupBy]}</option>)}
+          </select></label>
+        ) : null}
+        <div className="sheet-actions">
+          <button type="button" className="secondary-button" onClick={onReset}>重置</button>
+          <button type="submit" className="primary-button">应用筛选</button>
+        </div>
+      </form>
+    </BottomSheet>
+  );
+}
+
+function GenreFilterPicker({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const [genreQuery, setGenreQuery] = useState("");
+  const selection = value ? defaultGenreSelection(value) : { level1: "", level2: "", level3: "" };
+  const level2Options = selection.level1 ? genreChildren(selection.level1) : [];
+  const level3Options = selection.level2 ? genreChildren(selection.level2) : [];
+  const searchResults = genreSearchMatches(genreQuery);
+  const searchGroups = groupGenreSearchResults(searchResults, (label) => value === label);
+  function selectSearchResult(label: string) {
+    onChange(label);
+    setGenreQuery("");
+  }
+  return (
+    <section className="genre-filter-panel">
+      <label>曲风搜索<input type="search" value={genreQuery} onChange={(event) => setGenreQuery(event.target.value)} placeholder="输入关键词快速筛选" /></label>
+      {searchResults.length ? (
+        <GenreSearchResultGroups groups={searchGroups} onSelect={selectSearchResult} />
+      ) : genreQuery.trim() ? (
+        <p className="genre-empty-hint">没有匹配曲风</p>
+      ) : null}
+      <label>曲风一级<select value={selection.level1} onChange={(event) => onChange(event.target.value)}>
+        <option value="">全部曲风</option>
+        {GENRE_TREE.map((genre) => <option key={genre.label} value={genre.label}>{genre.label}</option>)}
+      </select></label>
+      {selection.level1 ? (
+        <label>曲风二级<select value={selection.level2} onChange={(event) => onChange(event.target.value || selection.level1)}>
+          <option value="">全部 {selection.level1}</option>
+          {level2Options.map((genre) => <option key={genre.label} value={genre.label}>{genre.label}</option>)}
+        </select></label>
+      ) : null}
+      {selection.level2 && level3Options.length ? (
+        <label>曲风三级<select value={selection.level3} onChange={(event) => onChange(event.target.value || selection.level2)}>
+          <option value="">全部 {selection.level2}</option>
+          {level3Options.map((genre) => <option key={genre.label} value={genre.label}>{genre.label}</option>)}
+        </select></label>
+      ) : null}
+    </section>
+  );
+}
+
+function VisualSongList({ songs, emptyText }: { songs: VisualizationSong[]; emptyText: string }) {
+  if (!songs.length) return <Empty text={emptyText} />;
+  return (
+    <div className="visual-song-list">
+      {songs.map((song) => (
+        <Link key={song.id} to={`/entries/${song.id}`} className="visual-song-row">
+          <div>
+            <strong>{song.title}</strong>
+            <span>{[song.artistName, song.albumName].filter(Boolean).join(" / ") || "未填写音乐信息"}</span>
+            <p>{song.reviewExcerpt || "没有乐评摘要。"}</p>
+            <TagList values={[...song.moods, ...song.tags]} />
+          </div>
+          <em>{song.rating ? `${song.rating}/10` : "未评分"}</em>
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+function VisualSongDetail({ song }: { song: VisualizationSong }) {
+  return (
+    <section className="visual-song-detail">
+      <Meta label="歌曲" value={song.songName ?? song.title} />
+      <Meta label="艺术家" value={song.artistName} />
+      <Meta label="专辑" value={song.albumName} />
+      <Meta label="年份" value={`${song.year}`} />
+      <Meta label="评分" value={song.rating ? `${song.rating}/10` : null} />
+      <Meta label="情绪" value={song.moods.join("、") || null} />
+      <Meta label="标签" value={song.tags.join("、") || null} />
+      <p>{song.reviewExcerpt || "没有乐评摘要。"}</p>
+      <Link className="primary-button full" to={`/entries/${song.id}`}>查看详情</Link>
+    </section>
+  );
+}
+
+function TagList({ values }: { values: string[] }) {
+  const list = Array.from(new Set(values)).slice(0, 8);
+  if (!list.length) return null;
+  return <div className="tag-row">{list.map((value) => <span key={value}>{value}</span>)}</div>;
+}
+
+function BottomSheet({ title, text, children, onClose }: { title: string; text?: string; children: React.ReactNode; onClose: () => void }) {
+  return (
+    <div className="sheet-backdrop" role="presentation" onClick={onClose}>
+      <section className="bottom-sheet" role="dialog" aria-modal="true" aria-label={title} onClick={(event) => event.stopPropagation()}>
+        <div className="sheet-handle" />
+        <div className="sheet-head">
+          <div>
+            <h2>{title}</h2>
+            {text ? <p>{text}</p> : null}
+          </div>
+          <button type="button" onClick={onClose} aria-label="关闭">×</button>
+        </div>
+        {children}
+      </section>
+    </div>
+  );
+}
+
+function VisualLoading({ text }: { text: string }) {
+  return <div className="visual-state loading"><span />{text}</div>;
+}
+
+function VisualError({ text }: { text: string }) {
+  return <div className="visual-state error-state">{text}</div>;
+}
+
+function VisualEmpty({ text }: { text: string }) {
+  return <div className="visual-state empty-state">{text}</div>;
+}
+
+function draftFromFilters(filters: VisualizationFilters): FilterDraft {
+  return {
+    year: filters.year ? String(filters.year) : "",
+    month: filters.month ? String(filters.month) : "",
+    artistName: filters.artistName ?? "",
+    albumName: filters.albumName ?? "",
+    mood: filters.mood ?? "",
+    tag: filters.tag ?? "",
+    minRating: filters.minRating !== undefined && filters.minRating !== null ? String(filters.minRating) : "",
+    maxRating: filters.maxRating !== undefined && filters.maxRating !== null ? String(filters.maxRating) : "",
+    groupBy: filters.groupBy ?? "year",
+  };
+}
+
+function filtersFromDraft(draft: FilterDraft, includeMonth: boolean, includeRating: boolean, includeGroup: boolean): VisualizationFilters {
+  return {
+    year: numberField(draft.year),
+    month: includeMonth ? numberField(draft.month) : null,
+    artistName: draft.artistName || null,
+    albumName: draft.albumName || null,
+    mood: draft.mood || null,
+    tag: draft.tag || null,
+    minRating: includeRating ? numberField(draft.minRating) : null,
+    maxRating: includeRating ? numberField(draft.maxRating) : null,
+    groupBy: includeGroup ? draft.groupBy : undefined,
+  };
+}
+
+function numberField(value: string) {
+  if (!value.trim()) return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function exportFileName(kind: ExportKind) {
+  const date = new Date();
+  const pad = (value: number) => String(value).padStart(2, "0");
+  const stamp = `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}-${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`;
+  return `xiaodongge-${stamp}.${EXPORT_FILE_META[kind].extension}`;
+}
+
+function downloadExportFile(file: File) {
+  const url = URL.createObjectURL(file);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = file.name;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function readGroupBy(value: string): UniverseGroupBy {
+  return UNIVERSE_GROUP_BY_OPTIONS.includes(value as UniverseGroupBy) ? value as UniverseGroupBy : "year";
+}
+
+function filterSummary(filters: VisualizationFilters, includeMonth: boolean, includeRating: boolean) {
+  const parts = [
+    filters.year ? `${filters.year} 年` : "",
+    includeMonth && filters.month ? `${filters.month} 月` : "",
+    filters.artistName ?? "",
+    filters.albumName ?? "",
+    filters.tag ?? "",
+    filters.mood ?? "",
+    includeRating && filters.minRating !== undefined && filters.minRating !== null ? `≥ ${filters.minRating} 分` : "",
+    includeRating && filters.maxRating !== undefined && filters.maxRating !== null ? `≤ ${filters.maxRating} 分` : "",
+  ].filter(Boolean);
+  return parts.length ? parts.join(" / ") : "全部记录";
 }
 
 function SummaryContent({ content }: { content: string }) {

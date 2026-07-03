@@ -1,6 +1,8 @@
 import { Capacitor } from "@capacitor/core";
 import { CapacitorSQLite, SQLiteConnection, type capSQLiteSet, type SQLiteDBConnection } from "@capacitor-community/sqlite";
+import { buildAbstractMusicMap, buildEmotionUniverse, buildVisualizationOptions, type VisualizationFilters } from "../../shared/visualizations";
 import { excerpt } from "./format";
+import { formatEntriesCsv, formatEntriesTxt } from "./exportFormats";
 import { buildLocalYearlySummary } from "./summary";
 import { ENTRY_TYPES, type AlbumAggregate, type CoverKind, type CoverTarget, type EntryInput, type EntryType, type FrequencyItem, type ReviewEntry, type SongAggregate, type YearStats, type YearlySummary } from "./types";
 
@@ -170,6 +172,18 @@ class Store {
     }).sort((a, b) => b.lastRecordedAt.localeCompare(a.lastRecordedAt));
   }
 
+  async visualizationOptions() {
+    return buildVisualizationOptions(await this.listEntries());
+  }
+
+  async abstractMusicMap(filters: VisualizationFilters) {
+    return buildAbstractMusicMap(await this.listEntries(), filters);
+  }
+
+  async emotionUniverse(filters: VisualizationFilters) {
+    return buildEmotionUniverse(await this.listEntries(), filters);
+  }
+
   async getCover(kind: CoverKind, target: CoverTarget) {
     await this.init();
     const key = coverKey(kind, target);
@@ -246,6 +260,14 @@ class Store {
       summaries: await this.listSummaries(),
       covers: await this.listCovers(),
     }, null, 2);
+  }
+
+  async exportTxt() {
+    return formatEntriesTxt(await this.listEntries(), await this.listSummaries());
+  }
+
+  async exportCsv() {
+    return formatEntriesCsv(await this.listEntries(), await this.listSummaries());
   }
 
   async importBackup(raw: string) {

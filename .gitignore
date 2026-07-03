@@ -12,3 +12,4 @@ mobile/dist
 android/app/build
 gradle-*.zip
 release/
+.firecrawl/
