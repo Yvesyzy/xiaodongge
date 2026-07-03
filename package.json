@@ -12,6 +12,8 @@
     "mobile:build": "vite build --config mobile/vite.config.ts",
     "mobile:check:ocr": "node scripts/check-mobile-ocr-parser.mjs",
     "mobile:check:duplicates": "node scripts/check-mobile-entry-duplicate.mjs",
+    "mobile:check:visualizations": "node scripts/check-mobile-visualizations.mjs",
+    "mobile:check:exports": "node scripts/check-mobile-export-formats.mjs",
     "android:sync": "cap sync android",
     "android:build:debug": "powershell -ExecutionPolicy Bypass -File scripts/build-android-debug.ps1"
   },
@@ -22,7 +24,8 @@
     "next": "16.2.9",
     "react": "19.2.7",
     "react-dom": "19.2.7",
-    "react-router-dom": "7.18.0"
+    "react-router-dom": "7.18.0",
+    "three": "^0.185.0"
   },
   "devDependencies": {
     "@capacitor/android": "8.4.1",
@@ -30,6 +33,7 @@
     "@types/node": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
+    "@types/three": "^0.185.0",
     "@vitejs/plugin-react": "6.0.3",
     "autoprefixer": "10.5.2",
     "postcss": "8.5.15",
