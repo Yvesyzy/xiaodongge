@@ -9,6 +9,35 @@ export const ENTRY_TYPE_LABELS: Record<EntryType, string> = {
   song: "歌曲",
 };
 
+export type MusicMetadata = {
+  albumArtistName?: string;
+  authorName?: string;
+  writerName?: string;
+  composerName?: string;
+  compilation?: string;
+  releaseDate?: string;
+  releaseYear?: number;
+  genre?: string;
+  durationMs?: number;
+  trackNumber?: number;
+  trackCount?: number;
+  discNumber?: number;
+  discCount?: number;
+  explicitness?: "explicit" | "cleaned" | "notExplicit";
+  mediaId?: string;
+  mediaUri?: string;
+  artworkUri?: string;
+  displayTitle?: string;
+  displaySubtitle?: string;
+  displayDescription?: string;
+  sourcePackage?: string;
+  catalogSource?: "apple";
+  catalogTrackId?: string;
+  catalogAlbumId?: string;
+  catalogArtistId?: string;
+  enrichedAt?: string;
+};
+
 export type ReviewEntry = {
   id: string;
   type: EntryType;
@@ -18,6 +47,7 @@ export type ReviewEntry = {
   albumName: string | null;
   songName: string | null;
   artistName: string | null;
+  musicMetadata: MusicMetadata | null;
   content: string;
   tags: string[];
   moods: string[];
@@ -34,6 +64,25 @@ export type YearlySummary = {
   year: number;
   title: string;
   content: string;
+  analysisJson: string | null;
+  analysisVersion: number | null;
+  sourceFingerprint: string | null;
+  sourceEntryCount: number;
+  generatedAt: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type MonthlySummary = {
+  id: string;
+  year: number;
+  month: number;
+  title: string;
+  content: string;
+  themeId: string;
+  analysisJson: string;
+  analysisVersion: number;
+  sourceFingerprint: string | null;
   sourceEntryCount: number;
   generatedAt: string;
   createdAt: string;

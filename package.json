@@ -1,6 +1,6 @@
 {
   "name": "music-feelings-archive",
-  "version": "0.1.0",
+  "version": "2.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -11,9 +11,16 @@
     "mobile:dev": "vite --host 127.0.0.1 --config mobile/vite.config.ts",
     "mobile:build": "vite build --config mobile/vite.config.ts",
     "mobile:check:ocr": "node scripts/check-mobile-ocr-parser.mjs",
+    "mobile:check:now-playing": "node scripts/check-mobile-now-playing.mjs",
+    "mobile:check:drafts": "node scripts/check-mobile-entry-draft.mjs",
     "mobile:check:duplicates": "node scripts/check-mobile-entry-duplicate.mjs",
     "mobile:check:visualizations": "node scripts/check-mobile-visualizations.mjs",
+    "mobile:check:listening-analysis": "node scripts/check-mobile-listening-analysis.mjs",
+    "mobile:check:listening-context": "node scripts/check-mobile-listening-context.mjs",
+    "mobile:check:listening-yearbook": "node scripts/check-mobile-listening-yearbook.mjs",
+    "mobile:check:listening-store": "node scripts/check-mobile-listening-store.mjs",
     "mobile:check:exports": "node scripts/check-mobile-export-formats.mjs",
+    "check:v1-reliability": "node scripts/check-v1-reliability.mjs",
     "android:sync": "cap sync android",
     "android:build:debug": "powershell -ExecutionPolicy Bypass -File scripts/build-android-debug.ps1"
   },

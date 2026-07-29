@@ -1,8 +1,18 @@
 $ErrorActionPreference = "Stop"
 
 $root = Split-Path -Parent $PSScriptRoot
-$sdk = "C:\Users\lenovo\AppData\Local\Android\Sdk"
-$jdk = "C:\Program Files\Eclipse Adoptium\jdk-21.0.11.10-hotspot"
+$sdk = if ($env:ANDROID_SDK_ROOT) {
+  $env:ANDROID_SDK_ROOT
+} elseif ($env:ANDROID_HOME) {
+  $env:ANDROID_HOME
+} else {
+  "C:\Users\lenovo\AppData\Local\Android\Sdk"
+}
+$jdk = if ($env:JAVA_HOME) {
+  $env:JAVA_HOME
+} else {
+  "C:\Program Files\Eclipse Adoptium\jdk-21.0.11.10-hotspot"
+}
 
 function Remove-BuildDirectory($relativePath) {
   $target = Join-Path $root $relativePath
@@ -34,7 +44,9 @@ try {
   Remove-BuildDirectory "mobile\dist"
   Remove-BuildDirectory "android\app\src\main\assets\public"
   npm.cmd run mobile:build
+  if ($LASTEXITCODE -ne 0) { throw "Mobile build failed with exit code $LASTEXITCODE" }
   npx.cmd cap sync android
+  if ($LASTEXITCODE -ne 0) { throw "Capacitor sync failed with exit code $LASTEXITCODE" }
   if (-not (Test-Path -LiteralPath "android\gradlew.bat")) {
     throw "android\gradlew.bat not found. Run npx.cmd cap add android first."
   }
@@ -45,6 +57,7 @@ try {
   Push-Location "android"
   try {
     .\gradlew.bat --init-script $initScript assembleDebug
+    if ($LASTEXITCODE -ne 0) { throw "Gradle build failed with exit code $LASTEXITCODE" }
   } finally {
     Pop-Location
   }

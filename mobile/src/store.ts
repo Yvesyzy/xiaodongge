@@ -1,16 +1,23 @@
 import { Capacitor } from "@capacitor/core";
 import { CapacitorSQLite, SQLiteConnection, type capSQLiteSet, type SQLiteDBConnection } from "@capacitor-community/sqlite";
 import { buildAbstractMusicMap, buildEmotionUniverse, buildVisualizationOptions, type VisualizationFilters } from "../../shared/visualizations";
+import { fetchHistoricalWeather, fetchHistoricalWeatherRange, parseWeatherLocation, parseWeatherRecord, searchWeatherLocations, type WeatherLocation, type WeatherRecord } from "../../shared/listeningContext";
+import type { ListeningLayer, SemanticOverride } from "../../shared/listeningAnalysis";
 import { excerpt } from "./format";
 import { formatEntriesCsv, formatEntriesTxt } from "./exportFormats";
-import { buildLocalYearlySummary } from "./summary";
-import { ENTRY_TYPES, type AlbumAggregate, type CoverKind, type CoverTarget, type EntryInput, type EntryType, type FrequencyItem, type ReviewEntry, type SongAggregate, type YearStats, type YearlySummary } from "./types";
+import { buildDayListeningSnapshot, buildMonthlyListeningSnapshot, buildYearlyListeningSnapshot, monthlySnapshotToMarkdown, parseMonthlyListeningSnapshot, parseYearlyListeningSnapshot, yearlySnapshotToMarkdown, type ListeningDaySnapshot, type MonthlyListeningSnapshot, type YearlyListeningSnapshot } from "./listeningYearbook";
+import { readMusicMetadata } from "./musicMetadata";
+import { ENTRY_TYPES, type AlbumAggregate, type CoverKind, type CoverTarget, type EntryInput, type EntryType, type FrequencyItem, type MonthlySummary, type ReviewEntry, type SongAggregate, type YearStats, type YearlySummary } from "./types";
 
 const DB_NAME = "music_feelings_archive";
 const ENTRIES_KEY = "music-feelings-mobile-entries";
 const SUMMARIES_KEY = "music-feelings-mobile-summaries";
+const MONTHLY_SUMMARIES_KEY = "music-feelings-mobile-monthly-summaries";
 const COVERS_KEY = "music-feelings-mobile-covers";
+const APP_DATA_KEY = "music-feelings-mobile-app-data";
 const IMPORT_UNDO_KEY = "music-feelings-mobile-import-undo";
+const WEATHER_LOCATION_KEY = "listening-weather-location";
+const SEMANTIC_OVERRIDES_KEY = "listening-semantic-overrides";
 
 const schemaSql = `
 CREATE TABLE IF NOT EXISTS ReviewEntry (
@@ -22,6 +29,7 @@ CREATE TABLE IF NOT EXISTS ReviewEntry (
   albumName TEXT,
   songName TEXT,
   artistName TEXT,
+  musicMetadata TEXT,
   content TEXT NOT NULL,
   tags TEXT,
   moods TEXT,
@@ -39,11 +47,31 @@ CREATE TABLE IF NOT EXISTS YearlySummary (
   year INTEGER NOT NULL UNIQUE,
   title TEXT NOT NULL,
   content TEXT NOT NULL,
+  analysisJson TEXT,
+  analysisVersion INTEGER,
+  sourceFingerprint TEXT,
   sourceEntryCount INTEGER NOT NULL,
   generatedAt TEXT NOT NULL,
   createdAt TEXT NOT NULL,
   updatedAt TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS MonthlySummary (
+  id TEXT NOT NULL PRIMARY KEY,
+  year INTEGER NOT NULL,
+  month INTEGER NOT NULL,
+  title TEXT NOT NULL,
+  content TEXT NOT NULL,
+  themeId TEXT NOT NULL,
+  analysisJson TEXT NOT NULL,
+  analysisVersion INTEGER NOT NULL,
+  sourceFingerprint TEXT,
+  sourceEntryCount INTEGER NOT NULL,
+  generatedAt TEXT NOT NULL,
+  createdAt TEXT NOT NULL,
+  updatedAt TEXT NOT NULL,
+  UNIQUE(year, month)
+);
+CREATE INDEX IF NOT EXISTS MonthlySummary_year_month_idx ON MonthlySummary(year, month);
 CREATE TABLE IF NOT EXISTS CoverImage (
   coverKey TEXT NOT NULL PRIMARY KEY,
   kind TEXT NOT NULL,
@@ -52,6 +80,10 @@ CREATE TABLE IF NOT EXISTS CoverImage (
   artistName TEXT,
   dataUrl TEXT NOT NULL,
   updatedAt TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS AppData (
+  key TEXT NOT NULL PRIMARY KEY,
+  value TEXT NOT NULL
 );
 `;
 
@@ -69,9 +101,20 @@ class Store {
   private sqlite = new SQLiteConnection(CapacitorSQLite);
   private db: SQLiteDBConnection | null = null;
   private nativeReady = false;
+  private initPromise: Promise<void> | null = null;
 
   async init() {
     if (!Capacitor.isNativePlatform() || this.nativeReady) return;
+    if (!this.initPromise) {
+      this.initPromise = this.openNativeDatabase().catch((error) => {
+        this.initPromise = null;
+        throw error;
+      });
+    }
+    return this.initPromise;
+  }
+
+  private async openNativeDatabase() {
     const existing = await this.sqlite.isConnection(DB_NAME, false).catch(() => ({ result: false }));
     this.db = existing.result
       ? await this.sqlite.retrieveConnection(DB_NAME, false)
@@ -79,6 +122,14 @@ class Store {
     const opened = await this.db.isDBOpen().catch(() => ({ result: false }));
     if (!opened.result) await this.db.open();
     await this.db.execute(schemaSql);
+    const columns = await this.db.query("PRAGMA table_info(ReviewEntry)");
+    if (!(columns.values ?? []).some((column) => column.name === "musicMetadata")) {
+      await this.db.run("ALTER TABLE ReviewEntry ADD COLUMN musicMetadata TEXT");
+    }
+    const summaryColumns = await this.db.query("PRAGMA table_info(YearlySummary)");
+    for (const [name, definition] of [["analysisJson", "TEXT"], ["analysisVersion", "INTEGER"], ["sourceFingerprint", "TEXT"]] as const) {
+      if (!(summaryColumns.values ?? []).some((column) => column.name === name)) await this.db.run(`ALTER TABLE YearlySummary ADD COLUMN ${name} ${definition}`);
+    }
     this.nativeReady = true;
   }
 
@@ -107,12 +158,14 @@ class Store {
     await this.init();
     if (!Capacitor.isNativePlatform()) {
       writeEntries([...readEntries(), entry]);
+      await this.markGeneratedSummariesStale([entry]);
       return entry;
     }
     await this.dbReady().run(
-      `INSERT INTO ReviewEntry (id, type, title, year, month, albumName, songName, artistName, content, tags, moods, rating, listenedAt, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO ReviewEntry (id, type, title, year, month, albumName, songName, artistName, musicMetadata, content, tags, moods, rating, listenedAt, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       entryValues(entry),
     );
+    await this.markGeneratedSummariesStale([entry]);
     return entry;
   }
 
@@ -124,22 +177,68 @@ class Store {
     await this.init();
     if (!Capacitor.isNativePlatform()) {
       writeEntries(readEntries().map((item) => (item.id === id ? entry : item)));
+      await this.markGeneratedSummariesStale([old, entry]);
       return entry;
     }
     await this.dbReady().run(
-      `UPDATE ReviewEntry SET type=?, title=?, year=?, month=?, albumName=?, songName=?, artistName=?, content=?, tags=?, moods=?, rating=?, listenedAt=?, updatedAt=? WHERE id=?`,
-      [entry.type, entry.title, entry.year, entry.month, entry.albumName, entry.songName, entry.artistName, entry.content, JSON.stringify(entry.tags), JSON.stringify(entry.moods), entry.rating, entry.listenedAt, entry.updatedAt, id],
+      `UPDATE ReviewEntry SET type=?, title=?, year=?, month=?, albumName=?, songName=?, artistName=?, musicMetadata=?, content=?, tags=?, moods=?, rating=?, listenedAt=?, updatedAt=? WHERE id=?`,
+      [entry.type, entry.title, entry.year, entry.month, entry.albumName, entry.songName, entry.artistName, encodeMusicMetadata(entry.musicMetadata), entry.content, JSON.stringify(entry.tags), JSON.stringify(entry.moods), entry.rating, entry.listenedAt, entry.updatedAt, id],
     );
+    await this.markGeneratedSummariesStale([old, entry]);
     return entry;
   }
 
   async deleteEntry(id: string) {
+    const existing = await this.getEntry(id);
     await this.init();
     if (!Capacitor.isNativePlatform()) {
       writeEntries(readEntries().filter((entry) => entry.id !== id));
+      if (existing) await this.markGeneratedSummariesStale([existing]);
       return;
     }
     await this.dbReady().run("DELETE FROM ReviewEntry WHERE id = ?", [id]);
+    if (existing) await this.markGeneratedSummariesStale([existing]);
+  }
+
+  private async markGeneratedSummariesStale(entries: ReviewEntry[]) {
+    const years = unique(entries.filter(isAutomaticEntry).map((entry) => entry.year));
+    const months = unique(entries.filter((entry) => entry.month !== null && (isAutomaticEntry(entry) || entry.type === "month")).map((entry) => `${entry.year}-${entry.month}`));
+    if (!years.length && !months.length) return;
+    await this.init();
+    if (!Capacitor.isNativePlatform()) {
+      writeSummaries(readSummaries().map((summary) => years.includes(summary.year) ? { ...summary, sourceFingerprint: null } : summary));
+      writeMonthlySummaries(readMonthlySummaries().map((summary) => months.includes(`${summary.year}-${summary.month}`) ? { ...summary, sourceFingerprint: null } : summary));
+      return;
+    }
+    if (years.length) await this.dbReady().run(`UPDATE YearlySummary SET sourceFingerprint = NULL WHERE year IN (${years.map(() => "?").join(", ")})`, years);
+    for (const key of months) {
+      const [year, month] = key.split("-").map(Number);
+      await this.dbReady().run("UPDATE MonthlySummary SET sourceFingerprint = NULL WHERE year = ? AND month = ?", [year, month]);
+    }
+  }
+
+  private async markAllAnalysisStale() {
+    await this.init();
+    if (!Capacitor.isNativePlatform()) {
+      writeSummaries(readSummaries().map((summary) => summary.analysisJson ? { ...summary, sourceFingerprint: null } : summary));
+      writeMonthlySummaries(readMonthlySummaries().map((summary) => ({ ...summary, sourceFingerprint: null })));
+      return;
+    }
+    await this.dbReady().run("UPDATE YearlySummary SET sourceFingerprint = NULL WHERE analysisJson IS NOT NULL");
+    await this.dbReady().run("UPDATE MonthlySummary SET sourceFingerprint = NULL");
+  }
+
+  private async markContextSummariesStale(date: string) {
+    const year = Number(date.slice(0, 4));
+    const month = Number(date.slice(5, 7));
+    await this.init();
+    if (!Capacitor.isNativePlatform()) {
+      writeSummaries(readSummaries().map((summary) => summary.year === year && summary.analysisJson ? { ...summary, sourceFingerprint: null } : summary));
+      writeMonthlySummaries(readMonthlySummaries().map((summary) => summary.year === year && summary.month === month ? { ...summary, sourceFingerprint: null } : summary));
+      return;
+    }
+    await this.dbReady().run("UPDATE YearlySummary SET sourceFingerprint = NULL WHERE year = ? AND analysisJson IS NOT NULL", [year]);
+    await this.dbReady().run("UPDATE MonthlySummary SET sourceFingerprint = NULL WHERE year = ? AND month = ?", [year, month]);
   }
 
   async searchEntries(query: string) {
@@ -226,18 +325,79 @@ class Store {
     return result.values?.[0] ? rowToSummary(result.values[0]) : null;
   }
 
+  async getMonthlySummary(year: number, month: number) {
+    await this.init();
+    if (!Capacitor.isNativePlatform()) return readMonthlySummaries().find((summary) => summary.year === year && summary.month === month) ?? null;
+    const result = await this.dbReady().query("SELECT * FROM MonthlySummary WHERE year = ? AND month = ?", [year, month]);
+    return result.values?.[0] ? rowToMonthlySummary(result.values[0]) : null;
+  }
+
+  async listMonthlySummaries(year?: number) {
+    await this.init();
+    if (!Capacitor.isNativePlatform()) return readMonthlySummaries().filter((summary) => year === undefined || summary.year === year).sort((a, b) => b.year - a.year || b.month - a.month);
+    const result = year === undefined
+      ? await this.dbReady().query("SELECT * FROM MonthlySummary ORDER BY year DESC, month DESC")
+      : await this.dbReady().query("SELECT * FROM MonthlySummary WHERE year = ? ORDER BY month DESC", [year]);
+    return (result.values ?? []).map(rowToMonthlySummary);
+  }
+
+  async generateMonthlySummary(year: number, month: number) {
+    const entries = (await this.listEntries()).filter((entry) => entry.year === year && entry.month === month);
+    const sourceEntries = entries.filter(isAutomaticEntry);
+    if (!sourceEntries.length) throw new Error("该月份没有歌曲或专辑乐评，无法生成月度总结");
+    const weather = await this.cachedWeatherForEntries(sourceEntries);
+    const snapshot = buildMonthlyListeningSnapshot(year, month, entries, weather, await this.getSemanticOverrides());
+    const existing = await this.getMonthlySummary(year, month);
+    const now = new Date().toISOString();
+    const reflections = entries.filter((entry) => entry.type === "month");
+    const summary: MonthlySummary = {
+      id: existing?.id ?? crypto.randomUUID(),
+      year,
+      month,
+      title: snapshot.title,
+      content: monthlySnapshotToMarkdown(snapshot, reflections),
+      themeId: snapshot.theme.id,
+      analysisJson: JSON.stringify(snapshot),
+      analysisVersion: snapshot.version,
+      sourceFingerprint: snapshot.analysis.sourceFingerprint,
+      sourceEntryCount: snapshot.analysis.sourceEntryCount,
+      generatedAt: now,
+      createdAt: existing?.createdAt ?? now,
+      updatedAt: now,
+    };
+    await this.init();
+    if (!Capacitor.isNativePlatform()) {
+      writeMonthlySummaries([...readMonthlySummaries().filter((item) => item.year !== year || item.month !== month), summary]);
+      return summary;
+    }
+    await this.dbReady().run(
+      `INSERT OR REPLACE INTO MonthlySummary (id, year, month, title, content, themeId, analysisJson, analysisVersion, sourceFingerprint, sourceEntryCount, generatedAt, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      monthlySummaryValues(summary),
+    );
+    return summary;
+  }
+
   async generateSummary(year: number) {
     const entries = (await this.listEntries()).filter((entry) => entry.year === year).sort((a, b) => (a.month ?? 0) - (b.month ?? 0) || a.createdAt.localeCompare(b.createdAt));
-    if (!entries.length) throw new Error("该年份没有记录，无法生成年度总结");
+    const sourceEntries = entries.filter(isAutomaticEntry);
+    if (!sourceEntries.length) throw new Error("该年份没有歌曲或专辑乐评，无法生成年度总结");
+    const months = unique(sourceEntries.map((entry) => entry.month).filter((month): month is number => month !== null)).sort((a, b) => a - b);
+    const monthSnapshots: MonthlyListeningSnapshot[] = [];
+    for (const month of months) monthSnapshots.push(parseMonthlyListeningSnapshot((await this.generateMonthlySummary(year, month)).analysisJson));
+    const snapshot = buildYearlyListeningSnapshot(year, monthSnapshots, sourceEntries.filter((entry) => entry.month === null), await this.getSemanticOverrides());
+    const existing = await this.getSummary(year);
     const now = new Date().toISOString();
     const summary: YearlySummary = {
-      id: crypto.randomUUID(),
+      id: existing?.id ?? crypto.randomUUID(),
       year,
-      title: `${year} 年音乐感受总结`,
-      content: buildLocalYearlySummary(year, entries, calculateYearStats(year, entries)),
-      sourceEntryCount: entries.length,
+      title: snapshot.title,
+      content: yearlySnapshotToMarkdown(snapshot),
+      analysisJson: JSON.stringify(snapshot),
+      analysisVersion: snapshot.version,
+      sourceFingerprint: snapshot.analysis.sourceFingerprint,
+      sourceEntryCount: snapshot.analysis.sourceEntryCount,
       generatedAt: now,
-      createdAt: now,
+      createdAt: existing?.createdAt ?? now,
       updatedAt: now,
     };
     await this.init();
@@ -246,19 +406,117 @@ class Store {
       return summary;
     }
     await this.dbReady().run(
-      `INSERT OR REPLACE INTO YearlySummary (id, year, title, content, sourceEntryCount, generatedAt, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [summary.id, summary.year, summary.title, summary.content, summary.sourceEntryCount, summary.generatedAt, summary.createdAt, summary.updatedAt],
+      `INSERT OR REPLACE INTO YearlySummary (id, year, title, content, analysisJson, analysisVersion, sourceFingerprint, sourceEntryCount, generatedAt, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      summaryValues(summary),
     );
     return summary;
   }
 
+  async getDayListeningSnapshot(date: string, refreshWeather = false): Promise<ListeningDaySnapshot> {
+    const entries = (await this.listEntries()).filter((entry) => exactEntryDate(entry) === date);
+    let weather = await this.getWeatherForDate(date);
+    if (!weather && refreshWeather) {
+      try {
+        weather = await this.refreshWeatherForDate(date);
+      } catch {
+        weather = null;
+      }
+    }
+    return buildDayListeningSnapshot(date, entries, weather, await this.getSemanticOverrides());
+  }
+
+  async searchWeatherLocations(query: string) {
+    return searchWeatherLocations(query);
+  }
+
+  async getWeatherLocation() {
+    const raw = await this.getAppData(WEATHER_LOCATION_KEY);
+    if (!raw) return null;
+    try {
+      return parseWeatherLocation(JSON.parse(raw));
+    } catch {
+      return null;
+    }
+  }
+
+  async setWeatherLocation(location: WeatherLocation | null) {
+    if (location) parseWeatherLocation(location);
+    const current = await this.getWeatherLocation();
+    if (!location || !sameWeatherLocation(current, location)) await this.deleteAppDataByPrefix("listening-weather:");
+    await this.setAppData(WEATHER_LOCATION_KEY, location ? JSON.stringify(location) : null);
+    await this.markAllAnalysisStale();
+  }
+
+  async getPreferredQuote(scope: string) {
+    const raw = await this.getAppData(`listening-quote:${scope}`);
+    if (!raw) return null;
+    try {
+      return readPreferredQuote(JSON.parse(raw));
+    } catch {
+      return null;
+    }
+  }
+
+  async setPreferredQuote(scope: string, quote: { entryId: string; sentence: string } | null) {
+    if (!/^(?:year:\d{4}|month:\d{4}-\d{1,2})$/.test(scope)) throw new Error("代表原句范围无效");
+    if (quote) readPreferredQuote(quote);
+    await this.setAppData(`listening-quote:${scope}`, quote ? JSON.stringify(quote) : null);
+  }
+
+  async getSemanticOverrides(): Promise<SemanticOverride[]> {
+    const raw = await this.getAppData(SEMANTIC_OVERRIDES_KEY);
+    if (!raw) return [];
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed.map(readSemanticOverride) : [];
+    } catch {
+      return [];
+    }
+  }
+
+  async setSemanticOverride(override: SemanticOverride) {
+    const valid = readSemanticOverride(override);
+    const current = (await this.getSemanticOverrides()).filter((item) => item.layer !== valid.layer || item.term !== valid.term);
+    await this.setAppData(SEMANTIC_OVERRIDES_KEY, JSON.stringify([...current, valid]));
+    await this.markAllAnalysisStale();
+  }
+
+  async removeSemanticOverride(layer: ListeningLayer, term: string) {
+    const current = (await this.getSemanticOverrides()).filter((item) => item.layer !== layer || item.term !== term);
+    await this.setAppData(SEMANTIC_OVERRIDES_KEY, current.length ? JSON.stringify(current) : null);
+    await this.markAllAnalysisStale();
+  }
+
+  async refreshWeatherForDate(date: string) {
+    const location = await this.getWeatherLocation();
+    if (!location) throw new Error("请先选择天气城市");
+    const weather = await fetchHistoricalWeather(location, date);
+    await this.setAppData(weatherKey(location, date), JSON.stringify(weather));
+    await this.markContextSummariesStale(date);
+    return weather;
+  }
+
+  async getWeatherForDate(date: string) {
+    const location = await this.getWeatherLocation();
+    if (!location) return null;
+    const raw = await this.getAppData(weatherKey(location, date));
+    if (!raw) return null;
+    try {
+      return parseWeatherRecord(JSON.parse(raw));
+    } catch {
+      return null;
+    }
+  }
+
   async exportBackup() {
     return JSON.stringify({
-      version: 1,
+      version: 3,
       exportedAt: new Date().toISOString(),
       entries: await this.listEntries(),
       summaries: await this.listSummaries(),
+      monthlySummaries: await this.listMonthlySummaries(),
       covers: await this.listCovers(),
+      appData: await this.listAppData(),
     }, null, 2);
   }
 
@@ -308,15 +566,21 @@ class Store {
     if (!Capacitor.isNativePlatform()) {
       const oldEntries = localStorage.getItem(ENTRIES_KEY);
       const oldSummaries = localStorage.getItem(SUMMARIES_KEY);
+      const oldMonthlySummaries = localStorage.getItem(MONTHLY_SUMMARIES_KEY);
       const oldCovers = localStorage.getItem(COVERS_KEY);
+      const oldAppData = localStorage.getItem(APP_DATA_KEY);
       try {
         writeEntries(backup.entries);
         writeSummaries(backup.summaries);
+        writeMonthlySummaries(backup.monthlySummaries);
         writeCovers(backup.covers);
+        writeAppData(backup.appData);
       } catch (error) {
         restoreStorage(ENTRIES_KEY, oldEntries);
         restoreStorage(SUMMARIES_KEY, oldSummaries);
+        restoreStorage(MONTHLY_SUMMARIES_KEY, oldMonthlySummaries);
         restoreStorage(COVERS_KEY, oldCovers);
+        restoreStorage(APP_DATA_KEY, oldAppData);
         throw error;
       }
       return;
@@ -325,12 +589,74 @@ class Store {
     const set: capSQLiteSet[] = [
       { statement: "DELETE FROM ReviewEntry" },
       { statement: "DELETE FROM YearlySummary" },
+      { statement: "DELETE FROM MonthlySummary" },
       { statement: "DELETE FROM CoverImage" },
-      ...backup.entries.map((entry) => ({ statement: "INSERT INTO ReviewEntry (id, type, title, year, month, albumName, songName, artistName, content, tags, moods, rating, listenedAt, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", values: entryValues(entry) })),
-      ...backup.summaries.map((summary) => ({ statement: "INSERT INTO YearlySummary (id, year, title, content, sourceEntryCount, generatedAt, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?)", values: summaryValues(summary) })),
+      { statement: "DELETE FROM AppData" },
+      ...backup.entries.map((entry) => ({ statement: "INSERT INTO ReviewEntry (id, type, title, year, month, albumName, songName, artistName, musicMetadata, content, tags, moods, rating, listenedAt, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", values: entryValues(entry) })),
+      ...backup.summaries.map((summary) => ({ statement: "INSERT INTO YearlySummary (id, year, title, content, analysisJson, analysisVersion, sourceFingerprint, sourceEntryCount, generatedAt, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", values: summaryValues(summary) })),
+      ...backup.monthlySummaries.map((summary) => ({ statement: "INSERT INTO MonthlySummary (id, year, month, title, content, themeId, analysisJson, analysisVersion, sourceFingerprint, sourceEntryCount, generatedAt, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", values: monthlySummaryValues(summary) })),
       ...backup.covers.map((cover) => ({ statement: "INSERT INTO CoverImage (coverKey, kind, albumName, songName, artistName, dataUrl, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?)", values: coverValues(cover) })),
+      ...Object.entries(backup.appData).map(([key, value]) => ({ statement: "INSERT INTO AppData (key, value) VALUES (?, ?)", values: [key, value] })),
     ];
     await this.dbReady().executeSet(set, true);
+  }
+
+  private async cachedWeatherForEntries(entries: ReviewEntry[]) {
+    const dates = unique(entries.map(exactEntryDate).filter((date): date is string => !!date)).sort();
+    const location = await this.getWeatherLocation();
+    if (!location || !dates.length) return [];
+    const cached = await Promise.all(dates.map((date) => this.getWeatherForDate(date)));
+    const missing = dates.filter((_, index) => !cached[index]);
+    if (missing.length) {
+      try {
+        const fetched = await fetchHistoricalWeatherRange(location, missing[0], missing[missing.length - 1]);
+        const wanted = new Set(missing);
+        for (const weather of fetched) {
+          if (!wanted.has(weather.date)) continue;
+          await this.setAppData(weatherKey(location, weather.date), JSON.stringify(weather));
+        }
+      } catch {
+        // Offline or unavailable historical weather must not block local summary generation.
+      }
+    }
+    const weather = await Promise.all(dates.map((date) => this.getWeatherForDate(date)));
+    return weather.filter((item): item is WeatherRecord => !!item);
+  }
+
+  private async getAppData(key: string) {
+    await this.init();
+    if (!Capacitor.isNativePlatform()) return readAppData()[key] ?? null;
+    const result = await this.dbReady().query("SELECT value FROM AppData WHERE key = ?", [key]);
+    return result.values?.[0] ? String(result.values[0].value) : null;
+  }
+
+  private async setAppData(key: string, value: string | null) {
+    await this.init();
+    if (!Capacitor.isNativePlatform()) {
+      const data = readAppData();
+      if (value === null) delete data[key];
+      else data[key] = value;
+      writeAppData(data);
+      return;
+    }
+    if (value === null) await this.dbReady().run("DELETE FROM AppData WHERE key = ?", [key]);
+    else await this.dbReady().run("INSERT OR REPLACE INTO AppData (key, value) VALUES (?, ?)", [key, value]);
+  }
+
+  private async deleteAppDataByPrefix(prefix: string) {
+    await this.init();
+    if (!Capacitor.isNativePlatform()) {
+      writeAppData(Object.fromEntries(Object.entries(readAppData()).filter(([key]) => !key.startsWith(prefix))));
+      return;
+    }
+    await this.dbReady().run("DELETE FROM AppData WHERE key LIKE ?", [`${prefix}%`]);
+  }
+
+  private async listAppData() {
+    await this.init();
+    if (!Capacitor.isNativePlatform()) return readAppData();
+    const result = await this.dbReady().query("SELECT key, value FROM AppData ORDER BY key");
+    return Object.fromEntries((result.values ?? []).map((row) => [String(row.key), String(row.value)]));
   }
 
   private dbReady() {
@@ -393,6 +719,7 @@ function rowToEntry(row: Record<string, unknown>): ReviewEntry {
     albumName: nullableString(row.albumName),
     songName: nullableString(row.songName),
     artistName: nullableString(row.artistName),
+    musicMetadata: decodeMusicMetadata(nullableString(row.musicMetadata)),
     content: String(row.content),
     tags: decodeList(nullableString(row.tags)),
     moods: decodeList(nullableString(row.moods)),
@@ -409,6 +736,27 @@ function rowToSummary(row: Record<string, unknown>): YearlySummary {
     year: Number(row.year),
     title: String(row.title),
     content: String(row.content),
+    analysisJson: nullableString(row.analysisJson),
+    analysisVersion: row.analysisVersion === null || row.analysisVersion === undefined ? null : Number(row.analysisVersion),
+    sourceFingerprint: nullableString(row.sourceFingerprint),
+    sourceEntryCount: Number(row.sourceEntryCount),
+    generatedAt: String(row.generatedAt),
+    createdAt: String(row.createdAt),
+    updatedAt: String(row.updatedAt),
+  };
+}
+
+function rowToMonthlySummary(row: Record<string, unknown>): MonthlySummary {
+  return {
+    id: String(row.id),
+    year: Number(row.year),
+    month: Number(row.month),
+    title: String(row.title),
+    content: String(row.content),
+    themeId: String(row.themeId),
+    analysisJson: String(row.analysisJson),
+    analysisVersion: Number(row.analysisVersion),
+    sourceFingerprint: nullableString(row.sourceFingerprint),
     sourceEntryCount: Number(row.sourceEntryCount),
     generatedAt: String(row.generatedAt),
     createdAt: String(row.createdAt),
@@ -429,11 +777,15 @@ function rowToCover(row: Record<string, unknown>): CoverRow {
 }
 
 function entryValues(entry: ReviewEntry) {
-  return [entry.id, entry.type, entry.title, entry.year, entry.month, entry.albumName, entry.songName, entry.artistName, entry.content, JSON.stringify(entry.tags), JSON.stringify(entry.moods), entry.rating, entry.listenedAt, entry.createdAt, entry.updatedAt];
+  return [entry.id, entry.type, entry.title, entry.year, entry.month, entry.albumName, entry.songName, entry.artistName, encodeMusicMetadata(entry.musicMetadata), entry.content, JSON.stringify(entry.tags), JSON.stringify(entry.moods), entry.rating, entry.listenedAt, entry.createdAt, entry.updatedAt];
 }
 
 function summaryValues(summary: YearlySummary) {
-  return [summary.id, summary.year, summary.title, summary.content, summary.sourceEntryCount, summary.generatedAt, summary.createdAt, summary.updatedAt];
+  return [summary.id, summary.year, summary.title, summary.content, summary.analysisJson, summary.analysisVersion, summary.sourceFingerprint, summary.sourceEntryCount, summary.generatedAt, summary.createdAt, summary.updatedAt];
+}
+
+function monthlySummaryValues(summary: MonthlySummary) {
+  return [summary.id, summary.year, summary.month, summary.title, summary.content, summary.themeId, summary.analysisJson, summary.analysisVersion, summary.sourceFingerprint, summary.sourceEntryCount, summary.generatedAt, summary.createdAt, summary.updatedAt];
 }
 
 function coverValues(cover: CoverRow) {
@@ -447,14 +799,17 @@ function validateEntry(entry: ReviewEntry) {
   if (!Number.isInteger(entry.year) || entry.year < 1 || entry.year > 9999) throw new Error("年份范围必须是 1-9999");
   if (entry.month !== null && (!Number.isInteger(entry.month) || entry.month < 1 || entry.month > 12)) throw new Error("月份范围必须是 1-12");
   if (entry.rating !== null && (!Number.isInteger(entry.rating) || entry.rating < 1 || entry.rating > 10)) throw new Error("评分范围必须是 1-10");
+  readMusicMetadata(entry.musicMetadata, "entry.musicMetadata");
 }
 
 type BackupData = {
-  version: 1;
+  version: 3;
   exportedAt: string;
   entries: ReviewEntry[];
   summaries: YearlySummary[];
+  monthlySummaries: MonthlySummary[];
   covers: CoverRow[];
+  appData: Record<string, string>;
 };
 
 function parseBackup(raw: string): BackupData {
@@ -465,13 +820,16 @@ function parseBackup(raw: string): BackupData {
     throw new Error("备份 JSON 格式错误");
   }
   if (!isRecord(parsed)) throw new Error("备份内容必须是 JSON 对象");
-  if (parsed.version !== 1) throw new Error("备份版本不支持");
+  const version = parsed.version;
+  if (version !== 1 && version !== 2 && version !== 3) throw new Error("备份版本不支持");
   if (!isValidDateString(parsed.exportedAt)) throw new Error("备份导出时间无效");
 
-  const entries = readArray(parsed.entries, "entries").map(readEntry);
-  const summaries = readArray(parsed.summaries, "summaries").map(readSummary);
+  const entries = readArray(parsed.entries, "entries").map((entry) => readEntry(entry, version >= 2));
+  const summaries = readArray(parsed.summaries, "summaries").map((summary) => readSummary(summary, version === 3));
+  const monthlySummaries = version === 3 ? readArray(parsed.monthlySummaries, "monthlySummaries").map(readMonthlySummary) : [];
   const covers = readArray(parsed.covers, "covers").map(readCover);
-  return { version: 1, exportedAt: parsed.exportedAt, entries, summaries, covers };
+  const appData = version === 3 ? readBackupAppData(parsed.appData) : {};
+  return { version: 3, exportedAt: parsed.exportedAt, entries, summaries, monthlySummaries, covers, appData };
 }
 
 function summarizeBackup(backup: BackupData) {
@@ -479,12 +837,14 @@ function summarizeBackup(backup: BackupData) {
     exportedAt: backup.exportedAt,
     entryCount: backup.entries.length,
     summaryCount: backup.summaries.length,
+    monthlySummaryCount: backup.monthlySummaries.length,
     coverCount: backup.covers.length,
   };
 }
 
-function readEntry(value: unknown): ReviewEntry {
+function readEntry(value: unknown, metadataRequired = false): ReviewEntry {
   if (!isRecord(value)) throw new Error("entries 必须是记录对象数组");
+  if (metadataRequired && value.musicMetadata === undefined) throw new Error("entries.musicMetadata 缺失");
   const entry: ReviewEntry = {
     id: readString(value.id, "entries.id"),
     type: readString(value.type, "entries.type") as EntryType,
@@ -494,6 +854,7 @@ function readEntry(value: unknown): ReviewEntry {
     albumName: readNullableField(value.albumName, "entries.albumName"),
     songName: readNullableField(value.songName, "entries.songName"),
     artistName: readNullableField(value.artistName, "entries.artistName"),
+    musicMetadata: readMusicMetadata(value.musicMetadata, "entries.musicMetadata"),
     content: readString(value.content, "entries.content"),
     tags: readStringArray(value.tags, "entries.tags"),
     moods: readStringArray(value.moods, "entries.moods"),
@@ -506,18 +867,66 @@ function readEntry(value: unknown): ReviewEntry {
   return entry;
 }
 
-function readSummary(value: unknown): YearlySummary {
+function readSummary(value: unknown, structuredRequired = false): YearlySummary {
   if (!isRecord(value)) throw new Error("summaries 必须是总结对象数组");
+  const analysisJson = value.analysisJson === undefined && !structuredRequired ? null : readNullableField(value.analysisJson, "summaries.analysisJson");
+  const analysisVersion = value.analysisVersion === undefined && !structuredRequired ? null : readNullableInt(value.analysisVersion, "summaries.analysisVersion");
+  const sourceFingerprint = value.sourceFingerprint === undefined && !structuredRequired ? null : readNullableField(value.sourceFingerprint, "summaries.sourceFingerprint");
+  if (analysisJson) parseYearlyListeningSnapshot(analysisJson);
   return {
     id: readString(value.id, "summaries.id"),
     year: readInt(value.year, "summaries.year"),
     title: readString(value.title, "summaries.title"),
     content: readString(value.content, "summaries.content"),
+    analysisJson,
+    analysisVersion,
+    sourceFingerprint,
     sourceEntryCount: readInt(value.sourceEntryCount, "summaries.sourceEntryCount"),
     generatedAt: readDate(value.generatedAt, "summaries.generatedAt"),
     createdAt: readDate(value.createdAt, "summaries.createdAt"),
     updatedAt: readDate(value.updatedAt, "summaries.updatedAt"),
   };
+}
+
+function readMonthlySummary(value: unknown): MonthlySummary {
+  if (!isRecord(value)) throw new Error("monthlySummaries 必须是总结对象数组");
+  const analysisJson = readString(value.analysisJson, "monthlySummaries.analysisJson");
+  const snapshot = parseMonthlyListeningSnapshot(analysisJson);
+  const summary: MonthlySummary = {
+    id: readString(value.id, "monthlySummaries.id"),
+    year: readInt(value.year, "monthlySummaries.year"),
+    month: readInt(value.month, "monthlySummaries.month"),
+    title: readString(value.title, "monthlySummaries.title"),
+    content: readString(value.content, "monthlySummaries.content"),
+    themeId: readString(value.themeId, "monthlySummaries.themeId"),
+    analysisJson,
+    analysisVersion: readInt(value.analysisVersion, "monthlySummaries.analysisVersion"),
+    sourceFingerprint: readNullableField(value.sourceFingerprint, "monthlySummaries.sourceFingerprint"),
+    sourceEntryCount: readInt(value.sourceEntryCount, "monthlySummaries.sourceEntryCount"),
+    generatedAt: readDate(value.generatedAt, "monthlySummaries.generatedAt"),
+    createdAt: readDate(value.createdAt, "monthlySummaries.createdAt"),
+    updatedAt: readDate(value.updatedAt, "monthlySummaries.updatedAt"),
+  };
+  if (summary.year !== snapshot.year || summary.month !== snapshot.month || summary.themeId !== snapshot.theme.id) throw new Error("月度总结与分析快照不匹配");
+  return summary;
+}
+
+function readBackupAppData(value: unknown) {
+  if (!isRecord(value)) throw new Error("appData 必须是对象");
+  const result: Record<string, string> = {};
+  for (const [key, raw] of Object.entries(value)) {
+    if (typeof raw !== "string") throw new Error("appData 值必须是字符串");
+    if (key === WEATHER_LOCATION_KEY) parseWeatherLocation(JSON.parse(raw));
+    else if (key.startsWith("listening-weather:")) parseWeatherRecord(JSON.parse(raw));
+    else if (key.startsWith("listening-quote:")) readPreferredQuote(JSON.parse(raw));
+    else if (key === SEMANTIC_OVERRIDES_KEY) {
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) throw new Error("本地语义校正格式无效");
+      parsed.forEach(readSemanticOverride);
+    } else throw new Error(`appData 包含不支持的键：${key}`);
+    result[key] = raw;
+  }
+  return result;
 }
 
 function readCover(value: unknown): CoverRow {
@@ -589,7 +998,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function readEntries() {
-  return readJson<ReviewEntry[]>(ENTRIES_KEY, []);
+  const values = readJson<unknown[]>(ENTRIES_KEY, []);
+  return Array.isArray(values) ? values.map((entry) => readEntry(entry)) : [];
 }
 
 function writeEntries(entries: ReviewEntry[]) {
@@ -597,11 +1007,37 @@ function writeEntries(entries: ReviewEntry[]) {
 }
 
 function readSummaries() {
-  return readJson<YearlySummary[]>(SUMMARIES_KEY, []);
+  const values = readJson<unknown[]>(SUMMARIES_KEY, []);
+  return Array.isArray(values) ? values.map((summary) => readSummary(summary)) : [];
+}
+
+function readPreferredQuote(value: unknown) {
+  if (!isRecord(value) || typeof value.entryId !== "string" || !value.entryId || typeof value.sentence !== "string" || !value.sentence.trim()) throw new Error("代表原句格式无效");
+  return { entryId: value.entryId, sentence: value.sentence };
+}
+
+function readSemanticOverride(value: unknown): SemanticOverride {
+  if (!isRecord(value) || !isListeningLayer(value.layer) || typeof value.term !== "string" || !value.term.trim() || (value.action !== "exclude" && value.action !== "move")) throw new Error("本地语义校正格式无效");
+  const targetLayer = value.targetLayer === null ? null : isListeningLayer(value.targetLayer) ? value.targetLayer : null;
+  if (value.action === "move" && !targetLayer) throw new Error("语义分类校正缺少目标类别");
+  return { layer: value.layer, term: value.term.trim(), action: value.action, targetLayer: value.action === "exclude" ? null : targetLayer };
+}
+
+function isListeningLayer(value: unknown): value is ListeningLayer {
+  return value === "feeling" || value === "subject" || value === "expression" || value === "genre";
 }
 
 function writeSummaries(summaries: YearlySummary[]) {
   localStorage.setItem(SUMMARIES_KEY, JSON.stringify(summaries));
+}
+
+function readMonthlySummaries() {
+  const values = readJson<unknown[]>(MONTHLY_SUMMARIES_KEY, []);
+  return Array.isArray(values) ? values.map(readMonthlySummary) : [];
+}
+
+function writeMonthlySummaries(summaries: MonthlySummary[]) {
+  localStorage.setItem(MONTHLY_SUMMARIES_KEY, JSON.stringify(summaries));
 }
 
 function readCovers() {
@@ -640,6 +1076,28 @@ function decodeList(value: string | null) {
   }
 }
 
+function readAppData() {
+  const value = readJson<unknown>(APP_DATA_KEY, {});
+  return isRecord(value) ? Object.fromEntries(Object.entries(value).filter((item): item is [string, string] => typeof item[1] === "string")) : {};
+}
+
+function writeAppData(value: Record<string, string>) {
+  localStorage.setItem(APP_DATA_KEY, JSON.stringify(value));
+}
+
+function encodeMusicMetadata(value: ReviewEntry["musicMetadata"]) {
+  return value ? JSON.stringify(value) : null;
+}
+
+function decodeMusicMetadata(value: string | null) {
+  if (!value) return null;
+  try {
+    return readMusicMetadata(JSON.parse(value));
+  } catch {
+    throw new Error("数据库中的音乐元数据格式无效");
+  }
+}
+
 function nullableString(value: unknown) {
   return typeof value === "string" && value.length ? value : null;
 }
@@ -669,4 +1127,25 @@ function group<T>(items: T[], keyOf: (item: T) => string) {
   const map = new Map<string, T[]>();
   for (const item of items) map.set(keyOf(item), [...(map.get(keyOf(item)) ?? []), item]);
   return map;
+}
+
+function isAutomaticEntry(entry: ReviewEntry) {
+  return entry.type === "song" || entry.type === "album";
+}
+
+function exactEntryDate(entry: ReviewEntry) {
+  const date = entry.listenedAt?.slice(0, 10) ?? null;
+  return date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : null;
+}
+
+function weatherKey(location: WeatherLocation, date: string) {
+  return `listening-weather:${location.latitude},${location.longitude}:${date}`;
+}
+
+function sameWeatherLocation(left: WeatherLocation | null, right: WeatherLocation) {
+  return !!left && left.latitude === right.latitude && left.longitude === right.longitude && left.timezone === right.timezone;
+}
+
+function unique<T>(values: T[]) {
+  return Array.from(new Set(values));
 }

@@ -3,11 +3,15 @@ import { Capacitor, registerPlugin } from "@capacitor/core";
 import { Link, NavLink, Route, Routes, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { GENRE_TAGS, GENRE_TREE, findGenrePath, genreChildren, isKnownGenreTag } from "../../shared/genres";
 import { ABSTRACT_MAP_REGION_DEFS, UNCLASSIFIED_REGION_ID, UNIVERSE_GROUP_BY_OPTIONS, type AbstractMapRegion, type AbstractMapResult, type EmotionUniverseResult, type EmotionUniverseSong, type UniverseGroupBy, type VisualizationFilters, type VisualizationOptions, type VisualizationSong } from "../../shared/visualizations";
+import { canRestoreEditDraft, readEntryDraft, removeEntryDraft, writeEntryDraft, type EntryDraft, type EntryDraftFields } from "./entryDraft";
 import { findSimilarEntry } from "./entryDuplicate";
 import { excerpt, formatDate, formatDateOnly, monthLabel } from "./format";
+import { DailyListeningNote, MonthlyListeningPage, YearlyListeningPage } from "./ListeningYearbookView";
+import { mergeMusicMetadata } from "./musicMetadata";
+import { applyAppleCatalogMatch, findAppleCatalogMatch, parseCatalogSearchResult, parseNowPlayingResult } from "./nowPlaying";
 import { parseMusicInfoText, type MusicInfoFields } from "./ocr";
 import { parseList, store } from "./store";
-import { ENTRY_TYPE_LABELS, ENTRY_TYPES, type AlbumAggregate, type EntryInput, type ReviewEntry, type SongAggregate, type YearStats, type YearlySummary } from "./types";
+import { ENTRY_TYPE_LABELS, ENTRY_TYPES, type AlbumAggregate, type EntryInput, type MusicMetadata, type ReviewEntry, type SongAggregate, type YearStats } from "./types";
 
 const nav = [
   ["/", "首页"],
@@ -17,13 +21,18 @@ const nav = [
   ["/summary", "总结"],
 ];
 
-type BackupPreview = { exportedAt: string; entryCount: number; summaryCount: number; coverCount: number };
+type BackupPreview = { exportedAt: string; entryCount: number; summaryCount: number; monthlySummaryCount: number; coverCount: number };
 type ExportKind = "json" | "txt" | "csv";
 type ExportedData = { kind: ExportKind; content: string; fileName: string; mimeType: string };
 type HomeEntry = ReviewEntry & { coverDataUrl: string | null };
 type ScreenshotOcrLine = { text: string; left: number; top: number; right: number; bottom: number };
 type ScreenshotOcrResult = { text: string; width: number; height: number; lines: ScreenshotOcrLine[] };
 type ScreenshotOcrPlugin = { recognize(options: { dataUrl: string }): Promise<ScreenshotOcrResult> };
+type NowPlayingPlugin = {
+  getCurrentTrack(): Promise<unknown>;
+  searchCatalog(options: { title: string; artistName: string; albumName?: string; country: "CN" | "US" }): Promise<unknown>;
+  openNotificationSettings(): Promise<void>;
+};
 type FilterDraft = { year: string; month: string; artistName: string; albumName: string; mood: string; tag: string; minRating: string; maxRating: string; groupBy: UniverseGroupBy };
 type GenreSelection = { level1: string; level2: string; level3: string };
 
@@ -45,12 +54,13 @@ const MOOD_GROUPS = ABSTRACT_MAP_REGION_DEFS.filter((region) => region.id !== UN
 const EmotionUniverseScene = lazy(() => import("./EmotionUniverseScene"));
 
 const ScreenshotOcr = registerPlugin<ScreenshotOcrPlugin>("ScreenshotOcr");
+const NowPlaying = registerPlugin<NowPlayingPlugin>("NowPlaying");
 
 export default function App() {
   return (
     <div className="app-shell">
       <header className="app-header">
-        <Link to="/" className="brand">小懂哥 v2</Link>
+        <Link to="/" className="brand">小懂哥 v2.1</Link>
         <Link to="/more" className="header-menu" aria-label="更多"><span /></Link>
       </header>
       <main className="app-main">
@@ -65,10 +75,12 @@ export default function App() {
           <Route path="/songs" element={<SongsPage />} />
           <Route path="/songs/detail" element={<AggregateDetail kind="song" />} />
           <Route path="/search" element={<SearchPage />} />
-          <Route path="/summary" element={<YearlySummaryPage />} />
+          <Route path="/summary" element={<YearlyListeningPage />} />
+          <Route path="/summary/:year/:month" element={<MonthlyListeningPage />} />
           <Route path="/abstract-map" element={<AbstractMusicMapPage />} />
           <Route path="/emotion-universe" element={<EmotionUniversePage />} />
           <Route path="/backup" element={<BackupPage />} />
+          <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="/more" element={<MorePage />} />
         </Routes>
       </main>
@@ -226,20 +238,33 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
   const { id } = useParams();
   const navigate = useNavigate();
   const formRef = useRef<HTMLFormElement | null>(null);
+  const draftTimerRef = useRef<number | null>(null);
+  const pendingDraftRef = useRef<EntryDraft | null>(null);
+  const draftReadyRef = useRef(false);
+  const skipDraftStateSaveRef = useRef(false);
   const [entry, setEntry] = useState<ReviewEntry | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [loading, setLoading] = useState(mode === "edit");
   const [saving, setSaving] = useState(false);
+  const [entryCoverLoaded, setEntryCoverLoaded] = useState(mode === "create");
   const [coverDataUrl, setCoverDataUrl] = useState<string | null>(null);
   const [coverChanged, setCoverChanged] = useState(false);
   const [ocrText, setOcrText] = useState("");
   const [recognizedFields, setRecognizedFields] = useState<MusicInfoFields | null>(null);
+  const [musicMetadata, setMusicMetadata] = useState<MusicMetadata | null>(null);
   const [ocrBusy, setOcrBusy] = useState(false);
+  const [nowPlayingBusy, setNowPlayingBusy] = useState(false);
+  const [nowPlayingAccessEnabled, setNowPlayingAccessEnabled] = useState<boolean | null>(null);
+  const [nowPlayingMessage, setNowPlayingMessage] = useState("");
   const [selectedMoodGroupId, setSelectedMoodGroupId] = useState<string>(() => defaultMoodGroupId([]));
   const [selectedMoods, setSelectedMoods] = useState<string[]>([]);
   const [genreSelection, setGenreSelection] = useState<GenreSelection>(() => defaultGenreSelection(null));
   const [selectedGenreTags, setSelectedGenreTags] = useState<string[]>([]);
+  const [draftReady, setDraftReady] = useState(false);
+  const [hasDraft, setHasDraft] = useState(false);
+  const [draftStatus, setDraftStatus] = useState("输入内容会自动保存");
+  const [draftError, setDraftError] = useState(false);
 
   useEffect(() => {
     if (mode !== "edit") {
@@ -270,12 +295,15 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
   useEffect(() => {
     if (!entry) return;
     let active = true;
+    setEntryCoverLoaded(false);
     void loadEntryCover(entry).then((nextCover) => {
       if (!active) return;
       setCoverDataUrl(nextCover);
       setCoverChanged(false);
     }).catch((err) => {
       if (active) setError(err instanceof Error ? err.message : "封面读取失败");
+    }).finally(() => {
+      if (active) setEntryCoverLoaded(true);
     });
     return () => {
       active = false;
@@ -293,6 +321,247 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
     setSelectedGenreTags(genreTags);
     setGenreSelection(defaultGenreSelection(genreTags[0] ?? null));
   }, [entry, mode]);
+
+  useEffect(() => {
+    setMusicMetadata(mode === "edit" ? entry?.musicMetadata ?? null : null);
+  }, [entry, mode]);
+
+  useEffect(() => {
+    if ((mode === "edit" && (!id || !entry || !entryCoverLoaded)) || !formRef.current) return;
+    draftReadyRef.current = false;
+    setDraftReady(false);
+    skipDraftStateSaveRef.current = true;
+    try {
+      const result = readEntryDraft(localStorage, mode, mode === "edit" ? id as string : null);
+      if (result.status === "missing") {
+        setHasDraft(false);
+        setDraftStatus("输入内容会自动保存");
+        setDraftError(false);
+      } else if (result.status === "invalid") {
+        setHasDraft(true);
+        setDraftStatus("草稿格式损坏，未覆盖当前表单");
+        setDraftError(true);
+      } else if (mode === "edit" && !canRestoreEditDraft(result.draft, id as string, entry?.updatedAt as string)) {
+        setHasDraft(true);
+        setDraftStatus("正式记录比草稿更新，未自动恢复旧草稿");
+        setDraftError(false);
+      } else {
+        applyDraftFields(formRef.current, result.draft.fields);
+        setSelectedMoodGroupId(result.draft.selectedMoodGroupId);
+        setSelectedMoods(result.draft.selectedMoods);
+        setGenreSelection(result.draft.genreSelection);
+        setSelectedGenreTags(result.draft.selectedGenreTags);
+        setCoverChanged(result.draft.coverChanged);
+        if (result.draft.coverChanged) setCoverDataUrl(result.draft.coverDataUrl);
+        setOcrText(result.draft.ocrText);
+        setRecognizedFields(result.draft.recognizedFields);
+        setMusicMetadata(result.draft.musicMetadata);
+        setHasDraft(true);
+        setDraftStatus("已恢复上次草稿");
+        setDraftError(false);
+      }
+    } catch (err) {
+      setDraftStatus(err instanceof Error ? `草稿读取失败：${err.message}` : "草稿读取失败");
+      setDraftError(true);
+    } finally {
+      draftReadyRef.current = true;
+      setDraftReady(true);
+    }
+  }, [entry, entryCoverLoaded, id, mode]);
+
+  useEffect(() => {
+    if (!draftReady) return;
+    if (skipDraftStateSaveRef.current) {
+      skipDraftStateSaveRef.current = false;
+      return;
+    }
+    scheduleDraftSave();
+  }, [coverChanged, coverDataUrl, draftReady, genreSelection, musicMetadata, ocrText, recognizedFields, selectedGenreTags, selectedMoodGroupId, selectedMoods]);
+
+  useEffect(() => {
+    if (!draftReady) return;
+    const flushDraft = () => persistPendingDraft();
+    const flushHiddenDraft = () => {
+      if (document.visibilityState === "hidden") flushDraft();
+    };
+    window.addEventListener("pagehide", flushDraft);
+    document.addEventListener("visibilitychange", flushHiddenDraft);
+    return () => {
+      window.removeEventListener("pagehide", flushDraft);
+      document.removeEventListener("visibilitychange", flushHiddenDraft);
+      persistPendingDraft(false);
+    };
+  }, [draftReady, id, mode]);
+
+  useEffect(() => {
+    if (mode === "create" && draftReady && Capacitor.isNativePlatform()) void readNowPlaying();
+  }, [draftReady, mode]);
+
+  function createDraftSnapshot(): EntryDraft | null {
+    if (!draftReadyRef.current || !formRef.current) return null;
+    const entryId = mode === "edit" ? id ?? null : null;
+    if (mode === "edit" && (!entryId || !entry)) return null;
+    return {
+      version: 2,
+      mode,
+      entryId,
+      baseUpdatedAt: mode === "edit" ? entry?.updatedAt ?? null : null,
+      savedAt: new Date().toISOString(),
+      fields: readDraftFields(formRef.current),
+      genreSelection,
+      selectedGenreTags: [...selectedGenreTags],
+      selectedMoodGroupId,
+      selectedMoods: [...selectedMoods],
+      coverDataUrl: coverChanged ? coverDataUrl : null,
+      coverChanged,
+      ocrText,
+      recognizedFields,
+      musicMetadata,
+    };
+  }
+
+  function scheduleDraftSave() {
+    const draft = createDraftSnapshot();
+    if (!draft) return;
+    pendingDraftRef.current = draft;
+    setDraftStatus("正在保存草稿");
+    setDraftError(false);
+    if (draftTimerRef.current !== null) window.clearTimeout(draftTimerRef.current);
+    draftTimerRef.current = window.setTimeout(() => persistPendingDraft(), 300);
+  }
+
+  function persistPendingDraft(showStatus = true) {
+    const draft = pendingDraftRef.current;
+    if (!draft) return true;
+    if (draftTimerRef.current !== null) {
+      window.clearTimeout(draftTimerRef.current);
+      draftTimerRef.current = null;
+    }
+    try {
+      writeEntryDraft(localStorage, draft);
+      pendingDraftRef.current = null;
+      if (showStatus) {
+        setHasDraft(true);
+        setDraftStatus(`草稿已自动保存 ${formatDraftTime(draft.savedAt)}`);
+        setDraftError(false);
+      }
+      return true;
+    } catch (err) {
+      if (showStatus) {
+        setDraftStatus(err instanceof Error ? `草稿保存失败：${err.message}` : "草稿保存失败");
+        setDraftError(true);
+      }
+      return false;
+    }
+  }
+
+  async function discardDraft() {
+    if (!confirm("放弃这份未保存草稿？此操作无法撤销。")) return;
+    let originalCover: string | null = null;
+    if (entry) {
+      try {
+        originalCover = await loadEntryCover(entry);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "封面读取失败");
+      }
+    }
+    try {
+      removeEntryDraft(localStorage, mode, mode === "edit" ? id ?? null : null);
+    } catch (err) {
+      setDraftStatus(err instanceof Error ? `草稿清除失败：${err.message}` : "草稿清除失败");
+      setDraftError(true);
+      return;
+    }
+    if (draftTimerRef.current !== null) window.clearTimeout(draftTimerRef.current);
+    draftTimerRef.current = null;
+    pendingDraftRef.current = null;
+    skipDraftStateSaveRef.current = true;
+    formRef.current?.reset();
+    const moods = entry?.moods ?? [];
+    const genreTags = (entry?.tags ?? []).filter(isKnownGenreTag);
+    setSelectedMoods(moods);
+    setSelectedMoodGroupId(defaultMoodGroupId(moods));
+    setSelectedGenreTags(genreTags);
+    setGenreSelection(defaultGenreSelection(genreTags[0] ?? null));
+    setCoverDataUrl(originalCover);
+    setCoverChanged(false);
+    setOcrText("");
+    setRecognizedFields(null);
+    setMusicMetadata(entry?.musicMetadata ?? null);
+    setHasDraft(false);
+    setDraftStatus("草稿已清除");
+    setDraftError(false);
+  }
+
+  async function readNowPlaying() {
+    setNowPlayingBusy(true);
+    setError("");
+    try {
+      const result = parseNowPlayingResult(await NowPlaying.getCurrentTrack());
+      setNowPlayingAccessEnabled(result.accessEnabled);
+      if (!result.accessEnabled) {
+        setNowPlayingMessage("请先授予通知使用权；本应用只读取系统媒体会话中的歌曲信息。");
+        return;
+      }
+      if (!result.fields) {
+        setNowPlayingMessage("没有读到正在播放的歌曲，请确认网易云音乐正在播放后重试。");
+        return;
+      }
+      if (!musicIdentityCompatible(formRef.current, result.fields)) {
+        setNowPlayingMessage(`${recognitionNotice(result.fields)}；表单已有其他歌曲信息，未覆盖也未关联元数据`);
+        return;
+      }
+
+      const changed = fillRecognizedFields(formRef.current, result.fields, true);
+      const retainedMetadata = mergeMusicMetadata(result.musicMetadata, musicMetadata);
+      setMusicMetadata(retainedMetadata);
+      if (changed) scheduleDraftSave();
+      const songName = result.fields.songName?.trim();
+      const artistName = result.fields.artistName?.trim();
+      if (!songName || !artistName) {
+        setNowPlayingMessage(`${recognitionNotice(result.fields)}，已保留原生信息；缺少歌曲名或歌手，未联网补全`);
+        return;
+      }
+
+      setNowPlayingMessage(`${recognitionNotice(result.fields)}，正在联网补全…`);
+      try {
+        const options = { title: songName, artistName, ...(result.fields.albumName ? { albumName: result.fields.albumName } : {}) };
+        const china = parseCatalogSearchResult(await NowPlaying.searchCatalog({ ...options, country: "CN" }));
+        let match = findAppleCatalogMatch(result.fields, china);
+        if (!match) {
+          const unitedStates = parseCatalogSearchResult(await NowPlaying.searchCatalog({ ...options, country: "US" }));
+          match = findAppleCatalogMatch(result.fields, unitedStates);
+        }
+        if (!match) {
+          setNowPlayingMessage(`${recognitionNotice(result.fields)}，已保留原生信息；未找到可确认的目录信息`);
+          return;
+        }
+        const enriched = applyAppleCatalogMatch(result.fields, retainedMetadata, match);
+        const catalogChanged = fillRecognizedFields(formRef.current, enriched.fields, true);
+        setMusicMetadata(enriched.musicMetadata);
+        if (catalogChanged) scheduleDraftSave();
+        setNowPlayingMessage(`${recognitionNotice(enriched.fields)}，联网补全完成`);
+      } catch (catalogError) {
+        setNowPlayingMessage(`${recognitionNotice(result.fields)}，已保留原生信息；${catalogError instanceof Error ? catalogError.message : "联网补全失败"}，可重试`);
+      }
+    } catch (err) {
+      setNowPlayingMessage("");
+      setError(err instanceof Error ? err.message : "当前播放读取失败");
+    } finally {
+      setNowPlayingBusy(false);
+    }
+  }
+
+  async function openNotificationSettings() {
+    setError("");
+    try {
+      await NowPlaying.openNotificationSettings();
+      setNowPlayingAccessEnabled(null);
+      setNowPlayingMessage("授权后返回小懂哥，点击“读取当前播放”。");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "通知使用权设置打开失败");
+    }
+  }
 
   async function chooseCover(event: ChangeEvent<HTMLInputElement>) {
     const file = event.currentTarget.files?.[0];
@@ -342,8 +611,23 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
 
   function applyRecognizedFields() {
     if (!recognizedFields) return;
+    const clearMetadata = musicIdentityWouldChange(formRef.current, recognizedFields);
     const changed = fillRecognizedFields(formRef.current, recognizedFields);
+    if (changed) {
+      if (clearMetadata) setMusicMetadata(null);
+      scheduleDraftSave();
+    }
     setNotice(changed ? `${recognitionNotice(recognizedFields)}，已应用到表单` : "识别结果没有可应用的字段");
+  }
+
+  function handleFormMutation(event: FormEvent<HTMLFormElement>) {
+    const target = event.target;
+    if (musicMetadata && (target instanceof HTMLInputElement || target instanceof HTMLSelectElement)
+      && ["songName", "artistName", "albumName"].includes(target.name)) {
+      setMusicMetadata(null);
+      setNowPlayingMessage("音乐身份字段已修改，旧的补全信息已清除；可重新读取当前播放");
+    }
+    scheduleDraftSave();
   }
 
   function toggleMood(mood: string) {
@@ -357,6 +641,8 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (saving) return;
+    scheduleDraftSave();
+    persistPendingDraft();
     setError("");
     setNotice("");
     setSaving(true);
@@ -370,6 +656,7 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
         albumName: readNullable(form, "albumName"),
         songName: readNullable(form, "songName"),
         artistName: readNullable(form, "artistName"),
+        musicMetadata,
         content: readText(form, "content"),
         tags: mergeTagLists(parseList(readText(form, "genreTags")), parseList(readText(form, "tags"))),
         moods: parseList(readText(form, "moods")),
@@ -383,14 +670,17 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
         setNotice("已取消保存，现有记录未改变");
         return;
       }
+      if (coverTarget) await store.setCover(coverTarget.kind, coverTarget.target, coverDataUrl as string);
       const saved = mode === "create" ? await store.createEntry(input) : await store.updateEntry(id as string, input);
-      if (coverTarget) {
-        try {
-          await store.setCover(coverTarget.kind, coverTarget.target, coverDataUrl as string);
-        } catch (coverErr) {
-          alert(`记录已保存，但封面保存失败：${coverErr instanceof Error ? coverErr.message : "未知错误"}`);
-        }
+      try {
+        removeEntryDraft(localStorage, mode, mode === "edit" ? id ?? null : null);
+      } catch (draftCleanupError) {
+        alert(`记录已保存，但草稿清理失败：${draftCleanupError instanceof Error ? draftCleanupError.message : "未知错误"}`);
       }
+      if (draftTimerRef.current !== null) window.clearTimeout(draftTimerRef.current);
+      draftTimerRef.current = null;
+      pendingDraftRef.current = null;
+      setHasDraft(false);
       navigate(`/entries/${saved.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "保存失败");
@@ -406,7 +696,23 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
 
   return (
     <Page title={mode === "create" ? "新建记录" : "编辑记录"} text="未填写的信息会保持为空，不会自动补全。">
-      <form ref={formRef} onSubmit={submit} className="form-card">
+      <form ref={formRef} onSubmit={submit} onInput={handleFormMutation} onChange={handleFormMutation} className="form-card">
+        {mode === "create" && Capacitor.isNativePlatform() ? (
+          <section className="assist-panel">
+            <div className="assist-panel-head">
+              <strong>当前播放</strong>
+              {nowPlayingAccessEnabled === false ? (
+                <button className="secondary-button" type="button" onClick={openNotificationSettings}>打开系统设置</button>
+              ) : (
+                <button className="secondary-button" type="button" onClick={readNowPlaying} disabled={nowPlayingBusy}>
+                  {nowPlayingBusy ? "读取中" : "读取当前播放"}
+                </button>
+              )}
+            </div>
+            <p>{nowPlayingMessage || "打开新建记录时会自动读取并联网补全，只填充空白字段，不会自动保存。"}</p>
+            <small>联网补全只会把当前歌曲名、歌手和专辑发送给 Apple 音乐目录。</small>
+          </section>
+        ) : null}
         <section className="assist-panel">
           <div className="assist-panel-head">
             <strong>截图识别</strong>
@@ -459,6 +765,7 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
         <label>专辑<input name="albumName" defaultValue={source?.albumName ?? ""} /></label>
         <label>歌曲<input name="songName" defaultValue={source?.songName ?? ""} /></label>
         <label>艺术家<input name="artistName" defaultValue={source?.artistName ?? ""} /></label>
+        {musicMetadata ? <MusicMetadataDetails metadata={musicMetadata} title="更多音乐信息" /> : null}
         <section className="cover-picker">
           <CoverArt src={coverDataUrl} label={source?.albumName ?? source?.songName ?? "封面"} />
           <div>
@@ -484,7 +791,11 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
           onToggleMood={toggleMood}
         />
         <label>评分<input name="rating" type="number" min="1" max="10" defaultValue={source?.rating ?? ""} /></label>
-        <label>正文<textarea name="content" rows={12} defaultValue={source?.content ?? ""} required /></label>
+        <label>正文<textarea className="note-editor" name="content" rows={16} defaultValue={source?.content ?? ""} placeholder="像写备忘录一样，记录此刻的感受……" required /></label>
+        <div className={`draft-status${draftError ? " error-state" : ""}`}>
+          <span role="status" aria-live="polite">{draftStatus}</span>
+          {hasDraft ? <button className="secondary-button" type="button" onClick={discardDraft}>放弃草稿</button> : null}
+        </div>
         {notice ? <p className="hint">{notice}</p> : null}
         {error ? <p className="error">{error}</p> : null}
         <button className="primary-button" type="submit" disabled={saving}>{saving ? "保存中" : "保存"}</button>
@@ -708,6 +1019,8 @@ function EntryDetailPage() {
         <Link className="secondary-button" to={`/entries/${entry.id}/edit`}>编辑</Link>
         <button className="danger-button" onClick={remove}>删除</button>
       </div>
+      <article className="content-card">{entry.content}</article>
+      <DailyListeningNote entry={entry} />
       <div className="detail-card">
         <Meta label="专辑" value={entry.albumName} />
         <Meta label="歌曲" value={entry.songName} />
@@ -719,7 +1032,7 @@ function EntryDetailPage() {
         <Meta label="创建时间" value={formatDate(entry.createdAt)} />
         <Meta label="更新时间" value={formatDate(entry.updatedAt)} />
       </div>
-      <article className="content-card">{entry.content}</article>
+      {entry.musicMetadata ? <MusicMetadataDetails metadata={entry.musicMetadata} title="完整音乐元数据" open /> : null}
     </Page>
   );
 }
@@ -1013,43 +1326,6 @@ function EmotionUniversePage() {
   );
 }
 
-function YearlySummaryPage() {
-  const [entries, setEntries] = useState<ReviewEntry[]>([]);
-  const [year, setYear] = useState(new Date().getFullYear());
-  const [stats, setStats] = useState<YearStats | null>(null);
-  const [summary, setSummary] = useState<YearlySummary | null>(null);
-  const [message, setMessage] = useState("");
-  const years = Array.from(new Set([new Date().getFullYear(), ...entries.map((entry) => entry.year)])).sort((a, b) => b - a);
-  const summaryIsStale = summary !== null && stats !== null && summary.sourceEntryCount !== stats.totalEntries;
-  useEffect(() => void store.listEntries().then(setEntries), []);
-  useEffect(() => void Promise.all([store.getYearStats(year), store.getSummary(year)]).then(([nextStats, saved]) => { setStats(nextStats); setSummary(saved); }), [year]);
-  async function generate() {
-    setMessage("");
-    try {
-      const saved = await store.generateSummary(year);
-      setSummary(saved);
-      setMessage("年度总结已保存");
-    } catch (err) {
-      setMessage(err instanceof Error ? err.message : "生成失败");
-    }
-  }
-  return (
-    <Page title="年度总结" text="只基于手机本地已有记录生成。">
-      <select value={year} onChange={(event) => setYear(Number(event.target.value))}>{years.map((item) => <option key={item} value={item}>{item}</option>)}</select>
-      <div className="stats-grid">
-        <Stat label="总记录" value={stats?.totalEntries ?? 0} />
-        <Stat label="月份" value={stats?.monthCount ?? 0} />
-        <Stat label="专辑" value={stats?.albumCount ?? 0} />
-        <Stat label="歌曲" value={stats?.songCount ?? 0} />
-      </div>
-      <button onClick={generate} className="primary-button full">生成年度总结</button>
-      {message ? <p className="hint">{message}</p> : null}
-      {summaryIsStale ? <p className="error">当前记录数为 {stats.totalEntries} 条，保存总结基于 {summary.sourceEntryCount} 条记录生成，建议重新生成。</p> : null}
-      {summary ? <SummaryContent content={summary.content} /> : <Empty text="还没有保存年度总结。" />}
-    </Page>
-  );
-}
-
 function BackupPage() {
   const [exported, setExported] = useState<ExportedData | null>(null);
   const [importText, setImportText] = useState("");
@@ -1161,7 +1437,7 @@ function BackupPage() {
       setError(err instanceof Error ? err.message : "备份预览失败");
       return;
     }
-    if (!confirm(`导入会覆盖当前手机本地数据。备份包含 ${nextPreview.entryCount} 条记录、${nextPreview.summaryCount} 个总结、${nextPreview.coverCount} 张封面。确认继续？`)) return;
+    if (!confirm(`导入会覆盖当前手机本地数据。备份包含 ${nextPreview.entryCount} 条记录、${nextPreview.summaryCount} 个年度总结、${nextPreview.monthlySummaryCount} 个月度作品、${nextPreview.coverCount} 张封面。确认继续？`)) return;
     setMessage("");
     setError("");
     setBusy(true);
@@ -1179,7 +1455,7 @@ function BackupPage() {
 
   async function undoImport() {
     if (busy || !undoPreview) return;
-    if (!confirm(`撤销会恢复导入前快照：${undoPreview.entryCount} 条记录、${undoPreview.summaryCount} 个总结、${undoPreview.coverCount} 张封面。确认继续？`)) return;
+    if (!confirm(`撤销会恢复导入前快照：${undoPreview.entryCount} 条记录、${undoPreview.summaryCount} 个年度总结、${undoPreview.monthlySummaryCount} 个月度作品、${undoPreview.coverCount} 张封面。确认继续？`)) return;
     setMessage("");
     setError("");
     setBusy(true);
@@ -1216,7 +1492,7 @@ function BackupPage() {
       {undoPreview ? (
         <section className="form-card">
           <strong>可撤销的导入</strong>
-          <p className="hint">导入前快照：{undoPreview.entryCount} 条记录、{undoPreview.summaryCount} 个总结、{undoPreview.coverCount} 张封面；导出时间：{formatDate(undoPreview.exportedAt)}</p>
+          <p className="hint">导入前快照：{undoPreview.entryCount} 条记录、{undoPreview.summaryCount} 个年度总结、{undoPreview.monthlySummaryCount} 个月度作品、{undoPreview.coverCount} 张封面；导出时间：{formatDate(undoPreview.exportedAt)}</p>
           <button className="secondary-button" type="button" onClick={undoImport} disabled={busy}>{busy ? "处理中" : "撤销上次导入"}</button>
         </section>
       ) : null}
@@ -1229,7 +1505,7 @@ function BackupPage() {
           粘贴备份 JSON
           <textarea rows={10} value={importText} onChange={(event) => changeImportText(event.target.value)} />
         </label>
-        {preview ? <p className="hint">备份内容：{preview.entryCount} 条记录、{preview.summaryCount} 个总结、{preview.coverCount} 张封面；导出时间：{formatDate(preview.exportedAt)}</p> : null}
+        {preview ? <p className="hint">备份内容：{preview.entryCount} 条记录、{preview.summaryCount} 个年度总结、{preview.monthlySummaryCount} 个月度作品、{preview.coverCount} 张封面；导出时间：{formatDate(preview.exportedAt)}</p> : null}
         <button className="danger-button" type="submit" disabled={busy}>{busy ? "导入中" : "导入并覆盖当前数据"}</button>
       </form>
       {message ? <p className="hint">{message}</p> : null}
@@ -1245,6 +1521,7 @@ function MorePage() {
     ["/albums", "专辑", "按专辑名称聚合记录。"],
     ["/songs", "歌曲", "按歌曲名称聚合记录。"],
     ["/backup", "备份", "导出或导入本地 JSON 备份。"],
+    ["/privacy", "隐私说明", "查看通知读取、天气联网与本地听感分析的数据范围。"],
   ];
   return (
     <Page title="更多" text="低频入口集中放在这里。">
@@ -1256,6 +1533,7 @@ function MorePage() {
           </Link>
         ))}
       </div>
+      <p className="hint">版本 2.1.0 · 本地优先的私人音乐档案</p>
     </Page>
   );
 }
@@ -1538,24 +1816,6 @@ function filterSummary(filters: VisualizationFilters, includeMonth: boolean, inc
   return parts.length ? parts.join(" / ") : "全部记录";
 }
 
-function SummaryContent({ content }: { content: string }) {
-  return (
-    <article className="content-card summary-content">
-      {content.split("\n").map((line, index) => renderSummaryLine(line, index))}
-    </article>
-  );
-}
-
-function renderSummaryLine(line: string, index: number) {
-  const text = line.trim();
-  if (!text) return <br key={index} />;
-  if (text.startsWith("### ")) return <h3 key={index}>{text.slice(4)}</h3>;
-  if (text.startsWith("## ")) return <h2 key={index}>{text.slice(3)}</h2>;
-  if (text.startsWith("# ")) return <h1 key={index}>{text.slice(2)}</h1>;
-  if (text.startsWith("- ")) return <p key={index} className="summary-bullet">{text.slice(2)}</p>;
-  return <p key={index}>{text}</p>;
-}
-
 function Page({ title, text, children }: { title: string; text?: string; children: React.ReactNode }) {
   return <section className="page"><h1>{title}</h1>{text ? <p className="lead">{text}</p> : null}{children}</section>;
 }
@@ -1587,28 +1847,170 @@ function Meta({ label, value }: { label: string; value: string | null }) {
   return <div className="meta"><span>{label}</span><strong>{value ?? "未填写"}</strong></div>;
 }
 
+function PrivacyPage() {
+  return (
+    <Page title="隐私说明" text="当前播放、天气背景与本地听感分析的数据使用方式。">
+      <article className="content-card privacy-copy">
+        <h2>本地保存</h2>
+        <p>音乐记录、正文、标签、情绪、评分、封面、草稿和听感总结保存在本机。除下述明确说明的音乐目录与天气请求外，小懂哥不会主动上传这些内容。</p>
+        <h2>通知使用权</h2>
+        <p>Android 通知使用权仅用于访问系统媒体会话中的当前播放信息。应用不保存其他应用的通知正文，也不读取暂停的媒体会话。</p>
+        <h2>联网补全</h2>
+        <p>当当前播放同时包含歌曲名和歌手时，应用会把歌曲名、歌手和已有专辑发送给 Apple iTunes Search API，用于补全专辑、发行日期、流派、时长和曲目序号等音乐元数据。</p>
+        <h2>不会发送的数据</h2>
+        <p>日记正文、标签、情绪、评分、播放历史、其他通知、歌词和音频不会发送给 Apple。目录查询失败时，应用只保留本机读取到的信息，仍可正常记录。</p>
+        <h2>听感分析与日历</h2>
+        <p>情绪、音乐对象、表达方式和曲风分析在本机完成。应用不会读取系统日历、会议、生日或提醒；工作日、周末、调休和节假日来自应用内置的中国大陆官方年度数据。</p>
+        <h2>天气背景</h2>
+        <p>只有用户手动选择城市后，应用才会把粗略城市坐标和乐评日期发送给 Open-Meteo 查询历史天气。应用不持续定位，不读取 vivo 或其他手机的系统天气，也不会在天气请求中发送乐评正文。</p>
+        <h2>导出与删除</h2>
+        <p>用户可以通过备份页导出或恢复本地数据，也可以在记录详情页删除记录。卸载应用会按照 Android 的系统行为处理应用本地数据。</p>
+      </article>
+    </Page>
+  );
+}
+
+function MusicMetadataDetails({ metadata, title, open = false }: { metadata: MusicMetadata; title: string; open?: boolean }) {
+  const rows = musicMetadataRows(metadata);
+  if (!rows.length) return null;
+  return (
+    <details className="metadata-details" open={open}>
+      <summary>{title}</summary>
+      <div className="detail-card">
+        {rows.map(([label, value]) => <Meta key={label} label={label} value={value} />)}
+      </div>
+    </details>
+  );
+}
+
+function musicMetadataRows(metadata: MusicMetadata): Array<[string, string]> {
+  const rows: Array<[string, string | null | undefined]> = [
+    ["专辑艺人", metadata.albumArtistName],
+    ["目录发行日期", metadata.releaseDate],
+    ["发行年份", metadata.releaseYear === undefined ? null : String(metadata.releaseYear)],
+    ["流派", metadata.genre],
+    ["作曲", metadata.composerName],
+    ["词作者", metadata.writerName],
+    ["作者", metadata.authorName],
+    ["合辑信息", metadata.compilation],
+    ["时长", metadata.durationMs === undefined ? null : formatDuration(metadata.durationMs)],
+    ["曲目序号", formatPosition(metadata.trackNumber, metadata.trackCount)],
+    ["碟片序号", formatPosition(metadata.discNumber, metadata.discCount)],
+    ["内容标记", explicitnessLabel(metadata.explicitness)],
+    ["展示标题", metadata.displayTitle],
+    ["展示副标题", metadata.displaySubtitle],
+    ["展示描述", metadata.displayDescription],
+    ["来源应用", metadata.sourcePackage],
+    ["媒体 ID", metadata.mediaId],
+    ["媒体 URI", metadata.mediaUri],
+    ["封面 URI", metadata.artworkUri],
+    ["目录来源", metadata.catalogSource === "apple" ? "Apple 音乐目录" : null],
+    ["Apple 歌曲 ID", metadata.catalogTrackId],
+    ["Apple 专辑 ID", metadata.catalogAlbumId],
+    ["Apple 艺术家 ID", metadata.catalogArtistId],
+    ["补全时间", metadata.enrichedAt ? formatDate(metadata.enrichedAt) : null],
+  ];
+  return rows.filter((row): row is [string, string] => !!row[1]);
+}
+
+function formatDuration(durationMs: number) {
+  const totalSeconds = Math.floor(durationMs / 1000);
+  const seconds = String(totalSeconds % 60).padStart(2, "0");
+  const minutes = Math.floor(totalSeconds / 60) % 60;
+  const hours = Math.floor(totalSeconds / 3600);
+  return hours ? `${hours}:${String(minutes).padStart(2, "0")}:${seconds}` : `${minutes}:${seconds}`;
+}
+
+function formatPosition(position?: number, count?: number) {
+  if (position === undefined && count === undefined) return null;
+  if (position === undefined) return `共 ${count} 项`;
+  return count === undefined ? String(position) : `${position} / ${count}`;
+}
+
+function explicitnessLabel(value?: MusicMetadata["explicitness"]) {
+  if (value === "explicit") return "明确内容";
+  if (value === "cleaned") return "洁净版";
+  if (value === "notExplicit") return "非明确内容";
+  return null;
+}
+
 function inputToCoverTarget(input: EntryInput) {
   if (input.songName) return { kind: "song" as const, target: { albumName: input.albumName, songName: input.songName, artistName: input.artistName } };
   if (input.albumName) return { kind: "album" as const, target: { albumName: input.albumName, artistName: input.artistName } };
   return null;
 }
 
-function fillRecognizedFields(form: HTMLFormElement | null, fields: MusicInfoFields) {
+function readDraftFields(form: HTMLFormElement): EntryDraftFields {
+  const data = new FormData(form);
+  const value = (key: string) => String(data.get(key) ?? "");
+  return {
+    type: value("type") as EntryDraftFields["type"],
+    title: value("title"),
+    year: value("year"),
+    month: value("month"),
+    albumName: value("albumName"),
+    songName: value("songName"),
+    artistName: value("artistName"),
+    listenedAt: value("listenedAt"),
+    tags: value("tags"),
+    rating: value("rating"),
+    content: value("content"),
+  };
+}
+
+function applyDraftFields(form: HTMLFormElement, fields: EntryDraftFields) {
+  for (const [name, value] of Object.entries(fields)) setRecognizedField(form, name, value, false);
+}
+
+function formatDraftTime(value: string) {
+  return new Date(value).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false });
+}
+
+function fillRecognizedFields(form: HTMLFormElement | null, fields: MusicInfoFields, onlyEmpty = false) {
   if (!form) return 0;
   let changed = 0;
-  changed += setRecognizedField(form, "type", fields.type);
-  changed += setRecognizedField(form, "songName", fields.songName);
-  changed += setRecognizedField(form, "albumName", fields.albumName);
-  changed += setRecognizedField(form, "artistName", fields.artistName);
-  changed += setRecognizedField(form, "title", fields.title ?? fields.songName ?? fields.albumName);
-  changed += setRecognizedField(form, "content", fields.content);
+  changed += setRecognizedField(form, "type", fields.type, onlyEmpty);
+  changed += setRecognizedField(form, "songName", fields.songName, onlyEmpty);
+  changed += setRecognizedField(form, "albumName", fields.albumName, onlyEmpty);
+  changed += setRecognizedField(form, "artistName", fields.artistName, onlyEmpty);
+  changed += setRecognizedField(form, "title", fields.title ?? fields.songName ?? fields.albumName, onlyEmpty);
+  changed += setRecognizedField(form, "content", fields.content, onlyEmpty);
   return changed;
 }
 
-function setRecognizedField(form: HTMLFormElement, name: string, value: string | null | undefined) {
+function musicIdentityCompatible(form: HTMLFormElement | null, fields: MusicInfoFields) {
+  if (!form) return false;
+  for (const [name, value] of [["songName", fields.songName], ["artistName", fields.artistName]] as const) {
+    const existing = formValue(form, name);
+    if (existing && (!value || normalizeIdentity(existing) !== normalizeIdentity(value))) return false;
+  }
+  const existingAlbum = formValue(form, "albumName");
+  if (existingAlbum && fields.albumName && normalizeIdentity(existingAlbum) !== normalizeIdentity(fields.albumName)) return false;
+  return true;
+}
+
+function musicIdentityWouldChange(form: HTMLFormElement | null, fields: MusicInfoFields) {
+  if (!form) return false;
+  return (["songName", "artistName", "albumName"] as const).some((name) => {
+    const value = fields[name];
+    return value !== undefined && normalizeIdentity(formValue(form, name)) !== normalizeIdentity(value ?? "");
+  });
+}
+
+function formValue(form: HTMLFormElement, name: string) {
+  const field = form.elements.namedItem(name);
+  return field instanceof HTMLInputElement ? field.value.trim() : "";
+}
+
+function normalizeIdentity(value: string) {
+  return value.normalize("NFKC").toLocaleLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function setRecognizedField(form: HTMLFormElement, name: string, value: string | null | undefined, onlyEmpty: boolean) {
   if (value === undefined) return 0;
   const field = form.elements.namedItem(name);
   if (!(field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement || field instanceof HTMLSelectElement)) return 0;
+  if (onlyEmpty && field.value.trim()) return 0;
   const nextValue = value ?? "";
   if (field.value === nextValue) return 0;
   field.value = nextValue;

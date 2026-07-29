@@ -32,6 +32,7 @@ function entry(overrides) {
     albumName: overrides.albumName ?? null,
     songName: overrides.songName ?? null,
     artistName: overrides.artistName ?? null,
+    musicMetadata: overrides.musicMetadata ?? null,
     content: overrides.content,
     tags: overrides.tags ?? [],
     moods: overrides.moods ?? [],
@@ -44,7 +45,7 @@ function entry(overrides) {
 
 const entries = [
   entry({ id: "old", title: "Old Note", year: 2025, month: 12, content: "older", createdAt: "2025-12-01T00:00:00.000Z" }),
-  entry({ id: "late", title: "Late Note", year: 2026, month: 7, songName: "Late Song", artistName: "Yves", content: "line one\nline two", tags: ["Art Pop"], moods: ["安静"], rating: 8, listenedAt: "2026-07-03T00:00:00.000Z", createdAt: "2026-07-03T00:00:00.000Z" }),
+  entry({ id: "late", title: "Late Note", year: 2026, month: 7, songName: "Late Song", artistName: "Yves", musicMetadata: { releaseDate: "2026-07-01", genre: "Art Pop", durationMs: 210000, sourcePackage: "com.netease.cloudmusic", catalogSource: "apple" }, content: "line one\nline two", tags: ["Art Pop"], moods: ["安静"], rating: 8, listenedAt: "2026-07-03T00:00:00.000Z", createdAt: "2026-07-03T00:00:00.000Z" }),
   entry({ id: "quoted", title: "Comma, Quote", year: 2026, month: 7, content: "他说 \"OK\", 然后继续听。", createdAt: "2026-07-02T00:00:00.000Z" }),
   entry({ id: "nomonth", title: "No Month", year: 2026, month: null, content: "no month", createdAt: "2026-01-01T00:00:00.000Z" }),
 ];
@@ -67,13 +68,16 @@ assert.ok(text.indexOf("7 月") < text.indexOf("未填月份"));
 assert.ok(text.indexOf("Late Note") < text.indexOf("Comma, Quote"));
 assert.ok(text.includes("年度总结"));
 assert.ok(text.includes("2026 年｜2026 年音乐感受总结"));
+assert.ok(text.includes("发行日期：2026-07-01"));
+assert.ok(text.includes("元数据来源：com.netease.cloudmusic、Apple 音乐目录"));
 
 const csv = formatEntriesCsv(entries);
-assert.ok(csv.startsWith("\uFEFF乐评记录\n类型,标题,年份,月份,听歌日期,评分,歌曲,专辑,艺术家,情绪,曲风/标签,正文,创建时间,更新时间\n"));
+assert.ok(csv.startsWith("\uFEFF乐评记录\n类型,标题,年份,月份,听歌日期,评分,歌曲,专辑,艺术家,发行日期,流派,时长（毫秒）,元数据来源,情绪,曲风/标签,正文,创建时间,更新时间\n"));
 assert.ok(csv.indexOf("Late Note") < csv.indexOf("Comma, Quote"));
 assert.ok(csv.includes("\"Comma, Quote\""));
 assert.ok(csv.includes("\"他说 \"\"OK\"\", 然后继续听。\""));
 assert.ok(csv.includes("\"line one\nline two\""));
+assert.ok(csv.includes("2026-07-01,Art Pop,210000,com.netease.cloudmusic、Apple 音乐目录"));
 
 const csvWithSummaries = formatEntriesCsv(entries, summaries);
 assert.ok(csvWithSummaries.includes("\n年度总结\n年份,标题,源记录数,生成时间,正文,创建时间,更新时间\n"));

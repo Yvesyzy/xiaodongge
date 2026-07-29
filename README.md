@@ -1,6 +1,6 @@
-# 小懂哥 v2
+# 小懂哥 v2.1.0
 
-一个在安卓手机本地运行的私人音乐感受记录 APK。它只保存你手动输入或截图识别后确认的记录，不自动编造歌曲、专辑、歌手或感受。
+一个在安卓手机本地运行的私人音乐感受记录 APK。它只保存你手动输入或截图识别后确认的记录，不自动编造歌曲、专辑、歌手或感受。v2.1.0 新增完全在手机本地运行的每日、月度和年度听感分析，不调用在线 AI，也不上传乐评正文。
 
 ## 功能
 
@@ -9,9 +9,16 @@
 - 查看专辑聚合和歌曲聚合
 - 给专辑或歌曲保存封面
 - 从音乐截图中识别歌曲、专辑、艺术家等信息
+- 从安卓媒体通知读取当前播放信息，并可手动补充 Apple Music 目录元数据
+- 新建和编辑乐评时自动保存草稿
 - 搜索标题、正文、歌曲、专辑、艺术家、标签、情绪关键词
 - 查看年度统计
-- 生成并保存年度总结
+- 在乐评正文后查看“当日听感注记”
+- 生成十二套独立美术主题的月度听感作品
+- 生成包含用词、证据原句、月度轨迹和审美迁徙的年度私人听感标本册
+- 按工作日、普通假日、调休工作日和节假日补充日期背景
+- 手动选择城市后，按乐评日期缓存历史天气；天气只作背景关系，不推断情绪原因
+- 对本地语义误识别进行排除或分类校正
 - 查看抽象听歌地图：按 `moods` 和 `tags` 把记录归入情绪大陆
 - 查看 3D 音乐情绪宇宙图：按时间、评分、分组和乐评长度生成可旋转星图
 - 导出、导入备份，并支持撤销最近一次导入
@@ -31,13 +38,13 @@
 最新安装包下载：
 
 ```text
-https://github.com/Yvesyzy/xiaodongge/releases/download/%E5%B0%8F%E6%87%82%E5%93%A5v1.0.0/app-debug.apk
+https://github.com/Yvesyzy/xiaodongge/releases/download/v2.1.0/xiaodongge-v2.1.0-debug.apk
 ```
 
 发布页：
 
 ```text
-https://github.com/Yvesyzy/xiaodongge/releases/tag/%E5%B0%8F%E6%87%82%E5%93%A5v1.0.0
+https://github.com/Yvesyzy/xiaodongge/releases/tag/v2.1.0
 ```
 
 当前公开下载的是 debug APK，适合测试安装；长期公开发布建议改用正式签名 APK。
@@ -103,27 +110,36 @@ key password
 
 ```text
 ReviewEntry      音乐感受记录
-YearlySummary    年度总结
+MonthlySummary   月度听感作品及结构化分析快照
+YearlySummary    年度标本册及结构化分析快照
 CoverImage       专辑和歌曲封面
+AppData          天气城市、天气缓存、代表原句和本地语义校正
 ```
 
 第一版手机端从空库开始，不导入电脑上的 `prisma/dev.db`。
 
-## 年度总结
+## 私人听感标本册
 
-年度总结只基于手机本地数据库中指定年份的记录生成，包括：
+每日、月度和年度总结只分析 `song` 与 `album` 乐评；人工填写的“本月自述”单独展示，不会混入自动统计，也不会把月度总结文案再次分析进年度结果。
 
 ```text
-统计信息
-高频标签
-高频情绪
-高频专辑
-高频歌曲
-按月份归纳的记录摘要
-从原文截取的关键片段
+主要音乐感受：温柔、克制、明亮、粗粝等
+关注对象：人声、旋律、节奏、歌词、编曲、音色、制作、空间层次等
+表达方式：画面、空间、身体感受、回忆、技术描述和场景描写
+对象 × 描述词：同一分句内距离最近的配对
+证据：出现次数、涉及乐评数和可返回原记录的代表原句
+背景：工作日/假日、节日与按日期缓存的天气
 ```
 
-没有记录的年份不会生成年度总结。
+本地分析使用确定性词典与规则，包含分句、最长词优先、否定词、程度词和转折后分句加权。所有结构化结果保存来源指纹；乐评、自述、天气城市或校正规则变化后，旧作品保留并标记为待更新，不会静默删除。
+
+每个月拥有独立主题：霜刻唱片封套、漆红方印、植物标本页、雨线蓝图、日光剪纸、水纹乐谱、热浪胶片、夜航星图、标本抽屉、旅行票据、布面档案册和年末封缄信件。数据不足时降级为记忆卡或精简年鉴，不制造趋势。
+
+应用不读取系统日历或个人日程，也不申请日历、定位权限。中国大陆 2025、2026 法定节假日与调休日期内置在本地；其他年份按普通工作日/周末分类。情人节、圣诞节等固定节日作为独立标签。天气查询只发送手动选择城市的粗略坐标、日期和时区，不发送乐评正文、情绪、标签或评分；断网或接口失败不会阻止总结生成。
+
+内置节假日数据来自[国务院办公厅 2025 年部分节假日安排](https://www.gov.cn/zhengce/zhengceku/202411/content_6986383.htm)和[国务院办公厅 2026 年部分节假日安排](https://www.gov.cn/zhengce/zhengceku/202511/content_7047091.htm)。城市搜索与历史天气使用 [Open-Meteo Geocoding API](https://open-meteo.com/en/docs/geocoding-api) 和 [Historical Weather API](https://open-meteo.com/en/docs/historical-weather-api)。
+
+JSON 备份格式升级为 v3，包含月度作品、结构化年度结果、天气设置/缓存、代表原句和语义校正，并继续接受 v1、v2 备份。
 
 ## v2 可视化
 
@@ -187,7 +203,15 @@ npm.cmd run mobile:check:visualizations
 npm.cmd run typecheck
 npm.cmd run mobile:check:duplicates
 npm.cmd run mobile:check:ocr
+npm.cmd run mobile:check:now-playing
+npm.cmd run mobile:check:drafts
 npm.cmd run mobile:check:visualizations
+npm.cmd run mobile:check:listening-analysis
+npm.cmd run mobile:check:listening-context
+npm.cmd run mobile:check:listening-yearbook
+npm.cmd run mobile:check:listening-store
+npm.cmd run mobile:check:exports
+npm.cmd run check:v1-reliability
 npm.cmd run mobile:build
 ```
 
@@ -225,9 +249,9 @@ set RUST_LOG=info
 
 然后重新执行 `npx.cmd prisma migrate dev --name init`。这个环境变量只用于让 Prisma schema engine 输出并稳定初始化，不会改变数据库内容。
 
-## OpenAI API Key
+## 电脑端 OpenAI API Key
 
-电脑端网页的年度总结默认使用本地基础总结。若要启用大模型总结：
+安卓 APK 的 v2.1.0 私人听感标本册不使用 OpenAI API。以下设置只适用于仓库中保留的电脑端 Next.js 历史页面；电脑端年度总结默认使用本地基础总结，若要启用大模型总结：
 
 1. 在 `.env` 填入 `OPENAI_API_KEY`。
 2. 保留或调整 `OPENAI_MODEL`。
@@ -239,8 +263,12 @@ OpenAI 调用失败时，系统会回退到本地基础总结，不影响记录�
 
 ```text
 mobile/                           安卓 APK 的前端界面和本地存储逻辑
+mobile/src/ListeningYearbookView.tsx 每日注记、月度作品和年度标本册界面
+mobile/src/listeningYearbook.ts   日/月/年结构化结果与防重复汇总
 mobile/src/EmotionUniverseScene.tsx 情绪宇宙 Three.js 懒加载场景
 android/                          Capacitor 生成的 Android 工程
+shared/listeningAnalysis.ts       本地语义词典、规则、证据和校正
+shared/listeningContext.ts        日期分类、节假日、城市与历史天气
 shared/visualizations.ts          v2 可视化归类、筛选和 3D 坐标规则
 scripts/build-android-debug.ps1   debug APK 构建脚本
 prisma/schema.prisma              电脑端网页的数据模型

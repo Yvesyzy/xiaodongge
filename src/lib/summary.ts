@@ -4,6 +4,18 @@ import { calculateYearStats } from "./stats";
 import type { SerializedEntry, YearStats } from "./types";
 import { excerpt, monthLabel } from "./format";
 
+type SummaryStore = {
+  yearlySummary: {
+    deleteMany(args: { where: { year: { in: number[] } } }): Promise<unknown>;
+  };
+};
+
+export async function invalidateYearlySummaries(store: SummaryStore, years: number[]) {
+  const uniqueYears = Array.from(new Set(years));
+  if (!uniqueYears.length) return;
+  await store.yearlySummary.deleteMany({ where: { year: { in: uniqueYears } } });
+}
+
 export async function getSavedYearlySummary(year: number) {
   return prisma.yearlySummary.findUnique({ where: { year } });
 }

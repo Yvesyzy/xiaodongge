@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { handleApiError } from "@/lib/api";
 import { parseEntryInput, serializeEntry } from "@/lib/entry";
 import { prisma } from "@/lib/prisma";
+import { invalidateYearlySummaries } from "@/lib/summary";
 
 export async function GET(request: Request) {
   try {
@@ -32,7 +33,11 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const input = parseEntryInput(await request.json());
-    const entry = await prisma.reviewEntry.create({ data: input });
+    const entry = await prisma.$transaction(async (tx) => {
+      const created = await tx.reviewEntry.create({ data: input });
+      await invalidateYearlySummaries(tx, [created.year]);
+      return created;
+    });
     return NextResponse.json(serializeEntry(entry), { status: 201 });
   } catch (error) {
     return handleApiError(error);

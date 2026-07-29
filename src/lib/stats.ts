@@ -69,7 +69,7 @@ export async function getAlbumAggregates(): Promise<AlbumAggregate[]> {
 
   return Array.from(groups.values())
     .map((items) => {
-      const latest = items[0];
+      const latest = latestCreatedEntry(items);
       return {
         albumName: latest.albumName as string,
         artistName: latest.artistName,
@@ -94,7 +94,7 @@ export async function getSongAggregates(): Promise<SongAggregate[]> {
 
   return Array.from(groups.values())
     .map((items) => {
-      const latest = items[0];
+      const latest = latestCreatedEntry(items);
       return {
         songName: latest.songName as string,
         artistName: latest.artistName,
@@ -146,6 +146,10 @@ function countValues(values: Array<string | null>) {
 
 function sortedYears(entries: SerializedEntry[]) {
   return Array.from(new Set(entries.map((entry) => entry.year))).sort((a, b) => b - a);
+}
+
+function latestCreatedEntry(entries: SerializedEntry[]) {
+  return entries.reduce((latest, entry) => (entry.createdAt.localeCompare(latest.createdAt) > 0 ? entry : latest));
 }
 
 function roundOne(value: number) {
