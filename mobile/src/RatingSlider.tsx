@@ -9,9 +9,12 @@ type RatingSliderProps = {
   value: number | null;
   modifier: RatingModifier | null;
   onChange: (rating: number | null, modifier: RatingModifier | null) => void;
+  name?: string;
+  showModifier?: boolean;
+  label?: string;
 };
 
-export default function RatingSlider({ value, modifier, onChange }: RatingSliderProps) {
+export default function RatingSlider({ value, modifier, onChange, name = "rating", showModifier = true, label = "评分" }: RatingSliderProps) {
   const trackRef = useRef<HTMLDivElement>(null);
   const [dragging, setDragging] = useState(false);
   const [localValue, setLocalValue] = useState(value ?? 0);
@@ -94,7 +97,7 @@ export default function RatingSlider({ value, modifier, onChange }: RatingSlider
   return (
     <section className="rating-slider-section">
       <div className="rating-slider-head">
-        <strong>评分</strong>
+        <strong>{label}</strong>
         {hasValue ? (
           <span className={`rating-display${dragging ? " dragging" : ""}`}>
             <button type="button" className="rating-clear" onClick={clearRating} aria-label="清除评分">x</button>
@@ -138,30 +141,32 @@ export default function RatingSlider({ value, modifier, onChange }: RatingSlider
           </span>
         ))}
       </div>
-      <div className="rating-modifier-row">
-        <button
-          type="button"
-          className={`rating-mod-btn minus${displayModifier === "-" ? " active" : ""}`}
-          onClick={() => toggleModifier("-")}
-          disabled={!hasValue}
-          aria-label="减号修饰"
-        >
-          <span className="mod-icon">-</span>
-          <small>稍逊</small>
-        </button>
-        <button
-          type="button"
-          className={`rating-mod-btn plus${displayModifier === "+" ? " active" : ""}`}
-          onClick={() => toggleModifier("+")}
-          disabled={!hasValue}
-          aria-label="加号修饰"
-        >
-          <span className="mod-icon">+</span>
-          <small>略优</small>
-        </button>
-      </div>
-      <input type="hidden" name="rating" value={hasValue ? String(displayValue) : ""} />
-      <input type="hidden" name="ratingModifier" value={displayModifier ?? ""} />
+      {showModifier ? (
+        <div className="rating-modifier-row">
+          <button
+            type="button"
+            className={`rating-mod-btn minus${displayModifier === "-" ? " active" : ""}`}
+            onClick={() => toggleModifier("-")}
+            disabled={!hasValue}
+            aria-label="减号修饰"
+          >
+            <span className="mod-icon">-</span>
+            <small>稍逊</small>
+          </button>
+          <button
+            type="button"
+            className={`rating-mod-btn plus${displayModifier === "+" ? " active" : ""}`}
+            onClick={() => toggleModifier("+")}
+            disabled={!hasValue}
+            aria-label="加号修饰"
+          >
+            <span className="mod-icon">+</span>
+            <small>略优</small>
+          </button>
+        </div>
+      ) : null}
+      <input type="hidden" name={name} value={hasValue ? String(displayValue) : ""} />
+      <input type="hidden" name={`${name}Modifier`} value={displayModifier ?? ""} />
     </section>
   );
 }

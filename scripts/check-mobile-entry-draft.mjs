@@ -74,6 +74,10 @@ const legacyDraft = {
     tags: "华语",
     rating: "9",
     ratingModifier: "",
+    ratingProduction: "",
+    ratingSongwriting: "",
+    ratingOriginality: "",
+    ratingResonance: "",
     content: "继续写下去",
   },
   genreSelection: { level1: "流行", level2: "华语流行", level3: "" },
@@ -253,5 +257,40 @@ assert.match(appSource, /listEntryDrafts/);
 assert.match(appSource, /createNewDraftId/);
 assert.match(appSource, /deleteEntryDraftByKey/);
 assert.match(appSource, /MAX_NEW_DRAFTS/);
+
+// 多维度评分草稿测试：4 维字段持久化与恢复
+const dimStorage = memoryStorage();
+const dimDraftId = createNewDraftId();
+const dimDraft = {
+  ...draft,
+  mode: "create",
+  entryId: null,
+  draftId: dimDraftId,
+  baseUpdatedAt: null,
+  savedAt: "2026-07-31T08:00:00.000Z",
+  fields: {
+    ...draft.fields,
+    title: "四维草稿",
+    ratingProduction: "8.5",
+    ratingSongwriting: "9",
+    ratingOriginality: "7.5",
+    ratingResonance: "9.5",
+  },
+};
+writeEntryDraft(dimStorage, dimDraft);
+const dimResult = readEntryDraft(dimStorage, "create", null, dimDraftId);
+assert.equal(dimResult.status, "valid");
+assert.equal(dimResult.draft.fields.ratingProduction, "8.5", "草稿 ratingProduction 应持久化");
+assert.equal(dimResult.draft.fields.ratingSongwriting, "9", "草稿 ratingSongwriting 应持久化");
+assert.equal(dimResult.draft.fields.ratingOriginality, "7.5", "草稿 ratingOriginality 应持久化");
+assert.equal(dimResult.draft.fields.ratingResonance, "9.5", "草稿 ratingResonance 应持久化");
+
+// 旧版草稿（无 4 维字段）解析后兼容为空字符串
+const noDimRaw = JSON.stringify({ ...draft, fields: { ...draft.fields, ratingProduction: undefined, ratingSongwriting: undefined, ratingOriginality: undefined, ratingResonance: undefined } });
+dimStorage.setItem(entryDraftKey("create", null, draftIdA), noDimRaw);
+const noDimResult = readEntryDraft(dimStorage, "create", null, draftIdA);
+assert.equal(noDimResult.status, "valid");
+assert.equal(noDimResult.draft.fields.ratingProduction, "", "无 4 维字段的草稿应兼容为空字符串");
+assert.equal(noDimResult.draft.fields.ratingResonance, "", "无 4 维字段的草稿应兼容为空字符串");
 
 console.log("mobile entry draft check passed");

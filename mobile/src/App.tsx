@@ -288,6 +288,11 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
   const [selectedMoods, setSelectedMoods] = useState<string[]>([]);
   const [rating, setRating] = useState<number | null>(null);
   const [ratingModifier, setRatingModifier] = useState<RatingModifier | null>(null);
+  const [multiDimension, setMultiDimension] = useState(false);
+  const [ratingProduction, setRatingProduction] = useState<number | null>(null);
+  const [ratingSongwriting, setRatingSongwriting] = useState<number | null>(null);
+  const [ratingOriginality, setRatingOriginality] = useState<number | null>(null);
+  const [ratingResonance, setRatingResonance] = useState<number | null>(null);
   const [genreSelection, setGenreSelection] = useState<GenreSelection>(() => defaultGenreSelection(null));
   const [selectedGenreTags, setSelectedGenreTags] = useState<string[]>([]);
   const [draftReady, setDraftReady] = useState(false);
@@ -327,6 +332,11 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
     setEntryCoverLoaded(false);
     setRating(entry.rating);
     setRatingModifier(entry.ratingModifier);
+    setRatingProduction(entry.ratingProduction);
+    setRatingSongwriting(entry.ratingSongwriting);
+    setRatingOriginality(entry.ratingOriginality);
+    setRatingResonance(entry.ratingResonance);
+    setMultiDimension(entry.ratingProduction !== null || entry.ratingSongwriting !== null || entry.ratingOriginality !== null || entry.ratingResonance !== null);
     void loadEntryCover(entry).then((nextCover) => {
       if (!active) return;
       setCoverDataUrl(nextCover);
@@ -393,6 +403,16 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
         const draftRating = result.draft.fields.rating ? Number(result.draft.fields.rating) : null;
         setRating(draftRating !== null && draftRating >= 0.5 && draftRating <= 10 ? draftRating : null);
         setRatingModifier(result.draft.fields.ratingModifier === "+" || result.draft.fields.ratingModifier === "-" ? result.draft.fields.ratingModifier : null);
+        const dimProd = result.draft.fields.ratingProduction ? Number(result.draft.fields.ratingProduction) : null;
+        const dimSong = result.draft.fields.ratingSongwriting ? Number(result.draft.fields.ratingSongwriting) : null;
+        const dimOrig = result.draft.fields.ratingOriginality ? Number(result.draft.fields.ratingOriginality) : null;
+        const dimReso = result.draft.fields.ratingResonance ? Number(result.draft.fields.ratingResonance) : null;
+        const dimActive = dimProd !== null || dimSong !== null || dimOrig !== null || dimReso !== null;
+        setRatingProduction(dimProd !== null && dimProd >= 0.5 && dimProd <= 10 ? dimProd : null);
+        setRatingSongwriting(dimSong !== null && dimSong >= 0.5 && dimSong <= 10 ? dimSong : null);
+        setRatingOriginality(dimOrig !== null && dimOrig >= 0.5 && dimOrig <= 10 ? dimOrig : null);
+        setRatingResonance(dimReso !== null && dimReso >= 0.5 && dimReso <= 10 ? dimReso : null);
+        setMultiDimension(dimActive);
         setHasDraft(true);
         setDraftStatus("已恢复上次草稿");
         setDraftError(false);
@@ -406,6 +426,15 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
     }
   }, [entry, entryCoverLoaded, id, mode, draftId]);
 
+  // ponytail: 多维度开启且4维都有值时，综合分=4维平均（0.5步进）。用户可手动拖动主滑块覆盖；下次维度变化会重新计算。
+  useEffect(() => {
+    if (!multiDimension) return;
+    const dims = [ratingProduction, ratingSongwriting, ratingOriginality, ratingResonance];
+    if (dims.some((d) => d === null)) return;
+    const avg = (dims as number[]).reduce((sum, d) => sum + d, 0) / dims.length;
+    setRating(Math.round(avg / 0.5) * 0.5);
+  }, [multiDimension, ratingProduction, ratingSongwriting, ratingOriginality, ratingResonance]);
+
   useEffect(() => {
     if (!draftReady) return;
     if (skipDraftStateSaveRef.current) {
@@ -413,7 +442,7 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
       return;
     }
     scheduleDraftSave();
-  }, [coverChanged, coverDataUrl, draftReady, genreSelection, musicMetadata, ocrText, recognizedFields, selectedGenreTags, selectedMoodGroupId, selectedMoods]);
+  }, [coverChanged, coverDataUrl, draftReady, genreSelection, musicMetadata, ocrText, recognizedFields, selectedGenreTags, selectedMoodGroupId, selectedMoods, rating, ratingModifier, multiDimension, ratingProduction, ratingSongwriting, ratingOriginality, ratingResonance]);
 
   useEffect(() => {
     if (!draftReady) return;
@@ -706,6 +735,10 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
         moods: parseList(readText(form, "moods")),
         rating,
         ratingModifier,
+        ratingProduction: multiDimension ? ratingProduction : null,
+        ratingSongwriting: multiDimension ? ratingSongwriting : null,
+        ratingOriginality: multiDimension ? ratingOriginality : null,
+        ratingResonance: multiDimension ? ratingResonance : null,
         firstListenedAt: readDate(form, "firstListenedAt"),
         listenedAt: readDate(form, "listenedAt"),
       };
@@ -847,7 +880,23 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
           value={rating}
           modifier={ratingModifier}
           onChange={(r, m) => { setRating(r); setRatingModifier(m); }}
+          label={multiDimension ? "综合评分" : "评分"}
         />
+        <div className="multi-dimension-toggle">
+          <label>
+            <input type="checkbox" checked={multiDimension} onChange={(e) => setMultiDimension(e.target.checked)} />
+            多维度评分（制作 / 词曲 / 原创性 / 共鸣）
+          </label>
+          {multiDimension ? <small>开启后综合评分自动取四维平均，可手动覆盖。</small> : null}
+        </div>
+        {multiDimension ? (
+          <div className="multi-dimension-grid">
+            <RatingSlider value={ratingProduction} modifier={null} onChange={(r) => setRatingProduction(r)} name="ratingProduction" showModifier={false} label="制作" />
+            <RatingSlider value={ratingSongwriting} modifier={null} onChange={(r) => setRatingSongwriting(r)} name="ratingSongwriting" showModifier={false} label="词曲" />
+            <RatingSlider value={ratingOriginality} modifier={null} onChange={(r) => setRatingOriginality(r)} name="ratingOriginality" showModifier={false} label="原创性" />
+            <RatingSlider value={ratingResonance} modifier={null} onChange={(r) => setRatingResonance(r)} name="ratingResonance" showModifier={false} label="共鸣" />
+          </div>
+        ) : null}
         <label>首次收听时间<input name="firstListenedAt" type="date" defaultValue={source?.firstListenedAt ? new Date(source.firstListenedAt).toLocaleDateString("en-CA") : ""} /></label>
         <label>正文<textarea className="note-editor" name="content" rows={16} defaultValue={source?.content ?? ""} placeholder="像写备忘录一样，记录此刻的感受……" required /></label>
         <div className={`draft-status${draftError ? " error-state" : ""}`}>
@@ -1204,6 +1253,14 @@ function EntryDetailPage() {
         <Meta label="标签" value={entry.tags.join("、") || null} />
         <Meta label="情绪" value={entry.moods.join("、") || null} />
         <Meta label="评分" value={ratingDisplay} />
+        {entry.ratingProduction !== null || entry.ratingSongwriting !== null || entry.ratingOriginality !== null || entry.ratingResonance !== null ? (
+          <>
+            <Meta label="制作" value={entry.ratingProduction !== null ? `${entry.ratingProduction}/10` : null} />
+            <Meta label="词曲" value={entry.ratingSongwriting !== null ? `${entry.ratingSongwriting}/10` : null} />
+            <Meta label="原创性" value={entry.ratingOriginality !== null ? `${entry.ratingOriginality}/10` : null} />
+            <Meta label="共鸣" value={entry.ratingResonance !== null ? `${entry.ratingResonance}/10` : null} />
+          </>
+        ) : null}
         <Meta label="首次收听" value={formatDateOnly(entry.firstListenedAt)} />
         <Meta label="听歌或感受日期" value={formatDateOnly(entry.listenedAt)} />
         <Meta label="创建时间" value={formatDate(entry.createdAt)} />
@@ -2316,6 +2373,10 @@ function readDraftFields(form: HTMLFormElement): EntryDraftFields {
     tags: value("tags"),
     rating: value("rating"),
     ratingModifier: value("ratingModifier"),
+    ratingProduction: value("ratingProduction"),
+    ratingSongwriting: value("ratingSongwriting"),
+    ratingOriginality: value("ratingOriginality"),
+    ratingResonance: value("ratingResonance"),
     content: value("content"),
   };
 }

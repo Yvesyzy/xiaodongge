@@ -36,6 +36,10 @@ CREATE TABLE IF NOT EXISTS ReviewEntry (
   moods TEXT,
   rating REAL,
   ratingModifier TEXT,
+  ratingProduction REAL,
+  ratingSongwriting REAL,
+  ratingOriginality REAL,
+  ratingResonance REAL,
   firstListenedAt TEXT,
   listenedAt TEXT,
   createdAt TEXT NOT NULL,
@@ -148,6 +152,11 @@ class Store {
     if (!(columns.values ?? []).some((column) => column.name === "firstListenedAt")) {
       await this.db.run("ALTER TABLE ReviewEntry ADD COLUMN firstListenedAt TEXT");
     }
+    for (const dim of ["ratingProduction", "ratingSongwriting", "ratingOriginality", "ratingResonance"] as const) {
+      if (!(columns.values ?? []).some((column) => column.name === dim)) {
+        await this.db.run(`ALTER TABLE ReviewEntry ADD COLUMN ${dim} REAL`);
+      }
+    }
     const summaryColumns = await this.db.query("PRAGMA table_info(YearlySummary)");
     for (const [name, definition] of [["analysisJson", "TEXT"], ["analysisVersion", "INTEGER"], ["sourceFingerprint", "TEXT"]] as const) {
       if (!(summaryColumns.values ?? []).some((column) => column.name === name)) await this.db.run(`ALTER TABLE YearlySummary ADD COLUMN ${name} ${definition}`);
@@ -184,7 +193,7 @@ class Store {
       return entry;
     }
     await this.dbReady().run(
-      `INSERT INTO ReviewEntry (id, type, title, year, month, albumName, songName, artistName, musicMetadata, content, tags, moods, rating, ratingModifier, firstListenedAt, listenedAt, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO ReviewEntry (id, type, title, year, month, albumName, songName, artistName, musicMetadata, content, tags, moods, rating, ratingModifier, ratingProduction, ratingSongwriting, ratingOriginality, ratingResonance, firstListenedAt, listenedAt, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       entryValues(entry),
     );
     await this.markGeneratedSummariesStale([entry]);
@@ -203,8 +212,8 @@ class Store {
       return entry;
     }
     await this.dbReady().run(
-      `UPDATE ReviewEntry SET type=?, title=?, year=?, month=?, albumName=?, songName=?, artistName=?, musicMetadata=?, content=?, tags=?, moods=?, rating=?, ratingModifier=?, firstListenedAt=?, listenedAt=?, updatedAt=? WHERE id=?`,
-      [entry.type, entry.title, entry.year, entry.month, entry.albumName, entry.songName, entry.artistName, encodeMusicMetadata(entry.musicMetadata), entry.content, JSON.stringify(entry.tags), JSON.stringify(entry.moods), entry.rating, entry.ratingModifier, entry.firstListenedAt, entry.listenedAt, entry.updatedAt, id],
+      `UPDATE ReviewEntry SET type=?, title=?, year=?, month=?, albumName=?, songName=?, artistName=?, musicMetadata=?, content=?, tags=?, moods=?, rating=?, ratingModifier=?, ratingProduction=?, ratingSongwriting=?, ratingOriginality=?, ratingResonance=?, firstListenedAt=?, listenedAt=?, updatedAt=? WHERE id=?`,
+      [entry.type, entry.title, entry.year, entry.month, entry.albumName, entry.songName, entry.artistName, encodeMusicMetadata(entry.musicMetadata), entry.content, JSON.stringify(entry.tags), JSON.stringify(entry.moods), entry.rating, entry.ratingModifier, entry.ratingProduction, entry.ratingSongwriting, entry.ratingOriginality, entry.ratingResonance, entry.firstListenedAt, entry.listenedAt, entry.updatedAt, id],
     );
     await this.markGeneratedSummariesStale([old, entry]);
     return entry;
@@ -581,7 +590,7 @@ class Store {
 
   async exportBackup() {
     return JSON.stringify({
-      version: 4,
+      version: 5,
       exportedAt: new Date().toISOString(),
       entries: await this.listEntries(),
       summaries: await this.listSummaries(),
@@ -669,7 +678,7 @@ class Store {
       { statement: "DELETE FROM CoverImage" },
       { statement: "DELETE FROM AppData" },
       ...backup.listeningMoments.map((moment) => ({ statement: "INSERT INTO ListeningMoment (id, entryId, listenedAt, rating, ratingModifier, moods, content, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", values: listeningMomentValues(moment) })),
-      ...backup.entries.map((entry) => ({ statement: "INSERT INTO ReviewEntry (id, type, title, year, month, albumName, songName, artistName, musicMetadata, content, tags, moods, rating, ratingModifier, firstListenedAt, listenedAt, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", values: entryValues(entry) })),
+      ...backup.entries.map((entry) => ({ statement: "INSERT INTO ReviewEntry (id, type, title, year, month, albumName, songName, artistName, musicMetadata, content, tags, moods, rating, ratingModifier, ratingProduction, ratingSongwriting, ratingOriginality, ratingResonance, firstListenedAt, listenedAt, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", values: entryValues(entry) })),
       ...backup.summaries.map((summary) => ({ statement: "INSERT INTO YearlySummary (id, year, title, content, analysisJson, analysisVersion, sourceFingerprint, sourceEntryCount, generatedAt, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", values: summaryValues(summary) })),
       ...backup.monthlySummaries.map((summary) => ({ statement: "INSERT INTO MonthlySummary (id, year, month, title, content, themeId, analysisJson, analysisVersion, sourceFingerprint, sourceEntryCount, generatedAt, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", values: monthlySummaryValues(summary) })),
       ...backup.covers.map((cover) => ({ statement: "INSERT INTO CoverImage (coverKey, kind, albumName, songName, artistName, dataUrl, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?)", values: coverValues(cover) })),
@@ -815,6 +824,10 @@ function rowToEntry(row: Record<string, unknown>): ReviewEntry {
     moods: safeDecodeList(nullableString(row.moods)),
     rating: row.rating === null || row.rating === undefined ? null : Number(row.rating),
     ratingModifier: safeParseRatingModifier(nullableString(row.ratingModifier)),
+    ratingProduction: row.ratingProduction === null || row.ratingProduction === undefined ? null : Number(row.ratingProduction),
+    ratingSongwriting: row.ratingSongwriting === null || row.ratingSongwriting === undefined ? null : Number(row.ratingSongwriting),
+    ratingOriginality: row.ratingOriginality === null || row.ratingOriginality === undefined ? null : Number(row.ratingOriginality),
+    ratingResonance: row.ratingResonance === null || row.ratingResonance === undefined ? null : Number(row.ratingResonance),
     firstListenedAt: nullableString(row.firstListenedAt),
     listenedAt: nullableString(row.listenedAt),
     createdAt: String(row.createdAt),
@@ -883,7 +896,7 @@ function rowToListeningMoment(row: Record<string, unknown>): ListeningMoment {
 }
 
 function entryValues(entry: ReviewEntry) {
-  return [entry.id, entry.type, entry.title, entry.year, entry.month, entry.albumName, entry.songName, entry.artistName, encodeMusicMetadata(entry.musicMetadata), entry.content, JSON.stringify(entry.tags), JSON.stringify(entry.moods), entry.rating, entry.ratingModifier, entry.firstListenedAt, entry.listenedAt, entry.createdAt, entry.updatedAt];
+  return [entry.id, entry.type, entry.title, entry.year, entry.month, entry.albumName, entry.songName, entry.artistName, encodeMusicMetadata(entry.musicMetadata), entry.content, JSON.stringify(entry.tags), JSON.stringify(entry.moods), entry.rating, entry.ratingModifier, entry.ratingProduction, entry.ratingSongwriting, entry.ratingOriginality, entry.ratingResonance, entry.firstListenedAt, entry.listenedAt, entry.createdAt, entry.updatedAt];
 }
 
 function summaryValues(summary: YearlySummary) {
@@ -909,15 +922,20 @@ function validateEntry(entry: ReviewEntry) {
   if (!Number.isInteger(entry.year) || entry.year < 1 || entry.year > 9999) throw new Error("年份范围必须是 1-9999");
   if (entry.month !== null && (!Number.isInteger(entry.month) || entry.month < 1 || entry.month > 12)) throw new Error("月份范围必须是 1-12");
   if (entry.rating !== null && (typeof entry.rating !== "number" || !Number.isFinite(entry.rating) || entry.rating < 0.5 || entry.rating > 10)) throw new Error("评分范围必须是 0.5-10");
-  if (entry.rating !== null && !isHalfStep(entry.rating)) throw new Error("评分必须是 0.5 的整数倍");
+  // ponytail: 综合分允许 0.1 步进（多维度均值自动计算），不再强制 0.5 步进
   if (entry.ratingModifier !== null && entry.ratingModifier !== "+" && entry.ratingModifier !== "-") throw new Error("评分修饰符必须是 + 或 -");
   if (entry.rating === null && entry.ratingModifier !== null) throw new Error("评分修饰符只能与评分一起使用");
+  for (const [dim, label] of [["ratingProduction", "制作"], ["ratingSongwriting", "词曲"], ["ratingOriginality", "原创性"], ["ratingResonance", "共鸣"]] as const) {
+    const value = entry[dim];
+    if (value !== null && (typeof value !== "number" || !Number.isFinite(value) || value < 0.5 || value > 10)) throw new Error(`${label}评分范围必须是 0.5-10`);
+    if (value !== null && !isHalfStep(value)) throw new Error(`${label}评分必须是 0.5 的整数倍`);
+  }
   if (entry.firstListenedAt !== null && !isValidDateString(entry.firstListenedAt)) throw new Error("首次收听时间必须是有效时间字符串");
   readMusicMetadata(entry.musicMetadata, "entry.musicMetadata");
 }
 
 type BackupData = {
-  version: 4;
+  version: 5;
   exportedAt: string;
   entries: ReviewEntry[];
   summaries: YearlySummary[];
@@ -936,7 +954,7 @@ function parseBackup(raw: string): BackupData {
   }
   if (!isRecord(parsed)) throw new Error("备份内容必须是 JSON 对象");
   const version = parsed.version;
-  if (version !== 1 && version !== 2 && version !== 3 && version !== 4) throw new Error("备份版本不支持");
+  if (version !== 1 && version !== 2 && version !== 3 && version !== 4 && version !== 5) throw new Error("备份版本不支持");
   if (!isValidDateString(parsed.exportedAt)) throw new Error("备份导出时间无效");
 
   const entries = readArray(parsed.entries, "entries").map((entry) => readEntry(entry, version >= 2));
@@ -945,7 +963,7 @@ function parseBackup(raw: string): BackupData {
   const covers = readArray(parsed.covers, "covers").map(readCover);
   const listeningMoments = version >= 4 ? readArray(parsed.listeningMoments, "listeningMoments").map(readListeningMoment) : [];
   const appData = version >= 3 ? readBackupAppData(parsed.appData) : {};
-  return { version: 4, exportedAt: parsed.exportedAt, entries, summaries, monthlySummaries, covers, listeningMoments, appData };
+  return { version: 5, exportedAt: parsed.exportedAt, entries, summaries, monthlySummaries, covers, listeningMoments, appData };
 }
 
 function summarizeBackup(backup: BackupData) {
@@ -977,6 +995,10 @@ function readEntry(value: unknown, metadataRequired = false): ReviewEntry {
     moods: readStringArray(value.moods, "entries.moods"),
     rating: readNullableNumber(value.rating, "entries.rating"),
     ratingModifier: parseRatingModifier(readNullableField(value.ratingModifier, "entries.ratingModifier")),
+    ratingProduction: readNullableNumber(value.ratingProduction, "entries.ratingProduction"),
+    ratingSongwriting: readNullableNumber(value.ratingSongwriting, "entries.ratingSongwriting"),
+    ratingOriginality: readNullableNumber(value.ratingOriginality, "entries.ratingOriginality"),
+    ratingResonance: readNullableNumber(value.ratingResonance, "entries.ratingResonance"),
     firstListenedAt: readNullableDate(value.firstListenedAt, "entries.firstListenedAt"),
     listenedAt: readNullableDate(value.listenedAt, "entries.listenedAt"),
     createdAt: readDate(value.createdAt, "entries.createdAt"),

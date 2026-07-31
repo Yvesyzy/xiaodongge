@@ -46,10 +46,18 @@ const input = {
   moods: ["温柔"],
   rating: 9,
   ratingModifier: null,
+  ratingProduction: 8.5,
+  ratingSongwriting: 9,
+  ratingOriginality: 7.5,
+  ratingResonance: 9.5,
   firstListenedAt: null,
   listenedAt: "2026-03-08T00:00:00.000Z",
 };
 const created = await store.createEntry(input);
+assert.equal(created.ratingProduction, 8.5, "ratingProduction 应持久化");
+assert.equal(created.ratingSongwriting, 9, "ratingSongwriting 应持久化");
+assert.equal(created.ratingOriginality, 7.5, "ratingOriginality 应持久化");
+assert.equal(created.ratingResonance, 9.5, "ratingResonance 应持久化");
 const day = await store.getDayListeningSnapshot("2026-03-08");
 assert.equal(day.entryCount, 1);
 assert.equal(day.day.kind, "ordinary_holiday");
@@ -62,6 +70,9 @@ assert.ok(annual.analysisJson.includes('"scope":"year"'));
 assert.equal(annual.sourceEntryCount, 1);
 
 await store.updateEntry(created.id, { ...input, content: "人声很克制，旋律清澈。" });
+const updated = await store.getEntry(created.id);
+assert.equal(updated.ratingProduction, 8.5, "updateEntry 后 ratingProduction 应保留");
+assert.equal(updated.ratingResonance, 9.5, "updateEntry 后 ratingResonance 应保留");
 assert.equal((await store.getMonthlySummary(2026, 3)).sourceFingerprint, null);
 assert.equal((await store.getSummary(2026)).sourceFingerprint, null);
 assert.ok((await store.getSummary(2026)).content.includes("私人听感标本册"));
@@ -89,7 +100,7 @@ const backupWithWeather = JSON.parse(await store.exportBackup());
 assert.ok(Object.keys(backupWithWeather.appData).some((key) => key.startsWith("listening-weather:")));
 await store.setWeatherLocation(null);
 const backup = JSON.parse(await store.exportBackup());
-assert.equal(backup.version, 4);
+assert.equal(backup.version, 5);
 assert.equal(backup.entries.length, 1);
 assert.equal(backup.monthlySummaries.length, 1);
 assert.equal(JSON.parse(backup.appData["listening-semantic-overrides"]).length, 1);

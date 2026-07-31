@@ -16,6 +16,10 @@ export type EntryDraftFields = {
   tags: string;
   rating: string;
   ratingModifier: string;
+  ratingProduction: string;
+  ratingSongwriting: string;
+  ratingOriginality: string;
+  ratingResonance: string;
   content: string;
 };
 
@@ -185,8 +189,12 @@ function parseFields(value: unknown): EntryDraftFields | null {
   if (!isRecord(value) || !ENTRY_TYPES.includes(value.type as EntryType)) return null;
   const keys = ["title", "year", "month", "albumName", "songName", "artistName", "listenedAt", "tags", "rating", "content"] as const;
   if (keys.some((key) => typeof value[key] !== "string")) return null;
-  // ponytail: 旧版草稿（v1）没有 ratingModifier 字段，兼容为空字符串
+  // ponytail: 旧版草稿（v1）没有 ratingModifier/4 维字段，兼容为空字符串
   const ratingModifier = typeof value.ratingModifier === "string" ? value.ratingModifier : "";
+  const ratingProduction = typeof value.ratingProduction === "string" ? value.ratingProduction : "";
+  const ratingSongwriting = typeof value.ratingSongwriting === "string" ? value.ratingSongwriting : "";
+  const ratingOriginality = typeof value.ratingOriginality === "string" ? value.ratingOriginality : "";
+  const ratingResonance = typeof value.ratingResonance === "string" ? value.ratingResonance : "";
   return {
     type: value.type as EntryType,
     title: value.title as string,
@@ -199,6 +207,10 @@ function parseFields(value: unknown): EntryDraftFields | null {
     tags: value.tags as string,
     rating: value.rating as string,
     ratingModifier,
+    ratingProduction,
+    ratingSongwriting,
+    ratingOriginality,
+    ratingResonance,
     content: value.content as string,
   };
 }

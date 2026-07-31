@@ -55,6 +55,10 @@ export type ReviewEntry = {
   moods: string[];
   rating: number | null;
   ratingModifier: RatingModifier | null;
+  ratingProduction: number | null;
+  ratingSongwriting: number | null;
+  ratingOriginality: number | null;
+  ratingResonance: number | null;
   firstListenedAt: string | null;
   listenedAt: string | null;
   createdAt: string;

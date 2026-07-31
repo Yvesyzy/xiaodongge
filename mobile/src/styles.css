@@ -2909,6 +2909,60 @@ textarea {
   color: var(--green-700);
 }
 
+/* ---- Multi-Dimension Rating ---- */
+.multi-dimension-toggle {
+  margin: 8px 0 4px;
+  padding: 10px 12px;
+  border: 1px dashed rgba(7, 31, 27, 0.18);
+  border-radius: 10px;
+  background: rgba(15, 118, 110, 0.04);
+}
+
+.multi-dimension-toggle label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--green-800);
+  cursor: pointer;
+}
+
+.multi-dimension-toggle small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.multi-dimension-grid {
+  margin-top: 6px;
+  padding: 10px 12px 4px;
+  border-left: 2px solid var(--green-700);
+  background: rgba(255, 255, 255, 0.4);
+  border-radius: 0 10px 10px 0;
+}
+
+.multi-dimension-grid .rating-slider-section {
+  padding: 6px 0 10px;
+  border-bottom: 1px solid rgba(7, 31, 27, 0.06);
+}
+
+.multi-dimension-grid .rating-slider-section:last-child {
+  border-bottom: none;
+}
+
+.multi-dimension-grid .rating-slider-head strong {
+  font-size: 13px;
+}
+
+.multi-dimension-grid .rating-track {
+  height: 22px;
+}
+
+.multi-dimension-grid .rating-mark .mark-label {
+  font-size: 9px;
+}
+
 /* ---- Genre Tree Picker ---- */
 .genre-tree-level {
   display: flex;
