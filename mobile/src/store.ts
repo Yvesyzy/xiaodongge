@@ -782,9 +782,11 @@ export function parseList(value: string) {
 
 export function calculateYearStats(year: number, entries: ReviewEntry[]): YearStats {
   const ratings = entries.map((entry) => entry.rating).filter((rating): rating is number => rating !== null);
+  const createdThisYear = entries.filter((entry) => entry.createdAt.slice(0, 4) === String(year)).length;
   return {
     year,
     totalEntries: entries.length,
+    createdThisYear,
     monthCount: new Set(entries.map((entry) => entry.month).filter((month): month is number => month !== null)).size,
     albumCount: new Set(entries.map((entry) => entry.albumName).filter(Boolean)).size,
     songCount: new Set(entries.map((entry) => entry.songName).filter(Boolean)).size,

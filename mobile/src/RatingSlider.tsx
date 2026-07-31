@@ -4,7 +4,6 @@ import type { RatingModifier } from "./types";
 const MIN = 0.5;
 const MAX = 10;
 const STEP = 0.5;
-const STEPS = (MAX - MIN) / STEP + 1;
 
 type RatingSliderProps = {
   value: number | null;
@@ -83,9 +82,11 @@ export default function RatingSlider({ value, modifier, onChange }: RatingSlider
     onChange(null, null);
   }, [onChange]);
 
-  const displayValue = value ?? 0;
-  const percent = ratingToPercent(Math.max(MIN, displayValue));
-  const hasValue = value !== null;
+  // 拖动中显示 localValue（实时反馈），非拖动时显示 value（已提交值）
+  const displayValue = dragging ? localValue : (value ?? localValue);
+  const activeValue = value ?? localValue;
+  const percent = ratingToPercent(Math.max(MIN, dragging ? localValue : activeValue));
+  const hasValue = displayValue >= MIN;
   const displayModifier = modifier ?? localModifier;
 
   const markValues = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
@@ -95,7 +96,7 @@ export default function RatingSlider({ value, modifier, onChange }: RatingSlider
       <div className="rating-slider-head">
         <strong>评分</strong>
         {hasValue ? (
-          <span className="rating-display">
+          <span className={`rating-display${dragging ? " dragging" : ""}`}>
             <button type="button" className="rating-clear" onClick={clearRating} aria-label="清除评分">x</button>
             <em className="rating-number">{displayValue}</em>
             {displayModifier ? <sup className={`rating-mod ${displayModifier === "+" ? "plus" : "minus"}`}>{displayModifier}</sup> : null}

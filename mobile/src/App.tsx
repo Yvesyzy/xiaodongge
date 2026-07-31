@@ -127,7 +127,7 @@ function HomePage() {
         <div className="hero-record" aria-hidden="true"><span>FOR ME<br />NOT FOR ALL</span></div>
       </section>
       <div className="home-stats">
-        <Stat label="今年记录" value={`${stats?.totalEntries ?? 0} 条`} />
+        <Stat label="今年记录" value={`${stats?.createdThisYear ?? 0} 条`} />
         <Stat label="今年专辑" value={`${stats?.albumCount ?? 0} 张`} />
         <Stat label="今年歌曲" value={`${stats?.songCount ?? 0} 首`} />
       </div>
@@ -301,6 +301,8 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
     if (!entry) return;
     let active = true;
     setEntryCoverLoaded(false);
+    setRating(entry.rating);
+    setRatingModifier(entry.ratingModifier);
     void loadEntryCover(entry).then((nextCover) => {
       if (!active) return;
       setCoverDataUrl(nextCover);
@@ -792,7 +794,7 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
             </label>
           </div>
         </section>
-        <label>听歌或感受日期<input name="listenedAt" type="date" defaultValue={source?.listenedAt?.slice(0, 10) ?? ""} /></label>
+        <label>听歌或感受日期<input name="listenedAt" type="date" defaultValue={source?.listenedAt ? new Date(source.listenedAt).toLocaleDateString("en-CA") : ""} /></label>
         <GenrePicker
           selectedTags={selectedGenreTags}
           onToggleTag={toggleGenre}
@@ -809,7 +811,7 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
           modifier={ratingModifier}
           onChange={(r, m) => { setRating(r); setRatingModifier(m); }}
         />
-        <label>首次收听时间<input name="firstListenedAt" type="date" defaultValue={source?.firstListenedAt?.slice(0, 10) ?? ""} /></label>
+        <label>首次收听时间<input name="firstListenedAt" type="date" defaultValue={source?.firstListenedAt ? new Date(source.firstListenedAt).toLocaleDateString("en-CA") : ""} /></label>
         <label>正文<textarea className="note-editor" name="content" rows={16} defaultValue={source?.content ?? ""} placeholder="像写备忘录一样，记录此刻的感受……" required /></label>
         <div className={`draft-status${draftError ? " error-state" : ""}`}>
           <span role="status" aria-live="polite">{draftStatus}</span>
@@ -1042,6 +1044,7 @@ function EntryDetailPage() {
   const [showMomentForm, setShowMomentForm] = useState(false);
   const [momentSaving, setMomentSaving] = useState(false);
   const [momentError, setMomentError] = useState("");
+  const [error, setError] = useState("");
   const momentFormRef = useRef<HTMLFormElement | null>(null);
 
   useEffect(() => {
@@ -1153,6 +1156,7 @@ function EntryDetailPage() {
         <Link className="secondary-button" to={`/entries/${entry.id}/edit`}>编辑</Link>
         <button className="danger-button" onClick={remove}>删除</button>
       </div>
+      {error ? <p className="error">{error}</p> : null}
       <article className="content-card">{entry.content}</article>
       <DailyListeningNote entry={entry} />
       <div className="detail-card">
@@ -1206,7 +1210,7 @@ function EntryDetailPage() {
 
         {showMomentForm ? (
           <form className="moment-form" ref={momentFormRef} onSubmit={addMoment}>
-            <label>收听日期<input name="momentListenedAt" type="date" defaultValue={new Date().toISOString().slice(0, 10)} /></label>
+            <label>收听日期<input name="momentListenedAt" type="date" defaultValue={new Date().toLocaleDateString("en-CA")} /></label>
             <div className="moment-form-row">
               <label>评分<input name="momentRating" type="number" min="0.5" max="10" step="0.5" placeholder="0.5-10" /></label>
               <label>修饰符<select name="momentRatingModifier" defaultValue=""><option value="">无</option><option value="+">+</option><option value="-">-</option></select></label>
@@ -1571,16 +1575,16 @@ function BackupPage() {
     if (!exported) return;
     setMessage("");
     setError("");
-    // Native 端：直接写入 Downloads 目录
+    // Native 端：直接写入 Documents 目录（Android 公共文档目录）
     if (Capacitor.isNativePlatform()) {
       try {
         await Filesystem.writeFile({
           path: exported.fileName,
           data: exported.content,
-          directory: Directory.Downloads,
+          directory: Directory.Documents,
           encoding: Encoding.UTF8,
         });
-        setMessage(`已保存到 Downloads/${exported.fileName}`);
+        setMessage(`已保存到 Documents/${exported.fileName}`);
         return;
       } catch (err) {
         setError("保存文件失败：可能缺少存储权限。请到系统设置 → 应用 → 小懂哥 → 权限 → 存储/文件，授予访问权限后重试；或使用「复制内容」手动保存。");
@@ -1796,7 +1800,7 @@ function MorePage() {
           </Link>
         ))}
       </div>
-      <p className="hint">版本 2.1.2 · 本地优先的私人音乐档案</p>
+      <p className="hint">版本 2.1.3 · 本地优先的私人音乐档案</p>
     </Page>
   );
 }

@@ -123,6 +123,7 @@ export type CoverTarget = {
 export type YearStats = {
   year: number;
   totalEntries: number;
+  createdThisYear: number;
   monthCount: number;
   albumCount: number;
   songCount: number;
