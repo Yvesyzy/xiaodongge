@@ -27,6 +27,7 @@
   "dependencies": {
     "@capacitor-community/sqlite": "8.1.0",
     "@capacitor/core": "8.4.1",
+    "@capacitor/filesystem": "^8.1.2",
     "@prisma/client": "6.19.3",
     "next": "16.2.9",
     "react": "19.2.7",

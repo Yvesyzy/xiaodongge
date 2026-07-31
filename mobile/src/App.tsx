@@ -1,5 +1,6 @@
 import { ChangeEvent, FormEvent, lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Capacitor, registerPlugin } from "@capacitor/core";
+import { Directory, Filesystem, Encoding } from "@capacitor/filesystem";
 import { Link, NavLink, Route, Routes, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { GENRE_TAGS, GENRE_TREE, findGenrePath, genreChildren, isKnownGenreTag, type GenreNode } from "../../shared/genres";
 import { MOOD_CATEGORIES, MOOD_TAGS } from "../../shared/moods";
@@ -1553,8 +1554,24 @@ function BackupPage() {
     if (!exported) return;
     setMessage("");
     setError("");
+    // Native 端：直接写入 Downloads 目录
+    if (Capacitor.isNativePlatform()) {
+      try {
+        await Filesystem.writeFile({
+          path: exported.fileName,
+          data: exported.content,
+          directory: Directory.Downloads,
+          encoding: Encoding.UTF8,
+        });
+        setMessage(`已保存到 Downloads/${exported.fileName}`);
+        return;
+      } catch (err) {
+        setError("保存文件失败，请使用复制内容手动保存");
+        return;
+      }
+    }
+    // Web 端：用系统分享或 <a download>
     const file = new File([exported.content], exported.fileName, { type: exported.mimeType });
-    // ponytail: Capacitor WebView 中 navigator.canShare 常返回 false，直接尝试 share 即可
     try {
       if (typeof navigator.share === "function") {
         await navigator.share({ files: [file], title: exported.fileName, text: "小懂哥导出文件" });
@@ -1567,23 +1584,9 @@ function BackupPage() {
         return;
       }
     }
-    // 回退：用纯文本分享
-    try {
-      if (typeof navigator.share === "function") {
-        await navigator.share({ text: exported.content, title: exported.fileName });
-        setMessage("已通过系统分享导出");
-        return;
-      }
-    } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") {
-        setMessage("已取消分享");
-        return;
-      }
-    }
-    // 最终回退：<a download>（部分 WebView 不生效）
     try {
       downloadExportFile(file);
-      setMessage("已尝试保存文件，请查看系统下载记录");
+      setMessage("已尝试保存文件");
     } catch {
       setError("保存失败，请使用复制内容手动保存");
     }
