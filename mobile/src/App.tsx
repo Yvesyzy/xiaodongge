@@ -5,7 +5,7 @@ import { Link, NavLink, Route, Routes, useNavigate, useParams, useSearchParams }
 import { GENRE_TAGS, GENRE_TREE, findGenrePath, genreChildren, isKnownGenreTag, type GenreNode } from "../../shared/genres";
 import { MOOD_CATEGORIES, MOOD_TAGS } from "../../shared/moods";
 import { ABSTRACT_MAP_REGION_DEFS, UNCLASSIFIED_REGION_ID, UNIVERSE_GROUP_BY_OPTIONS, type AbstractMapRegion, type AbstractMapResult, type EmotionUniverseResult, type EmotionUniverseSong, type UniverseGroupBy, type VisualizationFilters, type VisualizationOptions, type VisualizationSong } from "../../shared/visualizations";
-import { canRestoreEditDraft, readEntryDraft, removeEntryDraft, writeEntryDraft, type EntryDraft, type EntryDraftFields } from "./entryDraft";
+import { canRestoreEditDraft, countNewDrafts, createNewDraftId, deleteEntryDraftByKey, listEntryDrafts, MAX_NEW_DRAFTS, readEntryDraft, removeEntryDraft, writeEntryDraft, type EntryDraft, type EntryDraftFields, type EntryDraftMeta } from "./entryDraft";
 import { findSimilarEntry } from "./entryDuplicate";
 import { excerpt, formatDate, formatDateOnly, monthLabel } from "./format";
 import { DailyListeningNote, MonthlyListeningPage, YearlyListeningPage } from "./ListeningYearbookView";
@@ -83,6 +83,7 @@ export default function App() {
           <Route path="/abstract-map" element={<AbstractMusicMapPage />} />
           <Route path="/emotion-universe" element={<EmotionUniversePage />} />
           <Route path="/backup" element={<BackupPage />} />
+          <Route path="/drafts" element={<DraftsPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="/more" element={<MorePage />} />
         </Routes>
@@ -240,6 +241,26 @@ function TimelinePage() {
 function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const draftIdRef = useRef<string | null>(null);
+  const draftLimitErrorRef = useRef(false);
+  if (mode === "create" && draftIdRef.current === null) {
+    const fromUrl = searchParams.get("draft");
+    if (fromUrl && fromUrl.trim()) {
+      draftIdRef.current = fromUrl.trim();
+    } else {
+      // 直接进入 /new（无 draft 参数）：仅当未达上限时生成新 draftId
+      if (countNewDrafts(localStorage) < MAX_NEW_DRAFTS) {
+        draftIdRef.current = createNewDraftId();
+        const next = new URLSearchParams(searchParams);
+        next.set("draft", draftIdRef.current);
+        setSearchParams(next, { replace: true });
+      } else {
+        draftLimitErrorRef.current = true;
+      }
+    }
+  }
+  const draftId = mode === "create" ? draftIdRef.current : null;
   const formRef = useRef<HTMLFormElement | null>(null);
   const draftTimerRef = useRef<number | null>(null);
   const pendingDraftRef = useRef<EntryDraft | null>(null);
@@ -339,7 +360,7 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
     setDraftReady(false);
     skipDraftStateSaveRef.current = true;
     try {
-      const result = readEntryDraft(localStorage, mode, mode === "edit" ? id as string : null);
+      const result = readEntryDraft(localStorage, mode, mode === "edit" ? id as string : null, draftId);
       if (result.status === "missing") {
         setHasDraft(false);
         setDraftStatus("输入内容会自动保存");
@@ -378,7 +399,7 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
       draftReadyRef.current = true;
       setDraftReady(true);
     }
-  }, [entry, entryCoverLoaded, id, mode]);
+  }, [entry, entryCoverLoaded, id, mode, draftId]);
 
   useEffect(() => {
     if (!draftReady) return;
@@ -402,7 +423,7 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
       document.removeEventListener("visibilitychange", flushHiddenDraft);
       persistPendingDraft(false);
     };
-  }, [draftReady, id, mode]);
+  }, [draftReady, id, mode, draftId]);
 
   useEffect(() => {
     if (draftReady && Capacitor.isNativePlatform()) void readNowPlaying();
@@ -416,6 +437,7 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
       version: 2,
       mode,
       entryId,
+      draftId,
       baseUpdatedAt: mode === "edit" ? entry?.updatedAt ?? null : null,
       savedAt: new Date().toISOString(),
       fields: readDraftFields(formRef.current),
@@ -480,7 +502,7 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
       }
     }
     try {
-      removeEntryDraft(localStorage, mode, mode === "edit" ? id ?? null : null);
+      removeEntryDraft(localStorage, mode, mode === "edit" ? id ?? null : null, draftId);
     } catch (err) {
       setDraftStatus(err instanceof Error ? `草稿清除失败：${err.message}` : "草稿清除失败");
       setDraftError(true);
@@ -691,7 +713,7 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
       if (coverTarget) await store.setCover(coverTarget.kind, coverTarget.target, coverDataUrl as string);
       const saved = mode === "create" ? await store.createEntry(input) : await store.updateEntry(id as string, input);
       try {
-        removeEntryDraft(localStorage, mode, mode === "edit" ? id ?? null : null);
+        removeEntryDraft(localStorage, mode, mode === "edit" ? id ?? null : null, draftId);
       } catch (draftCleanupError) {
         alert(`记录已保存，但草稿清理失败：${draftCleanupError instanceof Error ? draftCleanupError.message : "未知错误"}`);
       }
@@ -711,6 +733,12 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
 
   if (loading) return <Page title="编辑记录"><Empty text="正在加载记录。" /></Page>;
   if (mode === "edit" && !source) return <Page title="编辑记录"><Empty text={error || "记录不存在。"} /></Page>;
+  if (mode === "create" && draftLimitErrorRef.current) return (
+    <Page title="新建记录">
+      <Empty text={`新建草稿已达上限（${MAX_NEW_DRAFTS} 份）。请先到草稿箱删除旧草稿，或从草稿箱选择一份继续。`} />
+      <Link to="/drafts" className="primary-button full" style={{ marginTop: 12 }}>前往草稿箱</Link>
+    </Page>
+  );
 
   return (
     <Page title={mode === "create" ? "新建记录" : "编辑记录"} text="未填写的信息会保持为空，不会自动补全。">
@@ -1549,6 +1577,94 @@ function EmotionUniversePage() {
   );
 }
 
+function DraftsPage() {
+  const navigate = useNavigate();
+  const [drafts, setDrafts] = useState<EntryDraftMeta[]>([]);
+  const [error, setError] = useState("");
+
+  function refresh() {
+    try {
+      setDrafts(listEntryDrafts(localStorage));
+      setError("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "草稿列表读取失败");
+    }
+  }
+
+  useEffect(() => { refresh(); }, []);
+
+  function continueDraft(draft: EntryDraftMeta) {
+    if (draft.mode === "create") {
+      if (draft.draftId) {
+        navigate(`/new?draft=${encodeURIComponent(draft.draftId)}`);
+      } else {
+        // legacy 草稿（v1:new 无 draftId）：迁移到新 key 后跳转
+        const result = readEntryDraft(localStorage, "create", null, null);
+        if (result.status === "valid") {
+          const newDraftId = createNewDraftId();
+          writeEntryDraft(localStorage, { ...result.draft, draftId: newDraftId });
+          deleteEntryDraftByKey(localStorage, draft.key);
+          navigate(`/new?draft=${encodeURIComponent(newDraftId)}`);
+        } else {
+          navigate("/new");
+        }
+      }
+    } else if (draft.entryId) {
+      navigate(`/entries/${draft.entryId}/edit`);
+    }
+  }
+
+  function createNewDraft() {
+    const newCount = countNewDrafts(localStorage);
+    if (newCount >= MAX_NEW_DRAFTS) {
+      setError(`新建草稿已达上限（${MAX_NEW_DRAFTS} 份），请先删除旧草稿。`);
+      return;
+    }
+    const newDraftId = createNewDraftId();
+    navigate(`/new?draft=${encodeURIComponent(newDraftId)}`);
+  }
+
+  function deleteDraft(draft: EntryDraftMeta) {
+    if (!confirm(`删除草稿「${draft.title}」？此操作无法撤销。`)) return;
+    try {
+      deleteEntryDraftByKey(localStorage, draft.key);
+      refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "草稿删除失败");
+    }
+  }
+
+  const newCount = drafts.filter((d) => d.mode === "create").length;
+
+  return (
+    <Page title="草稿箱" text={`${drafts.length} 份未保存草稿（新建 ${newCount}/${MAX_NEW_DRAFTS}，编辑 ${drafts.length - newCount}），点击续写或删除。`}>
+      {error ? <p className="error">{error}</p> : null}
+      <button type="button" className="primary-button full draft-create" onClick={createNewDraft} disabled={newCount >= MAX_NEW_DRAFTS}>
+        新建草稿（{newCount}/{MAX_NEW_DRAFTS}）
+      </button>
+      {drafts.length === 0 ? (
+        <Empty text="没有草稿。点上方按钮或底部「+」开始新记录，输入内容会自动保存。" />
+      ) : (
+        <div className="draft-list">
+          {drafts.map((draft) => (
+            <div key={draft.key} className="draft-card">
+              <button type="button" className="draft-card-main" onClick={() => continueDraft(draft)}>
+                <strong>{draft.title}</strong>
+                <span className="draft-meta">
+                  {draft.mode === "create" ? "新建草稿" : "编辑记录"}
+                  {draft.type ? ` · ${ENTRY_TYPE_LABELS[draft.type]}` : ""}
+                  {" · "}{formatDate(draft.savedAt)}
+                </span>
+              </button>
+              <button type="button" className="danger-button draft-delete" onClick={() => deleteDraft(draft)}>删除</button>
+            </div>
+          ))}
+        </div>
+      )}
+    </Page>
+  );
+}
+
 function BackupPage() {
   const [exported, setExported] = useState<ExportedData | null>(null);
   const [importText, setImportText] = useState("");
@@ -1782,11 +1898,13 @@ function BackupPage() {
 }
 
 function MorePage() {
+  const [draftCount] = useState(() => listEntryDrafts(localStorage).length);
   const items = [
     ["/abstract-map", "抽象地图", "按情绪把记录放进听歌大陆。"],
     ["/emotion-universe", "情绪宇宙", "用 3D 星图查看歌曲情绪位置。"],
     ["/albums", "专辑", "按专辑名称聚合记录。"],
     ["/songs", "歌曲", "按歌曲名称聚合记录。"],
+    ["/drafts", "草稿箱", `${draftCount} 份未保存草稿，可续写或删除。`],
     ["/backup", "备份", "导出或导入本地 JSON 备份。"],
     ["/privacy", "隐私说明", "查看通知读取、天气联网与本地听感分析的数据范围。"],
   ];
@@ -1800,7 +1918,7 @@ function MorePage() {
           </Link>
         ))}
       </div>
-      <p className="hint">版本 2.1.3 · 本地优先的私人音乐档案</p>
+      <p className="hint">版本 2.1.4 · 本地优先的私人音乐档案</p>
     </Page>
   );
 }

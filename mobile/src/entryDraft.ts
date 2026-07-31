@@ -23,6 +23,7 @@ export type EntryDraft = {
   version: 2;
   mode: EntryDraftMode;
   entryId: string | null;
+  draftId: string | null;
   baseUpdatedAt: string | null;
   savedAt: string;
   fields: EntryDraftFields;
@@ -37,17 +38,22 @@ export type EntryDraft = {
   musicMetadata: MusicMetadata | null;
 };
 
-type DraftStorage = Pick<Storage, "getItem" | "setItem" | "removeItem">;
+export const MAX_NEW_DRAFTS = 5;
 
-export function entryDraftKey(mode: EntryDraftMode, entryId: string | null) {
-  if (mode === "create") return "music-feelings-entry-draft:v1:new";
+type DraftStorage = Pick<Storage, "getItem" | "setItem" | "removeItem" | "key" | "length">;
+
+export function entryDraftKey(mode: EntryDraftMode, entryId: string | null, draftId: string | null = null) {
+  if (mode === "create") {
+    if (!draftId) return "music-feelings-entry-draft:v1:new";
+    return `music-feelings-entry-draft:v1:new:${draftId}`;
+  }
   if (!entryId) throw new Error("编辑草稿缺少记录 ID");
   return `music-feelings-entry-draft:v1:edit:${entryId}`;
 }
 
-export function readEntryDraft(storage: DraftStorage, mode: EntryDraftMode, entryId: string | null):
+export function readEntryDraft(storage: DraftStorage, mode: EntryDraftMode, entryId: string | null, draftId: string | null = null):
   { status: "missing" } | { status: "invalid" } | { status: "valid"; draft: EntryDraft } {
-  const raw = storage.getItem(entryDraftKey(mode, entryId));
+  const raw = storage.getItem(entryDraftKey(mode, entryId, draftId));
   if (raw === null) return { status: "missing" };
   try {
     const draft = parseEntryDraft(JSON.parse(raw));
@@ -58,20 +64,83 @@ export function readEntryDraft(storage: DraftStorage, mode: EntryDraftMode, entr
 }
 
 export function writeEntryDraft(storage: DraftStorage, draft: EntryDraft) {
-  storage.setItem(entryDraftKey(draft.mode, draft.entryId), JSON.stringify(draft));
+  storage.setItem(entryDraftKey(draft.mode, draft.entryId, draft.draftId), JSON.stringify(draft));
 }
 
-export function removeEntryDraft(storage: DraftStorage, mode: EntryDraftMode, entryId: string | null) {
-  storage.removeItem(entryDraftKey(mode, entryId));
+export function removeEntryDraft(storage: DraftStorage, mode: EntryDraftMode, entryId: string | null, draftId: string | null = null) {
+  storage.removeItem(entryDraftKey(mode, entryId, draftId));
+}
+
+export function createNewDraftId() {
+  return crypto.randomUUID();
+}
+
+export function countNewDrafts(storage: DraftStorage): number {
+  let count = 0;
+  for (let i = 0; i < storage.length; i++) {
+    const key = storage.key(i);
+    if (!key) continue;
+    // ponytail: 旧版 v1:new 和新版 v1:new:{id} 都算新建草稿
+    if (key === "music-feelings-entry-draft:v1:new" || key.startsWith("music-feelings-entry-draft:v1:new:")) count++;
+  }
+  return count;
 }
 
 export function canRestoreEditDraft(draft: EntryDraft, entryId: string, entryUpdatedAt: string) {
   return draft.mode === "edit" && draft.entryId === entryId && draft.baseUpdatedAt === entryUpdatedAt;
 }
 
+export type EntryDraftMeta = {
+  key: string;
+  mode: EntryDraftMode;
+  entryId: string | null;
+  draftId: string | null;
+  title: string;
+  type: EntryType | null;
+  savedAt: string;
+};
+
+const DRAFT_KEY_PREFIX = "music-feelings-entry-draft:v1:";
+const NEW_LEGACY_KEY = "music-feelings-entry-draft:v1:new";
+const NEW_PREFIX = "music-feelings-entry-draft:v1:new:";
+
+// ponytail: 扫描 localStorage 中所有草稿 key，单用户本地草稿数量有限，O(n) 扫描足够
+export function listEntryDrafts(storage: DraftStorage): EntryDraftMeta[] {
+  const metas: EntryDraftMeta[] = [];
+  for (let i = 0; i < storage.length; i++) {
+    const key = storage.key(i);
+    if (!key || !key.startsWith(DRAFT_KEY_PREFIX)) continue;
+    const raw = storage.getItem(key);
+    if (!raw) continue;
+    try {
+      const draft = parseEntryDraft(JSON.parse(raw));
+      if (!draft) continue;
+      const draftId = key === NEW_LEGACY_KEY ? null : (key.startsWith(NEW_PREFIX) ? key.slice(NEW_PREFIX.length) : null);
+      metas.push({
+        key,
+        mode: draft.mode,
+        entryId: draft.entryId,
+        draftId,
+        title: draft.fields.title || "(未命名草稿)",
+        type: draft.fields.type,
+        savedAt: draft.savedAt,
+      });
+    } catch {
+      // 损坏草稿跳过，不影响列表
+    }
+  }
+  return metas.sort((a, b) => b.savedAt.localeCompare(a.savedAt));
+}
+
+export function deleteEntryDraftByKey(storage: DraftStorage, key: string) {
+  storage.removeItem(key);
+}
+
 function parseEntryDraft(value: unknown): EntryDraft | null {
   if (!isRecord(value) || (value.version !== 1 && value.version !== 2) || (value.mode !== "create" && value.mode !== "edit")) return null;
   const entryId = nullableString(value.entryId);
+  // ponytail: 旧版草稿没有 draftId 字段，create 模式下解析为 null（legacy 草稿，续写时迁移）
+  const draftId = nullableString(value.draftId) ?? null;
   const baseUpdatedAt = nullableDate(value.baseUpdatedAt);
   const savedAt = dateString(value.savedAt);
   const fields = parseFields(value.fields);
@@ -82,7 +151,7 @@ function parseEntryDraft(value: unknown): EntryDraft | null {
   const coverDataUrl = imageDataUrl(value.coverDataUrl);
   const recognizedFields = parseMusicInfoFields(value.recognizedFields);
   const musicMetadata = value.version === 1 ? null : readMusicMetadata(value.musicMetadata, "draft.musicMetadata");
-  if (entryId === undefined || baseUpdatedAt === undefined || !savedAt || !fields || !genreSelection
+  if (entryId === undefined || draftId === undefined || baseUpdatedAt === undefined || !savedAt || !fields || !genreSelection
     || !selectedGenreTags || selectedMoodGroupId === null || !selectedMoods || coverDataUrl === undefined
     || typeof value.coverChanged !== "boolean" || typeof value.ocrText !== "string" || recognizedFields === undefined
     || (value.version === 2 && value.musicMetadata === undefined)) return null;
@@ -92,6 +161,7 @@ function parseEntryDraft(value: unknown): EntryDraft | null {
     version: 2,
     mode: value.mode,
     entryId,
+    draftId,
     baseUpdatedAt,
     savedAt,
     fields,

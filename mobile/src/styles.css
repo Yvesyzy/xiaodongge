@@ -636,6 +636,66 @@ button:disabled {
   gap: 12px;
 }
 
+.draft-list {
+  display: grid;
+  gap: 10px;
+  margin: 16px 0;
+}
+
+.draft-create {
+  margin: 16px 0 0;
+}
+
+.draft-create:disabled {
+  opacity: 0.55;
+}
+
+.draft-card {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  border: 1px solid rgba(7, 31, 27, 0.09);
+  border-radius: 8px;
+  background: var(--paper);
+  box-shadow: var(--shadow-soft);
+  overflow: hidden;
+}
+
+.draft-card-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 14px 16px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.draft-card-main strong {
+  color: var(--green-950);
+  font-family: Georgia, "Times New Roman", SimSun, serif;
+  font-size: 18px;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.draft-meta {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.draft-delete {
+  align-self: stretch;
+  border-radius: 0;
+  border: 0;
+  border-left: 1px solid rgba(7, 31, 27, 0.09);
+  padding: 0 16px;
+  font-size: 13px;
+}
+
 .cover-list {
   display: grid;
   gap: 14px;
