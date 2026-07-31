@@ -62,7 +62,7 @@ export default function App() {
   return (
     <div className="app-shell">
       <header className="app-header">
-        <Link to="/" className="brand">小懂哥 v2.1.1</Link>
+        <Link to="/" className="brand">小懂哥 v2.1.2</Link>
         <Link to="/more" className="header-menu" aria-label="更多"><span /></Link>
       </header>
       <main className="app-main">
@@ -1554,25 +1554,38 @@ function BackupPage() {
     setMessage("");
     setError("");
     const file = new File([exported.content], exported.fileName, { type: exported.mimeType });
+    // ponytail: Capacitor WebView 中 navigator.canShare 常返回 false，直接尝试 share 即可
     try {
-      if (typeof navigator.canShare === "function" && navigator.canShare({ files: [file] }) && typeof navigator.share === "function") {
+      if (typeof navigator.share === "function") {
         await navigator.share({ files: [file], title: exported.fileName, text: "小懂哥导出文件" });
         setMessage("已打开系统分享");
         return;
       }
-      downloadExportFile(file);
-      setMessage("已尝试保存文件，请查看系统下载记录");
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {
         setMessage("已取消分享");
         return;
       }
-      try {
-        downloadExportFile(file);
-        setMessage("系统分享失败，已尝试保存文件");
-      } catch {
-        setError("保存/分享失败，请复制内容");
+    }
+    // 回退：用纯文本分享
+    try {
+      if (typeof navigator.share === "function") {
+        await navigator.share({ text: exported.content, title: exported.fileName });
+        setMessage("已通过系统分享导出");
+        return;
       }
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        setMessage("已取消分享");
+        return;
+      }
+    }
+    // 最终回退：<a download>（部分 WebView 不生效）
+    try {
+      downloadExportFile(file);
+      setMessage("已尝试保存文件，请查看系统下载记录");
+    } catch {
+      setError("保存失败，请使用复制内容手动保存");
     }
   }
 
@@ -1580,11 +1593,29 @@ function BackupPage() {
     if (!exported) return;
     setMessage("");
     setError("");
+    const text = exported.content;
+    // ponytail: navigator.clipboard 在 Capacitor WebView 中常因权限失败，用 execCommand 回退
     try {
-      await navigator.clipboard.writeText(exported.content);
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+        setMessage(`${EXPORT_LABELS[exported.kind]} 已复制`);
+        return;
+      }
+    } catch { /* fall through to execCommand */ }
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
+      ta.style.top = "0";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
       setMessage(`${EXPORT_LABELS[exported.kind]} 已复制`);
     } catch {
-      setError("复制失败，请手动复制");
+      setError("复制失败，请手动选择上方文本复制");
     }
   }
 
@@ -1610,7 +1641,18 @@ function BackupPage() {
     setMessage("");
     setError("");
     try {
-      const raw = await file.text();
+      // ponytail: file.text() 在部分 WebView 不可用，用 FileReader 回退
+      let raw: string;
+      try {
+        raw = await file.text();
+      } catch {
+        raw = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(String(reader.result ?? ""));
+          reader.onerror = () => reject(new Error("文件读取失败"));
+          reader.readAsText(file);
+        });
+      }
       setImportText(raw);
       if (!raw.trim()) {
         setPreview(null);
@@ -1734,7 +1776,7 @@ function MorePage() {
           </Link>
         ))}
       </div>
-      <p className="hint">版本 2.1.1 · 本地优先的私人音乐档案</p>
+      <p className="hint">版本 2.1.2 · 本地优先的私人音乐档案</p>
     </Page>
   );
 }
