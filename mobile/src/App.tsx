@@ -1,13 +1,14 @@
-import { ChangeEvent, FormEvent, lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Capacitor, registerPlugin } from "@capacitor/core";
 import { Directory, Filesystem, Encoding } from "@capacitor/filesystem";
 import { Link, NavLink, Route, Routes, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { GENRE_TAGS, GENRE_TREE, findGenrePath, genreChildren, isKnownGenreTag, type GenreNode } from "../../shared/genres";
 import { MOOD_CATEGORIES, MOOD_TAGS } from "../../shared/moods";
-import { ABSTRACT_MAP_REGION_DEFS, UNCLASSIFIED_REGION_ID, UNIVERSE_GROUP_BY_OPTIONS, type AbstractMapRegion, type AbstractMapResult, type EmotionUniverseResult, type EmotionUniverseSong, type UniverseGroupBy, type VisualizationFilters, type VisualizationOptions, type VisualizationSong } from "../../shared/visualizations";
+import { ABSTRACT_MAP_REGION_DEFS, UNCLASSIFIED_REGION_ID, UNIVERSE_GROUP_BY_OPTIONS, type AbstractMapRegion, type AbstractMapResult, type UniverseGroupBy, type VisualizationFilters, type VisualizationOptions, type VisualizationSong } from "../../shared/visualizations";
 import { canRestoreEditDraft, countNewDrafts, createNewDraftId, deleteEntryDraftByKey, listEntryDrafts, MAX_NEW_DRAFTS, readEntryDraft, removeEntryDraft, writeEntryDraft, type EntryDraft, type EntryDraftFields, type EntryDraftMeta } from "./entryDraft";
 import { findSimilarEntry } from "./entryDuplicate";
 import { excerpt, formatDate, formatDateOnly, monthLabel } from "./format";
+import { buildInsights, type Insight } from "./insights";
 import { DailyListeningNote, MonthlyListeningPage, YearlyListeningPage } from "./ListeningYearbookView";
 import { mergeMusicMetadata } from "./musicMetadata";
 import { applyAppleCatalogMatch, findAppleCatalogMatch, parseCatalogSearchResult, parseNowPlayingResult } from "./nowPlaying";
@@ -54,7 +55,6 @@ const GROUP_BY_LABELS: Record<UniverseGroupBy, string> = {
   tag: "按曲风分组",
 };
 const MOOD_GROUPS = MOOD_CATEGORIES;
-const EmotionUniverseScene = lazy(() => import("./EmotionUniverseScene"));
 
 const ScreenshotOcr = registerPlugin<ScreenshotOcrPlugin>("ScreenshotOcr");
 const NowPlaying = registerPlugin<NowPlayingPlugin>("NowPlaying");
@@ -63,7 +63,7 @@ export default function App() {
   return (
     <div className="app-shell">
       <header className="app-header">
-        <Link to="/" className="brand">小懂哥 v2.1.2</Link>
+        <Link to="/" className="brand">小懂哥 v2.1.5</Link>
         <Link to="/more" className="header-menu" aria-label="更多"><span /></Link>
       </header>
       <main className="app-main">
@@ -81,7 +81,7 @@ export default function App() {
           <Route path="/summary" element={<YearlyListeningPage />} />
           <Route path="/summary/:year/:month" element={<MonthlyListeningPage />} />
           <Route path="/abstract-map" element={<AbstractMusicMapPage />} />
-          <Route path="/emotion-universe" element={<EmotionUniversePage />} />
+          <Route path="/insights" element={<InsightsPage />} />
           <Route path="/backup" element={<BackupPage />} />
           <Route path="/drafts" element={<DraftsPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
@@ -141,10 +141,10 @@ function HomePage() {
           <h2>我的听歌地图</h2>
           <p>把情绪、标签和乐评放进几片听歌大陆。</p>
         </Link>
-        <Link to="/emotion-universe" className="visual-entry-card universe">
-          <span>情绪宇宙</span>
-          <h2>我的情绪宇宙</h2>
-          <p>用 3D 星图回看每首歌在记忆里的位置。</p>
+        <Link to="/insights" className="visual-entry-card insights">
+          <span>情绪洞察</span>
+          <h2>天气与季节里的你</h2>
+          <p>下雨天最爱听的情绪、冬天比夏天高几分。</p>
         </Link>
       </div>
       <div className="home-section-title">
@@ -244,6 +244,7 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const draftIdRef = useRef<string | null>(null);
   const draftLimitErrorRef = useRef(false);
+  const inspirationRef = useRef(false);
   if (mode === "create" && draftIdRef.current === null) {
     const fromUrl = searchParams.get("draft");
     if (fromUrl && fromUrl.trim()) {
@@ -259,6 +260,8 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
         draftLimitErrorRef.current = true;
       }
     }
+    // 灵感速记模式：仅 create 模式下从 URL 参数读取
+    inspirationRef.current = searchParams.get("inspiration") === "1";
   }
   const draftId = mode === "create" ? draftIdRef.current : null;
   const formRef = useRef<HTMLFormElement | null>(null);
@@ -384,6 +387,8 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
         setOcrText(result.draft.ocrText);
         setRecognizedFields(result.draft.recognizedFields);
         setMusicMetadata(result.draft.musicMetadata);
+        // 续写时保留草稿的灵感标记
+        if (mode === "create") inspirationRef.current = result.draft.inspiration;
         // 恢复评分和修饰符到 React state
         const draftRating = result.draft.fields.rating ? Number(result.draft.fields.rating) : null;
         setRating(draftRating !== null && draftRating >= 0.5 && draftRating <= 10 ? draftRating : null);
@@ -450,6 +455,7 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
       ocrText,
       recognizedFields,
       musicMetadata,
+      inspiration: mode === "create" && inspirationRef.current,
     };
   }
 
@@ -741,7 +747,10 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
   );
 
   return (
-    <Page title={mode === "create" ? "新建记录" : "编辑记录"} text="未填写的信息会保持为空，不会自动补全。">
+    <Page
+      title={mode === "create" ? (inspirationRef.current ? "灵感速记" : "新建记录") : "编辑记录"}
+      text={mode === "create" && inspirationRef.current ? "只需填标题、歌手和一句话感受，随时可以回来补全。" : "未填写的信息会保持为空，不会自动补全。"}
+    >
       <form ref={formRef} onSubmit={submit} onChange={handleFormMutation} className="form-card">
         {Capacitor.isNativePlatform() ? (
           <section className="assist-panel">
@@ -1110,6 +1119,7 @@ function EntryDetailPage() {
     if (!confirm("确认删除这条记录？")) return;
     try {
       await store.deleteEntry(current.id);
+      removeEntryDraft(localStorage, "edit", current.id);
       navigate("/timeline");
     } catch (err) {
       setError(err instanceof Error ? err.message : "删除失败");
@@ -1479,104 +1489,6 @@ function AbstractMusicMapPage() {
   );
 }
 
-function EmotionUniversePage() {
-  const [filters, setFilters] = useState<VisualizationFilters>({ groupBy: "year" });
-  const [result, setResult] = useState<EmotionUniverseResult | null>(null);
-  const [selectedSong, setSelectedSong] = useState<EmotionUniverseSong | null>(null);
-  const [filterOpen, setFilterOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [cameraDistance, setCameraDistance] = useState(118);
-  const [sceneResetKey, setSceneResetKey] = useState(0);
-
-  useEffect(() => {
-    let active = true;
-    setLoading(true);
-    setError("");
-    void store.emotionUniverse(filters).then((nextResult) => {
-      if (!active) return;
-      setResult(nextResult);
-      setSelectedSong(null);
-    }).catch((err) => {
-      if (active) setError(err instanceof Error ? err.message : "情绪宇宙读取失败");
-    }).finally(() => {
-      if (active) setLoading(false);
-    });
-    return () => {
-      active = false;
-    };
-  }, [filters]);
-
-  function zoom(delta: number) {
-    setCameraDistance((current) => Math.max(66, Math.min(178, current + delta)));
-  }
-
-  function resetScene() {
-    setCameraDistance(118);
-    setSceneResetKey((current) => current + 1);
-  }
-
-  return (
-    <VisualPage title="情绪宇宙" text="每首歌是一颗 3D 星球，位置来自时间、评分和分组深度。">
-      <VisualToolbar
-        count={result?.totalCount ?? 0}
-        summary={filterSummary(filters, false, true)}
-        onFilter={() => setFilterOpen(true)}
-      />
-      {loading ? <VisualLoading text="正在排布 3D 星图。" /> : null}
-      {error ? <VisualError text={error} /> : null}
-      {!loading && !error && result && !result.totalCount ? <VisualEmpty text="当前筛选下没有星球。重置筛选后再看一次。" /> : null}
-      {!loading && !error && result && result.songs.length ? (
-        <>
-          <section className="universe-panel">
-            <div className="universe-panel-head">
-              <div>
-                <strong>{GROUP_BY_LABELS[filters.groupBy ?? "year"]}</strong>
-                <span>{result.displayedCount} / {result.totalCount} 首</span>
-              </div>
-              <div className="zoom-controls" aria-label="缩放控制">
-                <button type="button" onClick={() => zoom(12)} aria-label="缩小">-</button>
-                <button type="button" onClick={resetScene} aria-label="重置视图">1x</button>
-                <button type="button" onClick={() => zoom(-12)} aria-label="放大">+</button>
-              </div>
-            </div>
-            {result.truncated ? <p className="visual-limit-note">当前展示前 {result.displayedCount} 首，继续缩小筛选可查看更聚焦的星图。</p> : null}
-            <Suspense fallback={<div className="universe-stage universe-stage-loading">正在加载 3D 星图。</div>}>
-              <EmotionUniverseScene songs={result.songs} cameraDistance={cameraDistance} resetKey={sceneResetKey} onSelect={setSelectedSong} />
-            </Suspense>
-          </section>
-          <div className="group-chip-row">
-            {result.groups.slice(0, 8).map((group) => <span key={`${group.type}-${group.name}`}>{group.name} · {group.songCount}</span>)}
-          </div>
-        </>
-      ) : null}
-      {filterOpen ? (
-        <VisualizationFilterSheet
-          title="筛选情绪宇宙"
-          filters={filters}
-          options={result?.options ?? EMPTY_VISUALIZATION_OPTIONS}
-          includeRating
-          includeGroup
-          onApply={(nextFilters) => {
-            setFilters({ ...nextFilters, groupBy: nextFilters.groupBy ?? "year" });
-            setFilterOpen(false);
-          }}
-          onReset={() => {
-            setFilters({ groupBy: "year" });
-            setFilterOpen(false);
-          }}
-          onClose={() => setFilterOpen(false)}
-        />
-      ) : null}
-      {selectedSong ? (
-        <BottomSheet title={selectedSong.title} text={selectedSong.artistName ?? "未填写艺术家"} onClose={() => setSelectedSong(null)}>
-          <VisualSongDetail song={selectedSong} />
-        </BottomSheet>
-      ) : null}
-    </VisualPage>
-  );
-}
-
 function DraftsPage() {
   const navigate = useNavigate();
   const [drafts, setDrafts] = useState<EntryDraftMeta[]>([]);
@@ -1624,6 +1536,16 @@ function DraftsPage() {
     navigate(`/new?draft=${encodeURIComponent(newDraftId)}`);
   }
 
+  function createInspirationDraft() {
+    const newCount = countNewDrafts(localStorage);
+    if (newCount >= MAX_NEW_DRAFTS) {
+      setError(`新建草稿已达上限（${MAX_NEW_DRAFTS} 份），请先删除旧草稿。`);
+      return;
+    }
+    const newDraftId = createNewDraftId();
+    navigate(`/new?draft=${encodeURIComponent(newDraftId)}&inspiration=1`);
+  }
+
   function deleteDraft(draft: EntryDraftMeta) {
     if (!confirm(`删除草稿「${draft.title}」？此操作无法撤销。`)) return;
     try {
@@ -1639,19 +1561,24 @@ function DraftsPage() {
   return (
     <Page title="草稿箱" text={`${drafts.length} 份未保存草稿（新建 ${newCount}/${MAX_NEW_DRAFTS}，编辑 ${drafts.length - newCount}），点击续写或删除。`}>
       {error ? <p className="error">{error}</p> : null}
-      <button type="button" className="primary-button full draft-create" onClick={createNewDraft} disabled={newCount >= MAX_NEW_DRAFTS}>
-        新建草稿（{newCount}/{MAX_NEW_DRAFTS}）
-      </button>
+      <div className="draft-actions">
+        <button type="button" className="primary-button full draft-create" onClick={createNewDraft} disabled={newCount >= MAX_NEW_DRAFTS}>
+          新建草稿（{newCount}/{MAX_NEW_DRAFTS}）
+        </button>
+        <button type="button" className="secondary-button full draft-inspiration-create" onClick={createInspirationDraft} disabled={newCount >= MAX_NEW_DRAFTS}>
+          灵感速记
+        </button>
+      </div>
       {drafts.length === 0 ? (
         <Empty text="没有草稿。点上方按钮或底部「+」开始新记录，输入内容会自动保存。" />
       ) : (
         <div className="draft-list">
           {drafts.map((draft) => (
-            <div key={draft.key} className="draft-card">
+            <div key={draft.key} className={`draft-card${draft.inspiration ? " draft-inspiration" : ""}`}>
               <button type="button" className="draft-card-main" onClick={() => continueDraft(draft)}>
                 <strong>{draft.title}</strong>
                 <span className="draft-meta">
-                  {draft.mode === "create" ? "新建草稿" : "编辑记录"}
+                  {draft.inspiration ? "灵感速记" : draft.mode === "create" ? "新建草稿" : "编辑记录"}
                   {draft.type ? ` · ${ENTRY_TYPE_LABELS[draft.type]}` : ""}
                   {" · "}{formatDate(draft.savedAt)}
                 </span>
@@ -1901,7 +1828,7 @@ function MorePage() {
   const [draftCount] = useState(() => listEntryDrafts(localStorage).length);
   const items = [
     ["/abstract-map", "抽象地图", "按情绪把记录放进听歌大陆。"],
-    ["/emotion-universe", "情绪宇宙", "用 3D 星图查看歌曲情绪位置。"],
+    ["/insights", "情绪洞察", "按天气和季节看你的听歌偏好。"],
     ["/albums", "专辑", "按专辑名称聚合记录。"],
     ["/songs", "歌曲", "按歌曲名称聚合记录。"],
     ["/drafts", "草稿箱", `${draftCount} 份未保存草稿，可续写或删除。`],
@@ -1918,7 +1845,56 @@ function MorePage() {
           </Link>
         ))}
       </div>
-      <p className="hint">版本 2.1.4 · 本地优先的私人音乐档案</p>
+      <p className="hint">版本 2.1.5 · 本地优先的私人音乐档案</p>
+    </Page>
+  );
+}
+
+function InsightsPage() {
+  const [insights, setInsights] = useState<Insight[] | null>(null);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const entries = await store.listEntries();
+        const weather = await store.getWeatherForEntries(entries);
+        if (!active) return;
+        setInsights(buildInsights(entries, weather));
+      } catch (err) {
+        if (!active) return;
+        setError(err instanceof Error ? err.message : String(err));
+        setInsights([]);
+      }
+    })();
+    return () => { active = false; };
+  }, []);
+
+  return (
+    <Page title="情绪洞察" text="把天气、季节和你的听歌情绪连起来，生成本地可分享的洞察卡片。">
+      {error ? <p className="error">{error}</p> : null}
+      {insights === null ? <p className="hint">正在汇总…</p> : null}
+      {insights !== null && !insights.length ? (
+        <Empty text="暂无足够数据。至少需要 5 篇带听取日期的乐评，且天气/季节分组各 3 篇以上才会生成洞察。" />
+      ) : null}
+      {insights && insights.length ? (
+        <div className="insight-card-list">
+          {insights.map((insight) => (
+            <article key={insight.kind} className={`insight-card insight-${insight.kind}`}>
+              <span className="insight-eyebrow">{insight.eyebrow}</span>
+              <h2>{insight.title}</h2>
+              <p>{insight.body}</p>
+              {insight.evidence.length ? (
+                <footer className="insight-evidence">
+                  <span>相关日期：</span>
+                  {insight.evidence.map((date) => <time key={date}>{formatDateOnly(date)}</time>)}
+                </footer>
+              ) : null}
+            </article>
+          ))}
+        </div>
+      ) : null}
     </Page>
   );
 }

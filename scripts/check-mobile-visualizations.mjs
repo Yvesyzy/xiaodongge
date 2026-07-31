@@ -19,7 +19,7 @@ function loadSharedModule(path, localModules = {}) {
 }
 
 const genres = loadSharedModule("../shared/genres.ts");
-const { buildAbstractMusicMap, buildEmotionUniverse, UNCLASSIFIED_REGION_ID } = loadSharedModule("../shared/visualizations.ts", { "./genres": genres });
+const { buildAbstractMusicMap, UNCLASSIFIED_REGION_ID } = loadSharedModule("../shared/visualizations.ts", { "./genres": genres });
 const { GENRE_TAGS, genreMatchesFilter, findGenrePath } = genres;
 assert.equal(new Set(GENRE_TAGS).size, GENRE_TAGS.length);
 
@@ -78,47 +78,7 @@ assert.deepEqual(findGenrePath("Piedmont Blues"), ["蓝调", "Acoustic Blues", "
 assert.equal(genreMatchesFilter("Piedmont Blues", "蓝调"), true);
 assert.deepEqual(findGenrePath("Outlaw Country"), ["民谣 / 世界 / 乡村", "Country", "Outlaw Country"]);
 assert.equal(genreMatchesFilter("Outlaw Country", "民谣 / 世界 / 乡村"), true);
-assert.deepEqual(findGenrePath("Raï"), ["民谣 / 世界 / 乡村", "Asian / Middle Eastern World", "Raï"]);
+assert.deepEqual(findGenrePath("Raï"), ["民谣 / 世界 / 乡村", "African / Afro-Diaspora", "Raï"]);
 assert.equal(genreMatchesFilter("Raï", "民谣 / 世界 / 乡村"), true);
-
-const universe = buildEmotionUniverse(entries, { groupBy: "year" });
-assert.deepEqual(universe.songs.map((song) => song.id), ["song-1", "song-2", "song-3", "song-4"]);
-assert.ok(universe.songs[1].x > universe.songs[0].x);
-assert.ok(universe.songs[1].y < universe.songs[3].y);
-assert.equal(universe.songs[0].z, 50);
-assert.equal(universe.songs[0].depth, 0);
-assert.ok(universe.songs[1].ringStrength > universe.songs[3].ringStrength);
-assert.equal(universe.groups[0].name, "2026");
-assert.equal(universe.groups[0].songCount, 4);
-
-const albumUniverse = buildEmotionUniverse(entries, { groupBy: "album" });
-assert.ok(new Set(albumUniverse.songs.map((song) => song.z)).size > 1);
-assert.ok(albumUniverse.songs.every((song) => Number.isFinite(song.x) && song.x >= 6 && song.x <= 94));
-assert.ok(albumUniverse.songs.every((song) => Number.isFinite(song.y) && song.y >= 8 && song.y <= 94));
-assert.ok(albumUniverse.songs.every((song) => Number.isFinite(song.z) && song.z >= 10 && song.z <= 90));
-assert.ok(albumUniverse.songs.every((song) => Number.isFinite(song.depth) && song.depth >= -1 && song.depth <= 1));
-assert.ok(albumUniverse.songs.every((song) => Number.isFinite(song.ringStrength) && song.ringStrength >= 0.32 && song.ringStrength <= 1));
-
-const tagUniverse = buildEmotionUniverse(entries, { groupBy: "tag" });
-assert.ok(tagUniverse.groups.some((group) => group.name === "Brostep" && group.songCount === 1));
-assert.deepEqual(buildEmotionUniverse(entries, { tag: "电子" }).songs.map((song) => song.id), ["song-2"]);
-assert.deepEqual(buildEmotionUniverse(entries, { tag: "Dubstep" }).songs.map((song) => song.id), ["song-2"]);
-assert.ok(buildEmotionUniverse(entries).options.tags.includes("Brostep"));
-
-const rockGenreEntries = [entry({ id: "song-rock-style", songName: "Bela Lugosi's Dead", tags: ["Gothic Rock"], rating: 8, listenedAt: "2026-05-02T00:00:00.000Z" })];
-assert.deepEqual(buildEmotionUniverse(rockGenreEntries, { tag: "摇滚" }).songs.map((song) => song.id), ["song-rock-style"]);
-assert.deepEqual(buildEmotionUniverse(rockGenreEntries, { tag: "Post-Punk / New Wave" }).songs.map((song) => song.id), ["song-rock-style"]);
-
-const many = Array.from({ length: 301 }, (_, index) => entry({
-  id: `many-${index}`,
-  songName: `Song ${index}`,
-  rating: 5,
-  listenedAt: `2026-01-${String((index % 28) + 1).padStart(2, "0")}T00:00:00.000Z`,
-}));
-const limited = buildEmotionUniverse(many);
-assert.equal(limited.displayedCount, 300);
-assert.equal(limited.truncated, true);
-assert.ok(new Set(limited.songs.slice(0, 40).map((song) => song.z)).size > 1);
-assert.ok(new Set(limited.songs.slice(0, 40).map((song) => song.y)).size > 1);
 
 console.log("mobile visualization check passed");

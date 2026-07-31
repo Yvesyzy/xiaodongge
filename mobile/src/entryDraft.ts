@@ -36,6 +36,7 @@ export type EntryDraft = {
   ocrText: string;
   recognizedFields: MusicInfoFields | null;
   musicMetadata: MusicMetadata | null;
+  inspiration: boolean;
 };
 
 export const MAX_NEW_DRAFTS = 5;
@@ -98,6 +99,7 @@ export type EntryDraftMeta = {
   title: string;
   type: EntryType | null;
   savedAt: string;
+  inspiration: boolean;
 };
 
 const DRAFT_KEY_PREFIX = "music-feelings-entry-draft:v1:";
@@ -124,6 +126,7 @@ export function listEntryDrafts(storage: DraftStorage): EntryDraftMeta[] {
         title: draft.fields.title || "(未命名草稿)",
         type: draft.fields.type,
         savedAt: draft.savedAt,
+        inspiration: draft.inspiration,
       });
     } catch {
       // 损坏草稿跳过，不影响列表
@@ -174,6 +177,7 @@ function parseEntryDraft(value: unknown): EntryDraft | null {
     ocrText: value.ocrText,
     recognizedFields,
     musicMetadata,
+    inspiration: value.inspiration === true,
   };
 }
 

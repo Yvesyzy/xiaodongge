@@ -20,7 +20,6 @@
 - 手动选择城市后，按乐评日期缓存历史天气；天气只作背景关系，不推断情绪原因
 - 对本地语义误识别进行排除或分类校正
 - 查看抽象听歌地图：按 `moods` 和 `tags` 把记录归入情绪大陆
-- 查看 3D 音乐情绪宇宙图：按时间、评分、分组和乐评长度生成可旋转星图
 - 导出、导入备份，并支持撤销最近一次导入
 
 ## 技术栈
@@ -28,7 +27,6 @@
 - React
 - Vite
 - TypeScript
-- Three.js
 - Capacitor
 - Android
 - Capacitor SQLite
@@ -143,7 +141,7 @@ JSON 备份格式升级为 v3，包含月度作品、结构化年度结果、天
 
 ## v2 可视化
 
-移动端新增两个入口：首页的“可视化记忆”卡片，以及“更多”页中的“抽象地图”和“情绪宇宙”。
+移动端“可视化记忆”卡片提供抽象地图入口，把记录按情绪和标签归入情绪大陆。
 
 抽象地图使用现有字段：
 
@@ -155,40 +153,18 @@ albumName   专辑筛选
 year/month  年份和月份筛选
 ```
 
-情绪宇宙使用现有字段：
-
-```text
-listenedAt  优先作为 x 轴时间顺序
-year/month  listenedAt 为空时作为时间兜底
-rating      y 轴和星球大小
-group_by    z 轴分组深度，可按 year/artist/album/mood
-content     乐评长度、摘要和星环强度
-moods       星球颜色和情绪筛选
-```
-
-当前数据库没有 `play_count` 或 `album_id` 字段。v2 不新增播放统计表或修改记录表，星球亮度和星环强度由评分和乐评长度计算；专辑筛选使用真实字段 `albumName`。
+当前数据库没有 `play_count` 或 `album_id` 字段。v2 不新增播放统计表或修改记录表，专辑筛选使用真实字段 `albumName`。
 
 电脑端 Next.js 也提供调试接口：
 
 ```text
 GET /api/visualizations/abstract-map
-GET /api/visualizations/emotion-universe
 ```
 
 支持的查询参数：
 
 ```text
 abstract-map: year, month, artist, artistName, albumName, album_id, mood
-emotion-universe: year, artist, artistName, albumName, album_id, mood, min_rating, max_rating, group_by
-```
-
-`group_by` 可取：
-
-```text
-year
-artist
-album
-mood
 ```
 
 检查可视化规则：
@@ -214,8 +190,6 @@ npm.cmd run mobile:check:exports
 npm.cmd run check:v1-reliability
 npm.cmd run mobile:build
 ```
-
-情绪宇宙已复用 `shared/visualizations.ts` 中的筛选、归类、摘要和稳定坐标规则，移动端展示层使用 Three.js 渲染 3D 星球；Three.js 只在进入情绪宇宙路由时懒加载，并使用轻量 pointer/wheel 控制旋转和缩放。当前 v2 不引入 React Three Fiber 或 OrbitControls，也不修改现有记录表。后续专辑星云、歌手星系、年度总结动画或长图导出继续从共享可视化结构扩展。
 
 ## 电脑端网页
 
@@ -265,11 +239,10 @@ OpenAI 调用失败时，系统会回退到本地基础总结，不影响记录�
 mobile/                           安卓 APK 的前端界面和本地存储逻辑
 mobile/src/ListeningYearbookView.tsx 每日注记、月度作品和年度标本册界面
 mobile/src/listeningYearbook.ts   日/月/年结构化结果与防重复汇总
-mobile/src/EmotionUniverseScene.tsx 情绪宇宙 Three.js 懒加载场景
 android/                          Capacitor 生成的 Android 工程
 shared/listeningAnalysis.ts       本地语义词典、规则、证据和校正
 shared/listeningContext.ts        日期分类、节假日、城市与历史天气
-shared/visualizations.ts          v2 可视化归类、筛选和 3D 坐标规则
+shared/visualizations.ts          v2 可视化归类、筛选和抽象地图规则
 scripts/build-android-debug.ps1   debug APK 构建脚本
 prisma/schema.prisma              电脑端网页的数据模型
 src/app                           电脑端 Next.js 页面和 API

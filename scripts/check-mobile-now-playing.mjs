@@ -162,6 +162,6 @@ assert.ok(app.indexOf('country: "CN"') < app.indexOf('country: "US"'));
 assert.match(app, /联网补全只会把当前歌曲名、歌手和专辑发送给 Apple 音乐目录/);
 assert.match(app, /完整音乐元数据/);
 assert.match(store, /ALTER TABLE ReviewEntry ADD COLUMN musicMetadata TEXT/);
-assert.match(store, /version: 3/);
+assert.match(store, /version: 4/);
 
 console.log("mobile now-playing metadata enrichment check passed");

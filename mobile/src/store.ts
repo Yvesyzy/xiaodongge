@@ -1,6 +1,6 @@
 import { Capacitor } from "@capacitor/core";
 import { CapacitorSQLite, SQLiteConnection, type capSQLiteSet, type SQLiteDBConnection } from "@capacitor-community/sqlite";
-import { buildAbstractMusicMap, buildEmotionUniverse, buildVisualizationOptions, type VisualizationFilters } from "../../shared/visualizations";
+import { buildAbstractMusicMap, buildVisualizationOptions, type VisualizationFilters } from "../../shared/visualizations";
 import { fetchHistoricalWeather, fetchHistoricalWeatherRange, parseWeatherLocation, parseWeatherRecord, searchWeatherLocations, type WeatherLocation, type WeatherRecord } from "../../shared/listeningContext";
 import type { ListeningLayer, SemanticOverride } from "../../shared/listeningAnalysis";
 import { excerpt } from "./format";
@@ -302,10 +302,6 @@ class Store {
 
   async abstractMusicMap(filters: VisualizationFilters) {
     return buildAbstractMusicMap(await this.listEntries(), filters);
-  }
-
-  async emotionUniverse(filters: VisualizationFilters) {
-    return buildEmotionUniverse(await this.listEntries(), filters);
   }
 
   async getCover(kind: CoverKind, target: CoverTarget) {
@@ -680,6 +676,10 @@ class Store {
       ...Object.entries(backup.appData).map(([key, value]) => ({ statement: "INSERT INTO AppData (key, value) VALUES (?, ?)", values: [key, value] })),
     ];
     await this.dbReady().executeSet(set, true);
+  }
+
+  async getWeatherForEntries(entries: ReviewEntry[]) {
+    return this.cachedWeatherForEntries(entries);
   }
 
   private async cachedWeatherForEntries(entries: ReviewEntry[]) {

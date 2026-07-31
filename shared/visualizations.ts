@@ -76,33 +76,6 @@ export type AbstractMapResult = {
   options: VisualizationOptions;
 };
 
-export type EmotionUniverseSong = VisualizationSong & {
-  x: number;
-  y: number;
-  z: number;
-  depth: number;
-  radius: number;
-  opacity: number;
-  ringStrength: number;
-  color: string;
-  groupName: string;
-};
-
-export type EmotionUniverseGroup = {
-  name: string;
-  type: UniverseGroupBy;
-  songCount: number;
-};
-
-export type EmotionUniverseResult = {
-  songs: EmotionUniverseSong[];
-  groups: EmotionUniverseGroup[];
-  totalCount: number;
-  displayedCount: number;
-  truncated: boolean;
-  options: VisualizationOptions;
-};
-
 export const UNCLASSIFIED_REGION_ID = "unclassified_stars";
 export const UNIVERSE_GROUP_BY_OPTIONS: UniverseGroupBy[] = ["year", "artist", "album", "mood", "tag"];
 
@@ -200,48 +173,6 @@ export function buildAbstractMusicMap(entries: VisualizationEntry[], filters: Vi
   };
 }
 
-export function buildEmotionUniverse(entries: VisualizationEntry[], filters: VisualizationFilters = {}): EmotionUniverseResult {
-  const groupBy = filters.groupBy ?? "year";
-  const filtered = filterEntries(entries, filters).sort(compareUniverseEntries);
-  const displayed = filtered.slice(0, 300);
-  const denominator = Math.max(1, displayed.length - 1);
-  const laneCount = Math.min(12, Math.max(1, Math.ceil(displayed.length / 18)));
-  const groupNames = Array.from(new Set(displayed.map((entry) => groupNameFor(entry, groupBy)))).sort((a, b) => a.localeCompare(b, "zh-CN"));
-  const groupDenominator = Math.max(1, groupNames.length - 1);
-  const groupIndexByName = new Map(groupNames.map((name, index) => [name, index]));
-  const songs = displayed.map((entry, index): EmotionUniverseSong => {
-    const song = toVisualizationSong(entry);
-    const region = REGION_BY_ID.get(resolveRegionId(entry)) ?? REGION_BY_ID.get(UNCLASSIFIED_REGION_ID);
-    const rating = entry.rating ?? 0;
-    const reviewLift = Math.min(song.reviewLength, 600) / 120;
-    const groupName = groupNameFor(entry, groupBy);
-    const groupIndex = groupIndexByName.get(groupName) ?? 0;
-    const laneRatio = laneCount <= 1 ? 0 : ((index % laneCount) - (laneCount - 1) / 2) / ((laneCount - 1) / 2);
-    const z = roundOne(clamp((groupNames.length <= 1 ? 50 : 12 + (groupIndex / groupDenominator) * 76) + laneRatio * 18, 10, 90));
-    return {
-      ...song,
-      x: displayed.length === 1 ? 50 : roundOne(clamp(8 + (index / denominator) * 84 + laneRatio * 2.4, 6, 94)),
-      y: roundOne(clamp(92 - Math.max(0, Math.min(10, rating)) * 8.2 + laneRatio * 8.4, 8, 94)),
-      z,
-      depth: roundOne((z - 50) / 38),
-      radius: roundOne(Math.max(9, Math.min(24, 8 + rating * 0.9 + reviewLift))),
-      opacity: roundOne(Math.max(0.48, Math.min(1, 0.48 + song.reviewLength / 520 + rating / 30))),
-      ringStrength: roundOne(Math.max(0.32, Math.min(1, 0.32 + song.reviewLength / 520 + rating / 34))),
-      color: region?.color ?? "#d8d5c8",
-      groupName,
-    };
-  });
-
-  return {
-    songs,
-    groups: groupUniverseSongs(songs, groupBy),
-    totalCount: filtered.length,
-    displayedCount: songs.length,
-    truncated: filtered.length > songs.length,
-    options: buildVisualizationOptions(entries),
-  };
-}
-
 export function buildVisualizationOptions(entries: VisualizationEntry[]): VisualizationOptions {
   return {
     years: uniqueNumbers(entries.map((entry) => entry.year)).sort((a, b) => b - a),
@@ -311,41 +242,6 @@ function toVisualizationSong(entry: VisualizationEntry): VisualizationSong {
     // ponytail: no play_count field exists in ReviewEntry; add real listening stats only after the schema stores them.
     playCount: 1,
   };
-}
-
-function groupUniverseSongs(songs: EmotionUniverseSong[], groupBy: UniverseGroupBy): EmotionUniverseGroup[] {
-  const counts = new Map<string, number>();
-  for (const song of songs) counts.set(song.groupName, (counts.get(song.groupName) ?? 0) + 1);
-  return Array.from(counts.entries())
-    .map(([name, songCount]) => ({ name, type: groupBy, songCount }))
-    .sort((a, b) => b.songCount - a.songCount || a.name.localeCompare(b.name, "zh-CN"));
-}
-
-function groupNameFor(entry: VisualizationEntry, groupBy: UniverseGroupBy) {
-  if (groupBy === "artist") return entry.artistName ?? "未填写艺术家";
-  if (groupBy === "album") return entry.albumName ?? "未填写专辑";
-  if (groupBy === "mood") return entry.moods[0] ?? "未填写情绪";
-  if (groupBy === "tag") return entry.tags[0] ?? "未填写曲风";
-  return `${entry.year}`;
-}
-
-function compareUniverseEntries(a: VisualizationEntry, b: VisualizationEntry) {
-  const timeDiff = timeValue(a) - timeValue(b);
-  if (timeDiff) return timeDiff;
-  return a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id);
-}
-
-function timeValue(entry: VisualizationEntry) {
-  const listened = parseTime(entry.listenedAt);
-  if (listened !== null) return listened;
-  if (Number.isInteger(entry.year)) return Date.UTC(entry.year, Math.max(0, (entry.month ?? 1) - 1), 1);
-  return parseTime(entry.createdAt) ?? 0;
-}
-
-function parseTime(value: string | null) {
-  if (!value) return null;
-  const time = new Date(value).getTime();
-  return Number.isNaN(time) ? null : time;
 }
 
 function excerptText(value: string, length: number) {

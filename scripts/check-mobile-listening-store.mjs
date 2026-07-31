@@ -22,7 +22,7 @@ const musicMetadata = load("../mobile/src/musicMetadata.ts");
 const storeModule = load("../mobile/src/store.ts", {
   "@capacitor/core": { Capacitor: { isNativePlatform: () => false } },
   "@capacitor-community/sqlite": { CapacitorSQLite: {}, SQLiteConnection: class {} },
-  "../../shared/visualizations": { buildAbstractMusicMap: () => ({}), buildEmotionUniverse: () => ({}), buildVisualizationOptions: () => ({}) },
+  "../../shared/visualizations": { buildAbstractMusicMap: () => ({}), buildVisualizationOptions: () => ({}) },
   "../../shared/listeningContext": context,
   "./format": { excerpt: (value) => value },
   "./exportFormats": { formatEntriesCsv: () => "", formatEntriesTxt: () => "" },
@@ -45,6 +45,8 @@ const input = {
   tags: ["Dream Pop"],
   moods: ["温柔"],
   rating: 9,
+  ratingModifier: null,
+  firstListenedAt: null,
   listenedAt: "2026-03-08T00:00:00.000Z",
 };
 const created = await store.createEntry(input);
@@ -87,7 +89,7 @@ const backupWithWeather = JSON.parse(await store.exportBackup());
 assert.ok(Object.keys(backupWithWeather.appData).some((key) => key.startsWith("listening-weather:")));
 await store.setWeatherLocation(null);
 const backup = JSON.parse(await store.exportBackup());
-assert.equal(backup.version, 3);
+assert.equal(backup.version, 4);
 assert.equal(backup.entries.length, 1);
 assert.equal(backup.monthlySummaries.length, 1);
 assert.equal(JSON.parse(backup.appData["listening-semantic-overrides"]).length, 1);
