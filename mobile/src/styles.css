@@ -1562,6 +1562,17 @@ textarea {
   white-space: nowrap;
 }
 
+.universe-fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+  color: var(--muted);
+}
+
 .group-chip-row {
   display: flex;
   gap: 8px;

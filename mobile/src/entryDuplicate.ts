@@ -15,7 +15,7 @@ function sameEntrySignal(entry: ReviewEntry, input: EntryInput) {
 }
 
 function textKey(value: string | null) {
-  return (value ?? "").trim().toLocaleLowerCase("zh-CN");
+  return (value ?? "").trim().normalize("NFKC").replace(/\s+/g, "").toLocaleLowerCase("zh-CN");
 }
 
 function dateKey(value: string | null) {

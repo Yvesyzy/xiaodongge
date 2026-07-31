@@ -218,8 +218,10 @@ class Store {
       if (existing) await this.markGeneratedSummariesStale([existing]);
       return;
     }
-    await this.dbReady().run("DELETE FROM ListeningMoment WHERE entryId = ?", [id]);
-    await this.dbReady().run("DELETE FROM ReviewEntry WHERE id = ?", [id]);
+    await this.dbReady().executeSet([
+      { statement: "DELETE FROM ListeningMoment WHERE entryId = ?", values: [id] },
+      { statement: "DELETE FROM ReviewEntry WHERE id = ?", values: [id] },
+    ], true);
     if (existing) await this.markGeneratedSummariesStale([existing]);
   }
 
@@ -406,7 +408,13 @@ class Store {
     if (!sourceEntries.length) throw new Error("该年份没有歌曲或专辑乐评，无法生成年度总结");
     const months = unique(sourceEntries.map((entry) => entry.month).filter((month): month is number => month !== null)).sort((a, b) => a - b);
     const monthSnapshots: MonthlyListeningSnapshot[] = [];
-    for (const month of months) monthSnapshots.push(parseMonthlyListeningSnapshot((await this.generateMonthlySummary(year, month)).analysisJson));
+    for (const month of months) {
+      try {
+        monthSnapshots.push(parseMonthlyListeningSnapshot((await this.generateMonthlySummary(year, month)).analysisJson));
+      } catch {
+        // 单个月份生成失败不阻塞整年总结，跳过该月
+      }
+    }
     const snapshot = buildYearlyListeningSnapshot(year, monthSnapshots, sourceEntries.filter((entry) => entry.month === null), await this.getSemanticOverrides());
     const existing = await this.getSummary(year);
     const now = new Date().toISOString();
@@ -769,7 +777,7 @@ class Store {
 export const store = new Store();
 
 export function parseList(value: string) {
-  return Array.from(new Set(value.split(/[,，\n]/).map((item) => item.trim()).filter(Boolean)));
+  return Array.from(new Set(value.split(/[,，;；\n\t]/).map((item) => item.trim()).filter(Boolean)));
 }
 
 export function calculateYearStats(year: number, entries: ReviewEntry[]): YearStats {
@@ -799,12 +807,12 @@ function rowToEntry(row: Record<string, unknown>): ReviewEntry {
     albumName: nullableString(row.albumName),
     songName: nullableString(row.songName),
     artistName: nullableString(row.artistName),
-    musicMetadata: decodeMusicMetadata(nullableString(row.musicMetadata)),
+    musicMetadata: safeDecodeMusicMetadata(nullableString(row.musicMetadata)),
     content: String(row.content),
-    tags: decodeList(nullableString(row.tags)),
-    moods: decodeList(nullableString(row.moods)),
+    tags: safeDecodeList(nullableString(row.tags)),
+    moods: safeDecodeList(nullableString(row.moods)),
     rating: row.rating === null || row.rating === undefined ? null : Number(row.rating),
-    ratingModifier: parseRatingModifier(nullableString(row.ratingModifier)),
+    ratingModifier: safeParseRatingModifier(nullableString(row.ratingModifier)),
     firstListenedAt: nullableString(row.firstListenedAt),
     listenedAt: nullableString(row.listenedAt),
     createdAt: String(row.createdAt),
@@ -1069,7 +1077,7 @@ function readString(value: unknown, key: string) {
 }
 
 function readNullableField(value: unknown, key: string) {
-  if (value === null) return null;
+  if (value === null || value === undefined) return null;
   return readString(value, key);
 }
 
@@ -1084,7 +1092,7 @@ function readInt(value: unknown, key: string): number {
 }
 
 function readNullableInt(value: unknown, key: string): number | null {
-  if (value === null) return null;
+  if (value === null || value === undefined) return null;
   return readInt(value, key);
 }
 
@@ -1110,7 +1118,7 @@ function readDate(value: unknown, key: string) {
 }
 
 function readNullableDate(value: unknown, key: string) {
-  if (value === null) return null;
+  if (value === null || value === undefined) return null;
   return readDate(value, key);
 }
 
@@ -1221,7 +1229,8 @@ function decodeList(value: string | null) {
     const parsed = JSON.parse(value);
     return Array.isArray(parsed) ? parsed.filter((item): item is string => typeof item === "string" && item.trim().length > 0) : [];
   } catch {
-    return [];
+    // ponytail: 旧版数据可能是纯字符串格式，回退到 parseList 避免标签丢失
+    return parseList(value);
   }
 }
 
@@ -1245,6 +1254,19 @@ function decodeMusicMetadata(value: string | null) {
   } catch {
     throw new Error("数据库中的音乐元数据格式无效");
   }
+}
+
+// ponytail: 容错版——单条损坏数据不阻塞整列表加载，降级为 null
+function safeDecodeMusicMetadata(value: string | null) {
+  try { return decodeMusicMetadata(value); } catch { return null; }
+}
+
+function safeDecodeList(value: string | null) {
+  try { return decodeList(value); } catch { return []; }
+}
+
+function safeParseRatingModifier(value: string | null) {
+  try { return parseRatingModifier(value); } catch { return null; }
 }
 
 function nullableString(value: unknown) {

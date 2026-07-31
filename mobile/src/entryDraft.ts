@@ -15,6 +15,7 @@ export type EntryDraftFields = {
   listenedAt: string;
   tags: string;
   rating: string;
+  ratingModifier: string;
   content: string;
 };
 
@@ -110,6 +111,8 @@ function parseFields(value: unknown): EntryDraftFields | null {
   if (!isRecord(value) || !ENTRY_TYPES.includes(value.type as EntryType)) return null;
   const keys = ["title", "year", "month", "albumName", "songName", "artistName", "listenedAt", "tags", "rating", "content"] as const;
   if (keys.some((key) => typeof value[key] !== "string")) return null;
+  // ponytail: 旧版草稿（v1）没有 ratingModifier 字段，兼容为空字符串
+  const ratingModifier = typeof value.ratingModifier === "string" ? value.ratingModifier : "";
   return {
     type: value.type as EntryType,
     title: value.title as string,
@@ -121,6 +124,7 @@ function parseFields(value: unknown): EntryDraftFields | null {
     listenedAt: value.listenedAt as string,
     tags: value.tags as string,
     rating: value.rating as string,
+    ratingModifier,
     content: value.content as string,
   };
 }

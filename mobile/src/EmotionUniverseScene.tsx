@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   BufferAttribute,
   BufferGeometry,
@@ -29,6 +29,7 @@ type EmotionUniverseSceneProps = {
 export default function EmotionUniverseScene({ songs, cameraDistance, resetKey, onSelect }: EmotionUniverseSceneProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const onSelectRef = useRef(onSelect);
+  const [contextLost, setContextLost] = useState(false);
 
   useEffect(() => {
     onSelectRef.current = onSelect;
@@ -214,9 +215,22 @@ export default function EmotionUniverseScene({ songs, cameraDistance, resetKey, 
     renderer.domElement.addEventListener("wheel", handleWheel, { passive: false });
     window.addEventListener("resize", resize);
 
+    // 监听 WebGL context 丢失与恢复
+    const handleContextLost = (event: Event) => {
+      event.preventDefault();
+      setContextLost(true);
+    };
+    const handleContextRestored = () => {
+      setContextLost(false);
+    };
+    renderer.domElement.addEventListener("webglcontextlost", handleContextLost);
+    renderer.domElement.addEventListener("webglcontextrestored", handleContextRestored);
+
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     let frameId = 0;
+    let animationActive = true;
     function animate() {
+      if (!animationActive) return;
       if (!reduceMotion) view.rotationY += 0.0014;
       planetGroup.rotation.x += (view.rotationX - planetGroup.rotation.x) * 0.14;
       planetGroup.rotation.y += (view.rotationY - planetGroup.rotation.y) * 0.14;
@@ -226,14 +240,30 @@ export default function EmotionUniverseScene({ songs, cameraDistance, resetKey, 
     }
     animate();
 
+    // 页面隐藏时暂停动画，节省电量
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        animationActive = false;
+        window.cancelAnimationFrame(frameId);
+      } else {
+        animationActive = true;
+        animate();
+      }
+    };
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
     return () => {
+      animationActive = false;
       window.cancelAnimationFrame(frameId);
       window.removeEventListener("resize", resize);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       renderer.domElement.removeEventListener("pointerdown", handlePointerDown);
       renderer.domElement.removeEventListener("pointermove", handlePointerMove);
       renderer.domElement.removeEventListener("pointerup", handlePointerUp);
       renderer.domElement.removeEventListener("pointercancel", handlePointerCancel);
       renderer.domElement.removeEventListener("wheel", handleWheel);
+      renderer.domElement.removeEventListener("webglcontextlost", handleContextLost);
+      renderer.domElement.removeEventListener("webglcontextrestored", handleContextRestored);
       disposeThreeObject(scene);
       renderer.dispose();
       if (renderer.domElement.parentElement === stage) renderer.domElement.remove();
@@ -242,6 +272,11 @@ export default function EmotionUniverseScene({ songs, cameraDistance, resetKey, 
 
   return (
     <div className="universe-stage" ref={containerRef}>
+      {contextLost ? (
+        <div className="universe-fallback">
+          <p>3D 场景因内存不足暂时不可用，请切换其他页面后返回重试。</p>
+        </div>
+      ) : null}
       <div className="universe-accessible-list" aria-label="星球列表">
         {songs.map((song) => <button key={song.id} type="button" onClick={() => onSelect(song)}>{song.title}</button>)}
       </div>

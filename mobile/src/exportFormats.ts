@@ -140,7 +140,9 @@ function formatDateOnly(value: string | null) {
   if (!value) return "";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toISOString().slice(0, 10);
+  // ponytail: 用本地时区格式化日期，避免 toISOString 的 UTC 偏移导致日期少一天
+  const pad = (number: number) => String(number).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
 function formatDateTime(value: string) {

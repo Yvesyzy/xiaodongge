@@ -65,6 +65,20 @@ const HOLIDAYS: Record<number, HolidayYear> = {
     ],
     adjustedWorkdays: ["2026-01-04", "2026-02-14", "2026-02-28", "2026-05-09", "2026-09-20", "2026-10-10"],
   },
+  // ponytail: 2027年数据根据新版《全国年节及纪念日放假办法》推算，调休补班日待2026年11月官方通知确认后更新
+  2027: {
+    source: "根据新版《全国年节及纪念日放假办法》（2025年1月1日起实施）推算",
+    holidays: [
+      { name: "元旦", dates: dates("2027-01-01", "2027-01-03") },
+      { name: "春节", dates: dates("2027-02-05", "2027-02-13") },
+      { name: "清明节", dates: dates("2027-04-03", "2027-04-05") },
+      { name: "劳动节", dates: dates("2027-05-01", "2027-05-05") },
+      { name: "端午节", dates: dates("2027-06-19", "2027-06-21") },
+      { name: "中秋节", dates: dates("2027-09-25", "2027-09-27") },
+      { name: "国庆节", dates: dates("2027-10-01", "2027-10-07") },
+    ],
+    adjustedWorkdays: [],
+  },
 };
 
 const FIXED_FESTIVALS: Record<string, string> = {
@@ -81,7 +95,7 @@ export function classifyDay(date: string): DayContext {
   const official = HOLIDAYS[year];
   const holiday = official?.holidays.find((item) => item.dates.includes(date)) ?? null;
   const adjusted = official?.adjustedWorkdays.includes(date) ?? false;
-  const weekday = new Date(`${date}T00:00:00Z`).getUTCDay();
+  const weekday = new Date(`${date}T00:00:00+08:00`).getDay();
   const weekend = weekday === 0 || weekday === 6;
   const kind: DayKind = adjusted ? "adjusted_workday" : holiday ? "public_holiday" : weekend ? "ordinary_holiday" : "ordinary_workday";
   const festivals = new Set<string>();
@@ -114,7 +128,7 @@ export async function searchWeatherLocations(query: string, fetcher: typeof fetc
   if (name.length < 2) return [];
   const url = new URL("https://geocoding-api.open-meteo.com/v1/search");
   url.search = new URLSearchParams({ name, count: "5", language: "zh", countryCode: "CN", format: "json" }).toString();
-  const response = await fetcher(url, { signal: AbortSignal.timeout(8_000) });
+  const response = await fetcher(url, { signal: createAbortSignal(8_000) });
   if (!response.ok) throw new Error(`城市查询失败（${response.status}）`);
   const data = await response.json() as unknown;
   if (!isRecord(data) || !Array.isArray(data.results)) return [];
@@ -143,7 +157,7 @@ export async function fetchHistoricalWeatherRange(location: WeatherLocation, sta
     daily: "weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum,snowfall_sum",
     timezone: location.timezone,
   }).toString();
-  const response = await fetcher(url, { signal: AbortSignal.timeout(10_000) });
+  const response = await fetcher(url, { signal: createAbortSignal(10_000) });
   if (!response.ok) throw new Error(`天气查询失败（${response.status}）`);
   const data = await response.json() as unknown;
   if (!isRecord(data) || !isRecord(data.daily)) throw new Error("天气数据格式无效");
@@ -215,4 +229,11 @@ function readArray(value: unknown): unknown[] {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+// ponytail: AbortSignal.timeout 在 Android WebView < Chromium 103 不可用，手动实现兼容
+function createAbortSignal(timeoutMs: number): AbortSignal {
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), timeoutMs);
+  return controller.signal;
 }

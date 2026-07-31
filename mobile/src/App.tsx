@@ -361,6 +361,10 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
         setOcrText(result.draft.ocrText);
         setRecognizedFields(result.draft.recognizedFields);
         setMusicMetadata(result.draft.musicMetadata);
+        // 恢复评分和修饰符到 React state
+        const draftRating = result.draft.fields.rating ? Number(result.draft.fields.rating) : null;
+        setRating(draftRating !== null && draftRating >= 0.5 && draftRating <= 10 ? draftRating : null);
+        setRatingModifier(result.draft.fields.ratingModifier === "+" || result.draft.fields.ratingModifier === "-" ? result.draft.fields.ratingModifier : null);
         setHasDraft(true);
         setDraftStatus("已恢复上次草稿");
         setDraftError(false);
@@ -399,7 +403,7 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
   }, [draftReady, id, mode]);
 
   useEffect(() => {
-    if (mode === "create" && draftReady && Capacitor.isNativePlatform()) void readNowPlaying();
+    if (draftReady && Capacitor.isNativePlatform()) void readNowPlaying();
   }, [draftReady, mode]);
 
   function createDraftSnapshot(): EntryDraft | null {
@@ -452,8 +456,11 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
       }
       return true;
     } catch (err) {
+      const isQuotaError = err instanceof DOMException && (err.name === "QuotaExceededError" || err.name === "NS_ERROR_DOM_QUOTA_REACHED");
       if (showStatus) {
-        setDraftStatus(err instanceof Error ? `草稿保存失败：${err.message}` : "草稿保存失败");
+        setDraftStatus(isQuotaError
+          ? "本地存储已满，草稿未保存。请在设置页导出备份后清理旧记录"
+          : err instanceof Error ? `草稿保存失败：${err.message}` : "草稿保存失败");
         setDraftError(true);
       }
       return false;
@@ -493,6 +500,8 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
     setOcrText("");
     setRecognizedFields(null);
     setMusicMetadata(entry?.musicMetadata ?? null);
+    setRating(entry?.rating ?? null);
+    setRatingModifier(entry?.ratingModifier ?? null);
     setHasDraft(false);
     setDraftStatus("草稿已清除");
     setDraftError(false);
@@ -703,8 +712,8 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
 
   return (
     <Page title={mode === "create" ? "新建记录" : "编辑记录"} text="未填写的信息会保持为空，不会自动补全。">
-      <form ref={formRef} onSubmit={submit} onInput={handleFormMutation} onChange={handleFormMutation} className="form-card">
-        {mode === "create" && Capacitor.isNativePlatform() ? (
+      <form ref={formRef} onSubmit={submit} onChange={handleFormMutation} className="form-card">
+        {Capacitor.isNativePlatform() ? (
           <section className="assist-panel">
             <div className="assist-panel-head">
               <strong>当前播放</strong>
@@ -1068,8 +1077,12 @@ function EntryDetailPage() {
     const current = entry;
     if (!current) return;
     if (!confirm("确认删除这条记录？")) return;
-    await store.deleteEntry(current.id);
-    navigate("/timeline");
+    try {
+      await store.deleteEntry(current.id);
+      navigate("/timeline");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "删除失败");
+    }
   }
 
   async function addMoment(event: FormEvent<HTMLFormElement>) {
@@ -1102,8 +1115,12 @@ function EntryDetailPage() {
 
   async function removeMoment(momentId: string) {
     if (!confirm("确认删除这条追加记录？")) return;
-    await store.deleteListeningMoment(momentId);
-    setMoments((current) => current.filter((m) => m.id !== momentId));
+    try {
+      await store.deleteListeningMoment(momentId);
+      setMoments((current) => current.filter((m) => m.id !== momentId));
+    } catch (err) {
+      setMomentError(err instanceof Error ? err.message : "删除失败");
+    }
   }
 
   const ratingDisplay = entry.rating !== null
@@ -1566,7 +1583,7 @@ function BackupPage() {
         setMessage(`已保存到 Downloads/${exported.fileName}`);
         return;
       } catch (err) {
-        setError("保存文件失败，请使用复制内容手动保存");
+        setError("保存文件失败：可能缺少存储权限。请到系统设置 → 应用 → 小懂哥 → 权限 → 存储/文件，授予访问权限后重试；或使用「复制内容」手动保存。");
         return;
       }
     }
@@ -2200,6 +2217,7 @@ function readDraftFields(form: HTMLFormElement): EntryDraftFields {
     listenedAt: value("listenedAt"),
     tags: value("tags"),
     rating: value("rating"),
+    ratingModifier: value("ratingModifier"),
     content: value("content"),
   };
 }
@@ -2286,7 +2304,8 @@ function readNumber(form: FormData, key: string) {
 
 function readDate(form: FormData, key: string) {
   const value = readText(form, key);
-  return value ? new Date(value).toISOString() : null;
+  // ponytail: <input type="date"> 返回 YYYY-MM-DD，用本地时间构造避免 UTC 偏移
+  return value ? new Date(value + "T00:00:00").toISOString() : null;
 }
 
 async function fileToCoverDataUrl(file: File) {

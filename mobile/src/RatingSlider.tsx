@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, type MouseEvent, type TouchEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type MouseEvent, type TouchEvent } from "react";
 import type { RatingModifier } from "./types";
 
 const MIN = 0.5;
@@ -17,6 +17,10 @@ export default function RatingSlider({ value, modifier, onChange }: RatingSlider
   const [dragging, setDragging] = useState(false);
   const [localValue, setLocalValue] = useState(value ?? 0);
   const [localModifier, setLocalModifier] = useState<RatingModifier | null>(modifier);
+
+  // 同步外部 value prop 变化（草稿恢复、编辑模式加载）
+  useEffect(() => { setLocalValue(value ?? 0); }, [value]);
+  useEffect(() => { setLocalModifier(modifier); }, [modifier]);
 
   const ratingToPercent = useCallback((rating: number) => ((rating - MIN) / (MAX - MIN)) * 100, []);
   const percentToRating = useCallback((percent: number) => {
@@ -114,8 +118,8 @@ export default function RatingSlider({ value, modifier, onChange }: RatingSlider
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}
         onMouseLeave={handleMouseUp}
-        onTouchStart={(event) => { setDragging(true); updateFromPosition(event.touches[0].clientX); }}
-        onTouchMove={handleTouchMove}
+        onTouchStart={(event) => { event.preventDefault(); setDragging(true); updateFromPosition(event.touches[0].clientX); }}
+        onTouchMove={(event) => { event.preventDefault(); handleTouchMove(event); }}
         onTouchEnd={handleTouchEnd}
       >
         <div className="rating-track-bg" />
