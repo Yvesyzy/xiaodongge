@@ -56,7 +56,7 @@ export function DailyListeningNote({ entry }: { entry: ReviewEntry }) {
           <div className="evidence-links">{snapshot.entryIds.map((id) => <Link key={id} to={`/entries/${id}`}>{id === entry.id ? "当前乐评" : "打开相关乐评"}</Link>)}</div>
         </details>
       ) : null}
-      <small>天气与节日只作背景注记，不用于推断情绪原因。</small>
+      
     </section>
   );
 }

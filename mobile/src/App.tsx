@@ -1,7 +1,8 @@
 import { ChangeEvent, FormEvent, lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Capacitor, registerPlugin } from "@capacitor/core";
 import { Link, NavLink, Route, Routes, useNavigate, useParams, useSearchParams } from "react-router-dom";
-import { GENRE_TAGS, GENRE_TREE, findGenrePath, genreChildren, isKnownGenreTag } from "../../shared/genres";
+import { GENRE_TAGS, GENRE_TREE, findGenrePath, genreChildren, isKnownGenreTag, type GenreNode } from "../../shared/genres";
+import { MOOD_CATEGORIES, MOOD_TAGS } from "../../shared/moods";
 import { ABSTRACT_MAP_REGION_DEFS, UNCLASSIFIED_REGION_ID, UNIVERSE_GROUP_BY_OPTIONS, type AbstractMapRegion, type AbstractMapResult, type EmotionUniverseResult, type EmotionUniverseSong, type UniverseGroupBy, type VisualizationFilters, type VisualizationOptions, type VisualizationSong } from "../../shared/visualizations";
 import { canRestoreEditDraft, readEntryDraft, removeEntryDraft, writeEntryDraft, type EntryDraft, type EntryDraftFields } from "./entryDraft";
 import { findSimilarEntry } from "./entryDuplicate";
@@ -10,8 +11,9 @@ import { DailyListeningNote, MonthlyListeningPage, YearlyListeningPage } from ".
 import { mergeMusicMetadata } from "./musicMetadata";
 import { applyAppleCatalogMatch, findAppleCatalogMatch, parseCatalogSearchResult, parseNowPlayingResult } from "./nowPlaying";
 import { parseMusicInfoText, type MusicInfoFields } from "./ocr";
+import RatingSlider from "./RatingSlider";
 import { parseList, store } from "./store";
-import { ENTRY_TYPE_LABELS, ENTRY_TYPES, type AlbumAggregate, type EntryInput, type MusicMetadata, type ReviewEntry, type SongAggregate, type YearStats } from "./types";
+import { ENTRY_TYPE_LABELS, ENTRY_TYPES, type AlbumAggregate, type EntryInput, type ListeningMoment, type ListeningMomentInput, type MusicMetadata, type RatingModifier, type ReviewEntry, type SongAggregate, type YearStats } from "./types";
 
 const nav = [
   ["/", "首页"],
@@ -50,7 +52,7 @@ const GROUP_BY_LABELS: Record<UniverseGroupBy, string> = {
   mood: "按情绪分组",
   tag: "按曲风分组",
 };
-const MOOD_GROUPS = ABSTRACT_MAP_REGION_DEFS.filter((region) => region.id !== UNCLASSIFIED_REGION_ID && region.moods.length);
+const MOOD_GROUPS = MOOD_CATEGORIES;
 const EmotionUniverseScene = lazy(() => import("./EmotionUniverseScene"));
 
 const ScreenshotOcr = registerPlugin<ScreenshotOcrPlugin>("ScreenshotOcr");
@@ -60,7 +62,7 @@ export default function App() {
   return (
     <div className="app-shell">
       <header className="app-header">
-        <Link to="/" className="brand">小懂哥 v2.1</Link>
+        <Link to="/" className="brand">小懂哥 v2.1.1</Link>
         <Link to="/more" className="header-menu" aria-label="更多"><span /></Link>
       </header>
       <main className="app-main">
@@ -259,6 +261,8 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
   const [nowPlayingMessage, setNowPlayingMessage] = useState("");
   const [selectedMoodGroupId, setSelectedMoodGroupId] = useState<string>(() => defaultMoodGroupId([]));
   const [selectedMoods, setSelectedMoods] = useState<string[]>([]);
+  const [rating, setRating] = useState<number | null>(null);
+  const [ratingModifier, setRatingModifier] = useState<RatingModifier | null>(null);
   const [genreSelection, setGenreSelection] = useState<GenreSelection>(() => defaultGenreSelection(null));
   const [selectedGenreTags, setSelectedGenreTags] = useState<string[]>([]);
   const [draftReady, setDraftReady] = useState(false);
@@ -660,7 +664,9 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
         content: readText(form, "content"),
         tags: mergeTagLists(parseList(readText(form, "genreTags")), parseList(readText(form, "tags"))),
         moods: parseList(readText(form, "moods")),
-        rating: readNumber(form, "rating"),
+        rating,
+        ratingModifier,
+        firstListenedAt: readDate(form, "firstListenedAt"),
         listenedAt: readDate(form, "listenedAt"),
       };
       const coverTarget = coverChanged && coverDataUrl ? inputToCoverTarget(input) : null;
@@ -778,9 +784,7 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
         </section>
         <label>听歌或感受日期<input name="listenedAt" type="date" defaultValue={source?.listenedAt?.slice(0, 10) ?? ""} /></label>
         <GenrePicker
-          selection={genreSelection}
           selectedTags={selectedGenreTags}
-          onSelectionChange={setGenreSelection}
           onToggleTag={toggleGenre}
         />
         <label>标签<input name="tags" defaultValue={source ? freeTags(source.tags).join(", ") : ""} /></label>
@@ -790,7 +794,12 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
           onGroupChange={setSelectedMoodGroupId}
           onToggleMood={toggleMood}
         />
-        <label>评分<input name="rating" type="number" min="1" max="10" defaultValue={source?.rating ?? ""} /></label>
+        <RatingSlider
+          value={rating}
+          modifier={ratingModifier}
+          onChange={(r, m) => { setRating(r); setRatingModifier(m); }}
+        />
+        <label>首次收听时间<input name="firstListenedAt" type="date" defaultValue={source?.firstListenedAt?.slice(0, 10) ?? ""} /></label>
         <label>正文<textarea className="note-editor" name="content" rows={16} defaultValue={source?.content ?? ""} placeholder="像写备忘录一样，记录此刻的感受……" required /></label>
         <div className={`draft-status${draftError ? " error-state" : ""}`}>
           <span role="status" aria-live="polite">{draftStatus}</span>
@@ -804,23 +813,30 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
   );
 }
 
-function GenrePicker({ selection, selectedTags, onSelectionChange, onToggleTag }: {
-  selection: GenreSelection;
+function GenrePicker({ selectedTags, onToggleTag }: {
   selectedTags: string[];
-  onSelectionChange: (selection: GenreSelection) => void;
   onToggleTag: (tag: string) => void;
 }) {
   const [genreQuery, setGenreQuery] = useState("");
+  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
   const selectedTagSet = new Set(selectedTags);
-  const level2Options = genreChildren(selection.level1);
-  const level3Options = selection.level2 ? genreChildren(selection.level2) : [];
-  const currentTag = selectedGenreValue(selection);
   const searchResults = genreSearchMatches(genreQuery);
   const searchGroups = groupGenreSearchResults(searchResults, (label) => selectedTagSet.has(label));
+
+  function toggleExpand(label: string) {
+    setExpandedNodes((prev) => {
+      const next = new Set(prev);
+      if (next.has(label)) next.delete(label);
+      else next.add(label);
+      return next;
+    });
+  }
+
   function selectSearchResult(label: string) {
-    onSelectionChange(defaultGenreSelection(label));
+    onToggleTag(label);
     setGenreQuery("");
   }
+
   return (
     <section className="choice-panel">
       <strong>曲风</strong>
@@ -830,22 +846,69 @@ function GenrePicker({ selection, selectedTags, onSelectionChange, onToggleTag }
       ) : genreQuery.trim() ? (
         <p className="genre-empty-hint">没有匹配曲风</p>
       ) : null}
-      <div className="genre-select-grid">
-        <label>一级<select value={selection.level1} onChange={(event) => onSelectionChange({ level1: event.target.value, level2: "", level3: "" })}>
-          {GENRE_TREE.map((genre) => <option key={genre.label} value={genre.label}>{genre.label}</option>)}
-        </select></label>
-        <label>二级<select value={selection.level2} onChange={(event) => onSelectionChange({ ...selection, level2: event.target.value, level3: "" })}>
-          <option value="">选择二级</option>
-          {level2Options.map((genre) => <option key={genre.label} value={genre.label}>{genre.label}</option>)}
-        </select></label>
-        {level3Options.length ? (
-          <label>三级<select value={selection.level3} onChange={(event) => onSelectionChange({ ...selection, level3: event.target.value })}>
-            <option value="">选择三级</option>
-            {level3Options.map((genre) => <option key={genre.label} value={genre.label}>{genre.label}</option>)}
-          </select></label>
-        ) : null}
+      <div className="genre-tree">
+        {GENRE_TREE.map((level1) => {
+          const isExpanded = expandedNodes.has(level1.label);
+          const hasChildren = level1.children && level1.children.length > 0;
+          return (
+            <div key={level1.label}>
+              <div className="genre-tree-level">
+                <button
+                  type="button"
+                  className={`genre-tree-chip${selectedTagSet.has(level1.label) ? " selected" : ""}${hasChildren ? " has-children" : ""}`}
+                  onClick={() => {
+                    onToggleTag(level1.label);
+                    if (hasChildren) toggleExpand(level1.label);
+                  }}
+                >
+                  {level1.label}
+                </button>
+              </div>
+              {isExpanded && hasChildren ? (
+                <div style={{ paddingLeft: 16 }}>
+                  {level1.children!.map((level2) => {
+                    const isL2Expanded = expandedNodes.has(level2.label);
+                    const hasL2Children = "children" in level2 && (level2.children as readonly GenreNode[]).length > 0;
+                    return (
+                      <div key={level2.label}>
+                        <div className="genre-tree-level">
+                          <button
+                            type="button"
+                            className={`genre-tree-chip${selectedTagSet.has(level2.label) ? " selected" : ""}${hasL2Children ? " has-children" : ""}`}
+                            onClick={() => {
+                              onToggleTag(level2.label);
+                              if (hasL2Children) toggleExpand(level2.label);
+                            }}
+                          >
+                            {level2.label}
+                          </button>
+                        </div>
+                        {isL2Expanded && hasL2Children ? (
+                          <div style={{ paddingLeft: 16 }}>
+                            <div className="genre-tree-level">
+                              {(level2 as GenreNode).children!.map((level3) => (
+                                <button
+                                  key={level3.label}
+                                  type="button"
+                                  className={`genre-tree-chip${selectedTagSet.has(level3.label) ? " selected" : ""}`}
+                                  onClick={() => onToggleTag(level3.label)}
+                                >
+                                  {level3.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : null}
+              <div className="genre-tree-separator" />
+            </div>
+          );
+        })}
       </div>
-      <button className="secondary-button" type="button" onClick={() => onToggleTag(currentTag)}>{selectedTagSet.has(currentTag) ? "移除曲风" : "添加曲风"}</button>
       {selectedTags.length ? (
         <div className="selected-chip-row" aria-label="已选曲风">
           {selectedTags.map((tag) => (
@@ -965,32 +1028,35 @@ function EntryDetailPage() {
   const navigate = useNavigate();
   const [entry, setEntry] = useState<ReviewEntry | null>(null);
   const [coverDataUrl, setCoverDataUrl] = useState<string | null>(null);
+  const [moments, setMoments] = useState<ListeningMoment[]>([]);
+  const [showMomentForm, setShowMomentForm] = useState(false);
+  const [momentSaving, setMomentSaving] = useState(false);
+  const [momentError, setMomentError] = useState("");
+  const momentFormRef = useRef<HTMLFormElement | null>(null);
 
   useEffect(() => {
     let active = true;
     if (!id) {
       setEntry(null);
       setCoverDataUrl(null);
-      return () => {
-        active = false;
-      };
+      setMoments([]);
+      return () => { active = false; };
     }
-
     void (async () => {
       const nextEntry = await store.getEntry(id);
       const nextCover = nextEntry ? await loadEntryCover(nextEntry) : null;
+      const nextMoments = nextEntry ? await store.getMomentsByEntryId(id) : [];
       if (!active) return;
       setEntry(nextEntry);
       setCoverDataUrl(nextCover);
+      setMoments(nextMoments);
     })().catch(() => {
       if (!active) return;
       setEntry(null);
       setCoverDataUrl(null);
+      setMoments([]);
     });
-
-    return () => {
-      active = false;
-    };
+    return () => { active = false; };
   }, [id]);
   if (!entry) return <Page title="记录不存在"><Empty text="没有找到这条记录。" /></Page>;
 
@@ -1005,13 +1071,63 @@ function EntryDetailPage() {
     navigate("/timeline");
   }
 
+  async function addMoment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (momentSaving || !id) return;
+    setMomentError("");
+    setMomentSaving(true);
+    try {
+      const form = new FormData(event.currentTarget);
+      const rating = readNumber(form, "momentRating");
+      const modifier = readNullable(form, "momentRatingModifier") as RatingModifier | null;
+      const input: ListeningMomentInput = {
+        listenedAt: readText(form, "momentListenedAt") ? new Date(readText(form, "momentListenedAt")).toISOString() : new Date().toISOString(),
+        rating: rating !== null && rating >= 0.5 && rating <= 10 ? rating : null,
+        ratingModifier: rating !== null && rating >= 0.5 && rating <= 10 ? modifier : null,
+        moods: parseList(readText(form, "momentMoods")),
+        content: readText(form, "momentContent"),
+      };
+      if (!input.content.trim()) throw new Error("感受内容不能为空");
+      const saved = await store.createListeningMoment(id, input);
+      setMoments((current) => [...current, saved].sort((a, b) => a.listenedAt.localeCompare(b.listenedAt)));
+      setShowMomentForm(false);
+      momentFormRef.current?.reset();
+    } catch (err) {
+      setMomentError(err instanceof Error ? err.message : "添加失败");
+    } finally {
+      setMomentSaving(false);
+    }
+  }
+
+  async function removeMoment(momentId: string) {
+    if (!confirm("确认删除这条追加记录？")) return;
+    await store.deleteListeningMoment(momentId);
+    setMoments((current) => current.filter((m) => m.id !== momentId));
+  }
+
+  const ratingDisplay = entry.rating !== null
+    ? `${entry.rating}${entry.ratingModifier ?? ""}/10`
+    : null;
+
+  const allRatings = [
+    ...(entry.rating !== null ? [{ label: "首次", rating: entry.rating, modifier: entry.ratingModifier }] : []),
+    ...moments.filter((m) => m.rating !== null).map((m) => ({ label: formatDateOnly(m.listenedAt), rating: m.rating as number, modifier: m.ratingModifier })),
+  ];
+
+  const maxRating = Math.max(...allRatings.map((r) => r.rating), 1);
+  const entryMoodSet = new Set(entry.moods);
+  const allMomentMoods = new Set(moments.flatMap((m) => m.moods));
+  const newMoods = Array.from(allMomentMoods).filter((m) => !entryMoodSet.has(m));
+  const goneMoods = Array.from(entryMoodSet).filter((m) => !allMomentMoods.has(m));
+  const sameMoods = Array.from(entryMoodSet).filter((m) => allMomentMoods.has(m));
+
   return (
     <Page title={entry.title} text={`${ENTRY_TYPE_LABELS[entry.type]} / ${entry.year} / ${monthLabel(entry.month)}`}>
       <div className="detail-hero">
         <CoverArt src={coverDataUrl} label={coverLabel} large />
         <div className="detail-hero-copy">
           <span>{musicLine || entry.title}</span>
-          {entry.rating ? <strong>{entry.rating}/10</strong> : null}
+          {entry.rating !== null ? <strong>{entry.rating}{entry.ratingModifier ?? ""}/10</strong> : null}
           <small>{formatDateOnly(entry.listenedAt)}</small>
         </div>
       </div>
@@ -1027,12 +1143,97 @@ function EntryDetailPage() {
         <Meta label="艺术家" value={entry.artistName} />
         <Meta label="标签" value={entry.tags.join("、") || null} />
         <Meta label="情绪" value={entry.moods.join("、") || null} />
-        <Meta label="评分" value={entry.rating ? `${entry.rating}/10` : null} />
+        <Meta label="评分" value={ratingDisplay} />
+        <Meta label="首次收听" value={formatDateOnly(entry.firstListenedAt)} />
         <Meta label="听歌或感受日期" value={formatDateOnly(entry.listenedAt)} />
         <Meta label="创建时间" value={formatDate(entry.createdAt)} />
         <Meta label="更新时间" value={formatDate(entry.updatedAt)} />
       </div>
       {entry.musicMetadata ? <MusicMetadataDetails metadata={entry.musicMetadata} title="完整音乐元数据" open /> : null}
+
+      <section className="moment-section">
+        <div className="moment-section-head">
+          <div>
+            <h2>听歌时间线</h2>
+            <span>{moments.length} 次追加记录</span>
+          </div>
+          <button className="secondary-button" type="button" onClick={() => setShowMomentForm((v) => !v)}>
+            {showMomentForm ? "取消" : "添加记录"}
+          </button>
+        </div>
+
+        {moments.length ? (
+          <div className="moment-list">
+            {moments.map((moment) => (
+              <div key={moment.id} className="moment-card">
+                <div className="moment-card-head">
+                  <time>{formatDateOnly(moment.listenedAt)}</time>
+                  {moment.rating !== null ? (
+                    <span className="moment-rating">{moment.rating}{moment.ratingModifier ?? ""}/10</span>
+                  ) : null}
+                  <button type="button" className="danger-button" style={{ marginLeft: "auto", padding: "2px 8px", fontSize: 11 }} onClick={() => removeMoment(moment.id)}>删除</button>
+                </div>
+                <div className="moment-card-content">{moment.content}</div>
+                {moment.moods.length ? (
+                  <div className="moment-card-moods">
+                    {moment.moods.map((mood) => <span key={mood}>{mood}</span>)}
+                  </div>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p style={{ padding: 16, color: "var(--muted)", fontSize: 13 }}>还没有追加记录。点击"添加记录"写下再次听到这首歌的感受。</p>
+        )}
+
+        {showMomentForm ? (
+          <form className="moment-form" ref={momentFormRef} onSubmit={addMoment}>
+            <label>收听日期<input name="momentListenedAt" type="date" defaultValue={new Date().toISOString().slice(0, 10)} /></label>
+            <div className="moment-form-row">
+              <label>评分<input name="momentRating" type="number" min="0.5" max="10" step="0.5" placeholder="0.5-10" /></label>
+              <label>修饰符<select name="momentRatingModifier" defaultValue=""><option value="">无</option><option value="+">+</option><option value="-">-</option></select></label>
+            </div>
+            <label>情绪关键词<input name="momentMoods" placeholder="用逗号分隔，如：感动, 平静" /></label>
+            <label>感受<textarea name="momentContent" rows={4} placeholder="这次听到这首歌，有什么新的感受？" required /></label>
+            {momentError ? <p className="error">{momentError}</p> : null}
+            <div className="moment-form-actions">
+              <button className="primary-button" type="submit" disabled={momentSaving}>{momentSaving ? "保存中" : "保存记录"}</button>
+            </div>
+          </form>
+        ) : null}
+      </section>
+
+      {allRatings.length > 1 || newMoods.length || goneMoods.length ? (
+        <section className="change-viz">
+          <h2>评分与情绪变化</h2>
+          <div className="change-viz-row">
+            {allRatings.length > 1 ? (
+              <div className="change-viz-card">
+                <strong>评分趋势</strong>
+                <div className="rating-sparkline">
+                  {allRatings.map((r, index) => (
+                    <div key={index} className={`rating-sparkline-bar${index === 0 ? " first" : ""}`}
+                      style={{ height: `${(r.rating / maxRating) * 100}%` }}
+                      title={`${r.label}: ${r.rating}${r.modifier ?? ""}/10`}
+                    />
+                  ))}
+                </div>
+                <div className="rating-sparkline-value">
+                  {allRatings.map((r) => `${r.rating}${r.modifier ?? ""}`).join(" → ")}
+                </div>
+              </div>
+            ) : null}
+            <div className="change-viz-card">
+              <strong>情绪演变</strong>
+              <div className="mood-flow">
+                {newMoods.map((mood) => <span key={mood} className="mood-flow-item new">+{mood}</span>)}
+                {sameMoods.map((mood) => <span key={mood} className="mood-flow-item same">{mood}</span>)}
+                {goneMoods.map((mood) => <span key={mood} className="mood-flow-item gone">{mood}</span>)}
+              </div>
+            </div>
+          </div>
+        </section>
+      ) : null}
     </Page>
   );
 }
@@ -1533,7 +1734,7 @@ function MorePage() {
           </Link>
         ))}
       </div>
-      <p className="hint">版本 2.1.0 · 本地优先的私人音乐档案</p>
+      <p className="hint">版本 2.1.1 · 本地优先的私人音乐档案</p>
     </Page>
   );
 }

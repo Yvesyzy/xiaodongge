@@ -38,6 +38,8 @@ export type MusicMetadata = {
   enrichedAt?: string;
 };
 
+export type RatingModifier = "+" | "-";
+
 export type ReviewEntry = {
   id: string;
   type: EntryType;
@@ -52,12 +54,28 @@ export type ReviewEntry = {
   tags: string[];
   moods: string[];
   rating: number | null;
+  ratingModifier: RatingModifier | null;
+  firstListenedAt: string | null;
   listenedAt: string | null;
   createdAt: string;
   updatedAt: string;
 };
 
 export type EntryInput = Omit<ReviewEntry, "id" | "createdAt" | "updatedAt">;
+
+export type ListeningMoment = {
+  id: string;
+  entryId: string;
+  listenedAt: string;
+  rating: number | null;
+  ratingModifier: RatingModifier | null;
+  moods: string[];
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ListeningMomentInput = Omit<ListeningMoment, "id" | "entryId" | "createdAt" | "updatedAt">;
 
 export type YearlySummary = {
   id: string;

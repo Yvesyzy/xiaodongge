@@ -7,13 +7,14 @@ import { excerpt } from "./format";
 import { formatEntriesCsv, formatEntriesTxt } from "./exportFormats";
 import { buildDayListeningSnapshot, buildMonthlyListeningSnapshot, buildYearlyListeningSnapshot, monthlySnapshotToMarkdown, parseMonthlyListeningSnapshot, parseYearlyListeningSnapshot, yearlySnapshotToMarkdown, type ListeningDaySnapshot, type MonthlyListeningSnapshot, type YearlyListeningSnapshot } from "./listeningYearbook";
 import { readMusicMetadata } from "./musicMetadata";
-import { ENTRY_TYPES, type AlbumAggregate, type CoverKind, type CoverTarget, type EntryInput, type EntryType, type FrequencyItem, type MonthlySummary, type ReviewEntry, type SongAggregate, type YearStats, type YearlySummary } from "./types";
+import { ENTRY_TYPES, type AlbumAggregate, type CoverKind, type CoverTarget, type EntryInput, type EntryType, type FrequencyItem, type ListeningMoment, type ListeningMomentInput, type MonthlySummary, type RatingModifier, type ReviewEntry, type SongAggregate, type YearStats, type YearlySummary } from "./types";
 
 const DB_NAME = "music_feelings_archive";
 const ENTRIES_KEY = "music-feelings-mobile-entries";
 const SUMMARIES_KEY = "music-feelings-mobile-summaries";
 const MONTHLY_SUMMARIES_KEY = "music-feelings-mobile-monthly-summaries";
 const COVERS_KEY = "music-feelings-mobile-covers";
+const LISTENING_MOMENTS_KEY = "music-feelings-mobile-listening-moments";
 const APP_DATA_KEY = "music-feelings-mobile-app-data";
 const IMPORT_UNDO_KEY = "music-feelings-mobile-import-undo";
 const WEATHER_LOCATION_KEY = "listening-weather-location";
@@ -33,7 +34,9 @@ CREATE TABLE IF NOT EXISTS ReviewEntry (
   content TEXT NOT NULL,
   tags TEXT,
   moods TEXT,
-  rating INTEGER,
+  rating REAL,
+  ratingModifier TEXT,
+  firstListenedAt TEXT,
   listenedAt TEXT,
   createdAt TEXT NOT NULL,
   updatedAt TEXT NOT NULL
@@ -42,6 +45,19 @@ CREATE INDEX IF NOT EXISTS ReviewEntry_year_month_idx ON ReviewEntry(year, month
 CREATE INDEX IF NOT EXISTS ReviewEntry_albumName_idx ON ReviewEntry(albumName);
 CREATE INDEX IF NOT EXISTS ReviewEntry_songName_idx ON ReviewEntry(songName);
 CREATE INDEX IF NOT EXISTS ReviewEntry_artistName_idx ON ReviewEntry(artistName);
+CREATE TABLE IF NOT EXISTS ListeningMoment (
+  id TEXT NOT NULL PRIMARY KEY,
+  entryId TEXT NOT NULL,
+  listenedAt TEXT NOT NULL,
+  rating REAL,
+  ratingModifier TEXT,
+  moods TEXT,
+  content TEXT NOT NULL,
+  createdAt TEXT NOT NULL,
+  updatedAt TEXT NOT NULL,
+  FOREIGN KEY (entryId) REFERENCES ReviewEntry(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS ListeningMoment_entryId_idx ON ListeningMoment(entryId);
 CREATE TABLE IF NOT EXISTS YearlySummary (
   id TEXT NOT NULL PRIMARY KEY,
   year INTEGER NOT NULL UNIQUE,
@@ -126,6 +142,12 @@ class Store {
     if (!(columns.values ?? []).some((column) => column.name === "musicMetadata")) {
       await this.db.run("ALTER TABLE ReviewEntry ADD COLUMN musicMetadata TEXT");
     }
+    if (!(columns.values ?? []).some((column) => column.name === "ratingModifier")) {
+      await this.db.run("ALTER TABLE ReviewEntry ADD COLUMN ratingModifier TEXT");
+    }
+    if (!(columns.values ?? []).some((column) => column.name === "firstListenedAt")) {
+      await this.db.run("ALTER TABLE ReviewEntry ADD COLUMN firstListenedAt TEXT");
+    }
     const summaryColumns = await this.db.query("PRAGMA table_info(YearlySummary)");
     for (const [name, definition] of [["analysisJson", "TEXT"], ["analysisVersion", "INTEGER"], ["sourceFingerprint", "TEXT"]] as const) {
       if (!(summaryColumns.values ?? []).some((column) => column.name === name)) await this.db.run(`ALTER TABLE YearlySummary ADD COLUMN ${name} ${definition}`);
@@ -162,7 +184,7 @@ class Store {
       return entry;
     }
     await this.dbReady().run(
-      `INSERT INTO ReviewEntry (id, type, title, year, month, albumName, songName, artistName, musicMetadata, content, tags, moods, rating, listenedAt, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO ReviewEntry (id, type, title, year, month, albumName, songName, artistName, musicMetadata, content, tags, moods, rating, ratingModifier, firstListenedAt, listenedAt, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       entryValues(entry),
     );
     await this.markGeneratedSummariesStale([entry]);
@@ -181,8 +203,8 @@ class Store {
       return entry;
     }
     await this.dbReady().run(
-      `UPDATE ReviewEntry SET type=?, title=?, year=?, month=?, albumName=?, songName=?, artistName=?, musicMetadata=?, content=?, tags=?, moods=?, rating=?, listenedAt=?, updatedAt=? WHERE id=?`,
-      [entry.type, entry.title, entry.year, entry.month, entry.albumName, entry.songName, entry.artistName, encodeMusicMetadata(entry.musicMetadata), entry.content, JSON.stringify(entry.tags), JSON.stringify(entry.moods), entry.rating, entry.listenedAt, entry.updatedAt, id],
+      `UPDATE ReviewEntry SET type=?, title=?, year=?, month=?, albumName=?, songName=?, artistName=?, musicMetadata=?, content=?, tags=?, moods=?, rating=?, ratingModifier=?, firstListenedAt=?, listenedAt=?, updatedAt=? WHERE id=?`,
+      [entry.type, entry.title, entry.year, entry.month, entry.albumName, entry.songName, entry.artistName, encodeMusicMetadata(entry.musicMetadata), entry.content, JSON.stringify(entry.tags), JSON.stringify(entry.moods), entry.rating, entry.ratingModifier, entry.firstListenedAt, entry.listenedAt, entry.updatedAt, id],
     );
     await this.markGeneratedSummariesStale([old, entry]);
     return entry;
@@ -196,6 +218,7 @@ class Store {
       if (existing) await this.markGeneratedSummariesStale([existing]);
       return;
     }
+    await this.dbReady().run("DELETE FROM ListeningMoment WHERE entryId = ?", [id]);
     await this.dbReady().run("DELETE FROM ReviewEntry WHERE id = ?", [id]);
     if (existing) await this.markGeneratedSummariesStale([existing]);
   }
@@ -508,14 +531,59 @@ class Store {
     }
   }
 
+  async createListeningMoment(entryId: string, input: ListeningMomentInput) {
+    const now = new Date().toISOString();
+    const moment: ListeningMoment = { ...input, id: crypto.randomUUID(), entryId, createdAt: now, updatedAt: now };
+    await this.init();
+    if (!Capacitor.isNativePlatform()) {
+      writeListeningMoments([...readListeningMoments(), moment]);
+      return moment;
+    }
+    await this.dbReady().run(
+      "INSERT INTO ListeningMoment (id, entryId, listenedAt, rating, ratingModifier, moods, content, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+      [moment.id, moment.entryId, moment.listenedAt, moment.rating, moment.ratingModifier, JSON.stringify(moment.moods), moment.content, moment.createdAt, moment.updatedAt],
+    );
+    return moment;
+  }
+
+  async getMomentsByEntryId(entryId: string) {
+    await this.init();
+    if (!Capacitor.isNativePlatform()) return readListeningMoments().filter((m) => m.entryId === entryId).sort((a, b) => a.listenedAt.localeCompare(b.listenedAt));
+    const result = await this.dbReady().query("SELECT * FROM ListeningMoment WHERE entryId = ? ORDER BY listenedAt ASC", [entryId]);
+    return (result.values ?? []).map(rowToListeningMoment);
+  }
+
+  async deleteListeningMoment(id: string) {
+    await this.init();
+    if (!Capacitor.isNativePlatform()) {
+      writeListeningMoments(readListeningMoments().filter((m) => m.id !== id));
+      return;
+    }
+    await this.dbReady().run("DELETE FROM ListeningMoment WHERE id = ?", [id]);
+  }
+
+  async updateListeningMoment(id: string, input: ListeningMomentInput) {
+    const now = new Date().toISOString();
+    await this.init();
+    if (!Capacitor.isNativePlatform()) {
+      writeListeningMoments(readListeningMoments().map((m) => m.id === id ? { ...input, id, entryId: m.entryId, createdAt: m.createdAt, updatedAt: now } : m));
+      return;
+    }
+    await this.dbReady().run(
+      "UPDATE ListeningMoment SET listenedAt=?, rating=?, ratingModifier=?, moods=?, content=?, updatedAt=? WHERE id=?",
+      [input.listenedAt, input.rating, input.ratingModifier, JSON.stringify(input.moods), input.content, now, id],
+    );
+  }
+
   async exportBackup() {
     return JSON.stringify({
-      version: 3,
+      version: 4,
       exportedAt: new Date().toISOString(),
       entries: await this.listEntries(),
       summaries: await this.listSummaries(),
       monthlySummaries: await this.listMonthlySummaries(),
       covers: await this.listCovers(),
+      listeningMoments: await this.listListeningMoments(),
       appData: await this.listAppData(),
     }, null, 2);
   }
@@ -568,18 +636,21 @@ class Store {
       const oldSummaries = localStorage.getItem(SUMMARIES_KEY);
       const oldMonthlySummaries = localStorage.getItem(MONTHLY_SUMMARIES_KEY);
       const oldCovers = localStorage.getItem(COVERS_KEY);
+      const oldListeningMoments = localStorage.getItem(LISTENING_MOMENTS_KEY);
       const oldAppData = localStorage.getItem(APP_DATA_KEY);
       try {
         writeEntries(backup.entries);
         writeSummaries(backup.summaries);
         writeMonthlySummaries(backup.monthlySummaries);
         writeCovers(backup.covers);
+        writeListeningMoments(backup.listeningMoments);
         writeAppData(backup.appData);
       } catch (error) {
         restoreStorage(ENTRIES_KEY, oldEntries);
         restoreStorage(SUMMARIES_KEY, oldSummaries);
         restoreStorage(MONTHLY_SUMMARIES_KEY, oldMonthlySummaries);
         restoreStorage(COVERS_KEY, oldCovers);
+        restoreStorage(LISTENING_MOMENTS_KEY, oldListeningMoments);
         restoreStorage(APP_DATA_KEY, oldAppData);
         throw error;
       }
@@ -587,12 +658,14 @@ class Store {
     }
 
     const set: capSQLiteSet[] = [
+      { statement: "DELETE FROM ListeningMoment" },
       { statement: "DELETE FROM ReviewEntry" },
       { statement: "DELETE FROM YearlySummary" },
       { statement: "DELETE FROM MonthlySummary" },
       { statement: "DELETE FROM CoverImage" },
       { statement: "DELETE FROM AppData" },
-      ...backup.entries.map((entry) => ({ statement: "INSERT INTO ReviewEntry (id, type, title, year, month, albumName, songName, artistName, musicMetadata, content, tags, moods, rating, listenedAt, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", values: entryValues(entry) })),
+      ...backup.listeningMoments.map((moment) => ({ statement: "INSERT INTO ListeningMoment (id, entryId, listenedAt, rating, ratingModifier, moods, content, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", values: listeningMomentValues(moment) })),
+      ...backup.entries.map((entry) => ({ statement: "INSERT INTO ReviewEntry (id, type, title, year, month, albumName, songName, artistName, musicMetadata, content, tags, moods, rating, ratingModifier, firstListenedAt, listenedAt, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", values: entryValues(entry) })),
       ...backup.summaries.map((summary) => ({ statement: "INSERT INTO YearlySummary (id, year, title, content, analysisJson, analysisVersion, sourceFingerprint, sourceEntryCount, generatedAt, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", values: summaryValues(summary) })),
       ...backup.monthlySummaries.map((summary) => ({ statement: "INSERT INTO MonthlySummary (id, year, month, title, content, themeId, analysisJson, analysisVersion, sourceFingerprint, sourceEntryCount, generatedAt, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", values: monthlySummaryValues(summary) })),
       ...backup.covers.map((cover) => ({ statement: "INSERT INTO CoverImage (coverKey, kind, albumName, songName, artistName, dataUrl, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?)", values: coverValues(cover) })),
@@ -678,6 +751,13 @@ class Store {
     return (result.values ?? []).map(rowToSummary);
   }
 
+  private async listListeningMoments() {
+    await this.init();
+    if (!Capacitor.isNativePlatform()) return readListeningMoments();
+    const result = await this.dbReady().query("SELECT * FROM ListeningMoment ORDER BY listenedAt ASC");
+    return (result.values ?? []).map(rowToListeningMoment);
+  }
+
   private async listCovers() {
     await this.init();
     if (!Capacitor.isNativePlatform()) return readCovers();
@@ -724,6 +804,8 @@ function rowToEntry(row: Record<string, unknown>): ReviewEntry {
     tags: decodeList(nullableString(row.tags)),
     moods: decodeList(nullableString(row.moods)),
     rating: row.rating === null || row.rating === undefined ? null : Number(row.rating),
+    ratingModifier: parseRatingModifier(nullableString(row.ratingModifier)),
+    firstListenedAt: nullableString(row.firstListenedAt),
     listenedAt: nullableString(row.listenedAt),
     createdAt: String(row.createdAt),
     updatedAt: String(row.updatedAt),
@@ -776,8 +858,22 @@ function rowToCover(row: Record<string, unknown>): CoverRow {
   };
 }
 
+function rowToListeningMoment(row: Record<string, unknown>): ListeningMoment {
+  return {
+    id: String(row.id),
+    entryId: String(row.entryId),
+    listenedAt: String(row.listenedAt),
+    rating: row.rating === null || row.rating === undefined ? null : Number(row.rating),
+    ratingModifier: parseRatingModifier(nullableString(row.ratingModifier)),
+    moods: decodeList(nullableString(row.moods)),
+    content: String(row.content),
+    createdAt: String(row.createdAt),
+    updatedAt: String(row.updatedAt),
+  };
+}
+
 function entryValues(entry: ReviewEntry) {
-  return [entry.id, entry.type, entry.title, entry.year, entry.month, entry.albumName, entry.songName, entry.artistName, encodeMusicMetadata(entry.musicMetadata), entry.content, JSON.stringify(entry.tags), JSON.stringify(entry.moods), entry.rating, entry.listenedAt, entry.createdAt, entry.updatedAt];
+  return [entry.id, entry.type, entry.title, entry.year, entry.month, entry.albumName, entry.songName, entry.artistName, encodeMusicMetadata(entry.musicMetadata), entry.content, JSON.stringify(entry.tags), JSON.stringify(entry.moods), entry.rating, entry.ratingModifier, entry.firstListenedAt, entry.listenedAt, entry.createdAt, entry.updatedAt];
 }
 
 function summaryValues(summary: YearlySummary) {
@@ -792,23 +888,32 @@ function coverValues(cover: CoverRow) {
   return [cover.coverKey, cover.kind, cover.albumName, cover.songName, cover.artistName, cover.dataUrl, cover.updatedAt];
 }
 
+function listeningMomentValues(moment: ListeningMoment) {
+  return [moment.id, moment.entryId, moment.listenedAt, moment.rating, moment.ratingModifier, JSON.stringify(moment.moods), moment.content, moment.createdAt, moment.updatedAt];
+}
+
 function validateEntry(entry: ReviewEntry) {
   if (!ENTRY_TYPES.includes(entry.type)) throw new Error("记录类型必须是 year / month / album / song");
   if (!entry.title.trim()) throw new Error("标题不能为空");
   if (!entry.content.trim()) throw new Error("正文内容不能为空");
   if (!Number.isInteger(entry.year) || entry.year < 1 || entry.year > 9999) throw new Error("年份范围必须是 1-9999");
   if (entry.month !== null && (!Number.isInteger(entry.month) || entry.month < 1 || entry.month > 12)) throw new Error("月份范围必须是 1-12");
-  if (entry.rating !== null && (!Number.isInteger(entry.rating) || entry.rating < 1 || entry.rating > 10)) throw new Error("评分范围必须是 1-10");
+  if (entry.rating !== null && (typeof entry.rating !== "number" || !Number.isFinite(entry.rating) || entry.rating < 0.5 || entry.rating > 10)) throw new Error("评分范围必须是 0.5-10");
+  if (entry.rating !== null && !isHalfStep(entry.rating)) throw new Error("评分必须是 0.5 的整数倍");
+  if (entry.ratingModifier !== null && entry.ratingModifier !== "+" && entry.ratingModifier !== "-") throw new Error("评分修饰符必须是 + 或 -");
+  if (entry.rating === null && entry.ratingModifier !== null) throw new Error("评分修饰符只能与评分一起使用");
+  if (entry.firstListenedAt !== null && !isValidDateString(entry.firstListenedAt)) throw new Error("首次收听时间必须是有效时间字符串");
   readMusicMetadata(entry.musicMetadata, "entry.musicMetadata");
 }
 
 type BackupData = {
-  version: 3;
+  version: 4;
   exportedAt: string;
   entries: ReviewEntry[];
   summaries: YearlySummary[];
   monthlySummaries: MonthlySummary[];
   covers: CoverRow[];
+  listeningMoments: ListeningMoment[];
   appData: Record<string, string>;
 };
 
@@ -821,15 +926,16 @@ function parseBackup(raw: string): BackupData {
   }
   if (!isRecord(parsed)) throw new Error("备份内容必须是 JSON 对象");
   const version = parsed.version;
-  if (version !== 1 && version !== 2 && version !== 3) throw new Error("备份版本不支持");
+  if (version !== 1 && version !== 2 && version !== 3 && version !== 4) throw new Error("备份版本不支持");
   if (!isValidDateString(parsed.exportedAt)) throw new Error("备份导出时间无效");
 
   const entries = readArray(parsed.entries, "entries").map((entry) => readEntry(entry, version >= 2));
-  const summaries = readArray(parsed.summaries, "summaries").map((summary) => readSummary(summary, version === 3));
-  const monthlySummaries = version === 3 ? readArray(parsed.monthlySummaries, "monthlySummaries").map(readMonthlySummary) : [];
+  const summaries = readArray(parsed.summaries, "summaries").map((summary) => readSummary(summary, version >= 3));
+  const monthlySummaries = version >= 3 ? readArray(parsed.monthlySummaries, "monthlySummaries").map(readMonthlySummary) : [];
   const covers = readArray(parsed.covers, "covers").map(readCover);
-  const appData = version === 3 ? readBackupAppData(parsed.appData) : {};
-  return { version: 3, exportedAt: parsed.exportedAt, entries, summaries, monthlySummaries, covers, appData };
+  const listeningMoments = version >= 4 ? readArray(parsed.listeningMoments, "listeningMoments").map(readListeningMoment) : [];
+  const appData = version >= 3 ? readBackupAppData(parsed.appData) : {};
+  return { version: 4, exportedAt: parsed.exportedAt, entries, summaries, monthlySummaries, covers, listeningMoments, appData };
 }
 
 function summarizeBackup(backup: BackupData) {
@@ -839,6 +945,7 @@ function summarizeBackup(backup: BackupData) {
     summaryCount: backup.summaries.length,
     monthlySummaryCount: backup.monthlySummaries.length,
     coverCount: backup.covers.length,
+    listeningMomentCount: backup.listeningMoments.length,
   };
 }
 
@@ -858,7 +965,9 @@ function readEntry(value: unknown, metadataRequired = false): ReviewEntry {
     content: readString(value.content, "entries.content"),
     tags: readStringArray(value.tags, "entries.tags"),
     moods: readStringArray(value.moods, "entries.moods"),
-    rating: readNullableInt(value.rating, "entries.rating"),
+    rating: readNullableNumber(value.rating, "entries.rating"),
+    ratingModifier: parseRatingModifier(readNullableField(value.ratingModifier, "entries.ratingModifier")),
+    firstListenedAt: readNullableDate(value.firstListenedAt, "entries.firstListenedAt"),
     listenedAt: readNullableDate(value.listenedAt, "entries.listenedAt"),
     createdAt: readDate(value.createdAt, "entries.createdAt"),
     updatedAt: readDate(value.updatedAt, "entries.updatedAt"),
@@ -979,6 +1088,22 @@ function readNullableInt(value: unknown, key: string): number | null {
   return readInt(value, key);
 }
 
+function readNullableNumber(value: unknown, key: string): number | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== "number" || !Number.isFinite(value)) throw new Error(`${key} 必须是有效数字`);
+  return value;
+}
+
+function isHalfStep(value: number) {
+  return Math.abs(value * 2 - Math.round(value * 2)) < 0.001;
+}
+
+function parseRatingModifier(value: string | null): RatingModifier | null {
+  if (!value) return null;
+  if (value !== "+" && value !== "-") throw new Error("评分修饰符必须是 + 或 -");
+  return value;
+}
+
 function readDate(value: unknown, key: string) {
   if (!isValidDateString(value)) throw new Error(`${key} 必须是有效时间字符串`);
   return value;
@@ -1046,6 +1171,30 @@ function readCovers() {
 
 function writeCovers(covers: CoverRow[]) {
   localStorage.setItem(COVERS_KEY, JSON.stringify(covers));
+}
+
+function readListeningMoments(): ListeningMoment[] {
+  const values = readJson<unknown[]>(LISTENING_MOMENTS_KEY, []);
+  return Array.isArray(values) ? values.map(readListeningMoment) : [];
+}
+
+function writeListeningMoments(moments: ListeningMoment[]) {
+  localStorage.setItem(LISTENING_MOMENTS_KEY, JSON.stringify(moments));
+}
+
+function readListeningMoment(value: unknown): ListeningMoment {
+  if (!isRecord(value)) throw new Error("listeningMoments 必须是记录对象数组");
+  return {
+    id: readString(value.id, "listeningMoments.id"),
+    entryId: readString(value.entryId, "listeningMoments.entryId"),
+    listenedAt: readDate(value.listenedAt, "listeningMoments.listenedAt"),
+    rating: readNullableNumber(value.rating, "listeningMoments.rating"),
+    ratingModifier: parseRatingModifier(readNullableField(value.ratingModifier, "listeningMoments.ratingModifier")),
+    moods: readStringArray(value.moods, "listeningMoments.moods"),
+    content: readString(value.content, "listeningMoments.content"),
+    createdAt: readDate(value.createdAt, "listeningMoments.createdAt"),
+    updatedAt: readDate(value.updatedAt, "listeningMoments.updatedAt"),
+  };
 }
 
 function restoreStorage(key: string, value: string | null) {
