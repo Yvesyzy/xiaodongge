@@ -17,6 +17,8 @@ import RatingSlider from "./RatingSlider";
 import { parseList, store } from "./store";
 import { ENTRY_TYPE_LABELS, ENTRY_TYPES, type AlbumAggregate, type EntryInput, type ListeningMoment, type ListeningMomentInput, type MusicMetadata, type RatingModifier, type ReviewEntry, type SongAggregate, type YearStats } from "./types";
 
+const APP_VERSION = "2.1.6";
+
 const nav = [
   ["/", "首页"],
   ["/timeline", "时间轴"],
@@ -63,7 +65,7 @@ export default function App() {
   return (
     <div className="app-shell">
       <header className="app-header">
-        <Link to="/" className="brand">小懂哥 v2.1.5</Link>
+        <Link to="/" className="brand">小懂哥 v{APP_VERSION}</Link>
         <Link to="/more" className="header-menu" aria-label="更多"><span /></Link>
       </header>
       <main className="app-main">
@@ -269,6 +271,9 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
   const pendingDraftRef = useRef<EntryDraft | null>(null);
   const draftReadyRef = useRef(false);
   const skipDraftStateSaveRef = useRef(false);
+  // 多维度评分：用户手动拖主滑块后锁定综合分，后续维度变化不再自动覆盖；
+  // 仅“自动重算”置为 false，“维度变化”保留原锁，手动改维度时解锁。
+  const compositeLockedRef = useRef(false);
   const [entry, setEntry] = useState<ReviewEntry | null>(null);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -426,11 +431,15 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
     }
   }, [entry, entryCoverLoaded, id, mode, draftId]);
 
-  // ponytail: 多维度开启且4维都有值时，综合分=4维平均（0.5步进）。用户可手动拖动主滑块覆盖；下次维度变化会重新计算。
+  // ponytail: 多维度开启且4维都有值时，综合分=4维平均（0.5步进）。用户可手动拖主滑块覆盖并锁定；之后维度变化不再覆盖，改任一维度则重新解锁计算。
   useEffect(() => {
-    if (!multiDimension) return;
+    if (!multiDimension) {
+      compositeLockedRef.current = false;
+      return;
+    }
     const dims = [ratingProduction, ratingSongwriting, ratingOriginality, ratingResonance];
     if (dims.some((d) => d === null)) return;
+    if (compositeLockedRef.current) return;
     const avg = (dims as number[]).reduce((sum, d) => sum + d, 0) / dims.length;
     setRating(Math.round(avg / 0.5) * 0.5);
   }, [multiDimension, ratingProduction, ratingSongwriting, ratingOriginality, ratingResonance]);
@@ -879,7 +888,7 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
         <RatingSlider
           value={rating}
           modifier={ratingModifier}
-          onChange={(r, m) => { setRating(r); setRatingModifier(m); }}
+          onChange={(r, m) => { compositeLockedRef.current = r !== null; setRating(r); setRatingModifier(m); }}
           label={multiDimension ? "综合评分" : "评分"}
         />
         <div className="multi-dimension-toggle">
@@ -887,14 +896,14 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
             <input type="checkbox" checked={multiDimension} onChange={(e) => setMultiDimension(e.target.checked)} />
             多维度评分（制作 / 词曲 / 原创性 / 共鸣）
           </label>
-          {multiDimension ? <small>开启后综合评分自动取四维平均，可手动覆盖。</small> : null}
+          {multiDimension ? <small>开启后综合评分自动取四维平均；手动拖动综合滑块后即锁定，改四维可重新解锁。</small> : null}
         </div>
         {multiDimension ? (
           <div className="multi-dimension-grid">
-            <RatingSlider value={ratingProduction} modifier={null} onChange={(r) => setRatingProduction(r)} name="ratingProduction" showModifier={false} label="制作" />
-            <RatingSlider value={ratingSongwriting} modifier={null} onChange={(r) => setRatingSongwriting(r)} name="ratingSongwriting" showModifier={false} label="词曲" />
-            <RatingSlider value={ratingOriginality} modifier={null} onChange={(r) => setRatingOriginality(r)} name="ratingOriginality" showModifier={false} label="原创性" />
-            <RatingSlider value={ratingResonance} modifier={null} onChange={(r) => setRatingResonance(r)} name="ratingResonance" showModifier={false} label="共鸣" />
+            <RatingSlider value={ratingProduction} modifier={null} onChange={(r) => { compositeLockedRef.current = false; setRatingProduction(r); }} name="ratingProduction" showModifier={false} label="制作" />
+            <RatingSlider value={ratingSongwriting} modifier={null} onChange={(r) => { compositeLockedRef.current = false; setRatingSongwriting(r); }} name="ratingSongwriting" showModifier={false} label="词曲" />
+            <RatingSlider value={ratingOriginality} modifier={null} onChange={(r) => { compositeLockedRef.current = false; setRatingOriginality(r); }} name="ratingOriginality" showModifier={false} label="原创性" />
+            <RatingSlider value={ratingResonance} modifier={null} onChange={(r) => { compositeLockedRef.current = false; setRatingResonance(r); }} name="ratingResonance" showModifier={false} label="共鸣" />
           </div>
         ) : null}
         <label>首次收听时间<input name="firstListenedAt" type="date" defaultValue={source?.firstListenedAt ? new Date(source.firstListenedAt).toLocaleDateString("en-CA") : ""} /></label>
@@ -1902,7 +1911,7 @@ function MorePage() {
           </Link>
         ))}
       </div>
-      <p className="hint">版本 2.1.5 · 本地优先的私人音乐档案</p>
+      <p className="hint">版本 {APP_VERSION} · 本地优先的私人音乐档案</p>
     </Page>
   );
 }

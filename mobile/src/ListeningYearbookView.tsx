@@ -2,13 +2,13 @@ import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { Link, useParams } from "react-router-dom";
 import type { WeatherLocation } from "../../shared/listeningContext";
 import type { ListeningLayer, ListeningMetric, SemanticOverride } from "../../shared/listeningAnalysis";
-import { formatDateOnly } from "./format";
+import { formatDateOnly, localDateOf } from "./format";
 import { MONTH_THEMES, parseMonthlyListeningSnapshot, parseYearlyListeningSnapshot, type ListeningDaySnapshot, type MonthlyListeningSnapshot, type YearlyListeningSnapshot } from "./listeningYearbook";
 import { store } from "./store";
 import type { MonthlySummary, ReviewEntry, YearStats, YearlySummary } from "./types";
 
 export function DailyListeningNote({ entry }: { entry: ReviewEntry }) {
-  const date = entry.listenedAt?.slice(0, 10) ?? null;
+  const date = localDateOf(entry.listenedAt);
   const [snapshot, setSnapshot] = useState<ListeningDaySnapshot | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -43,7 +43,7 @@ export function DailyListeningNote({ entry }: { entry: ReviewEntry }) {
         <span className="day-note-count">{snapshot.entryCount} 篇</span>
       </div>
       <div className="context-chips" aria-label="日期背景">
-        <span>{formatDateOnly(`${date}T00:00:00.000Z`)}</span>
+        <span>{formatDateOnly(entry.listenedAt)}</span>
         <span>{snapshot.day.kindLabel}</span>
         {snapshot.day.festivals.map((festival) => <span key={festival}>{festival}</span>)}
         {snapshot.weather ? <span>{snapshot.weather.categoryLabel} · {Math.round(snapshot.weather.temperatureMin)}–{Math.round(snapshot.weather.temperatureMax)}℃</span> : null}

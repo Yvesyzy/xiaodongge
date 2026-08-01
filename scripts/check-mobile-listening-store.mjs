@@ -17,14 +17,15 @@ globalThis.localStorage = { getItem: (key) => storage.get(key) ?? null, setItem:
 
 const analysis = load("../shared/listeningAnalysis.ts");
 const context = load("../shared/listeningContext.ts");
-const yearbook = load("../mobile/src/listeningYearbook.ts", { "../../shared/listeningAnalysis": analysis, "../../shared/listeningContext": context, "./types": {} });
+const format = load("../mobile/src/format.ts");
+const yearbook = load("../mobile/src/listeningYearbook.ts", { "../../shared/listeningAnalysis": analysis, "../../shared/listeningContext": context, "./format": format, "./types": {} });
 const musicMetadata = load("../mobile/src/musicMetadata.ts");
 const storeModule = load("../mobile/src/store.ts", {
   "@capacitor/core": { Capacitor: { isNativePlatform: () => false } },
   "@capacitor-community/sqlite": { CapacitorSQLite: {}, SQLiteConnection: class {} },
   "../../shared/visualizations": { buildAbstractMusicMap: () => ({}), buildVisualizationOptions: () => ({}) },
   "../../shared/listeningContext": context,
-  "./format": { excerpt: (value) => value },
+  "./format": format,
   "./exportFormats": { formatEntriesCsv: () => "", formatEntriesTxt: () => "" },
   "./listeningYearbook": yearbook,
   "./musicMetadata": musicMetadata,

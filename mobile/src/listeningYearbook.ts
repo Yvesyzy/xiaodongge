@@ -1,5 +1,6 @@
 import { LISTENING_ANALYSIS_VERSION, analyzeListeningEntries, applySemanticOverrides, mergeListeningAnalyses, type ListeningAnalysis, type ListeningEntry, type SemanticOverride } from "../../shared/listeningAnalysis";
 import { classifyDay, parseWeatherRecord, type DayContext, type DayKind, type WeatherRecord } from "../../shared/listeningContext";
+import { localDateOf } from "./format";
 import type { ReviewEntry } from "./types";
 
 export const LISTENING_YEARBOOK_VERSION = 1;
@@ -368,8 +369,7 @@ function automaticEntries(entries: ReviewEntry[]): ReviewEntry[] {
 }
 
 function exactDate(entry: ReviewEntry) {
-  const date = entry.listenedAt?.slice(0, 10) ?? null;
-  return date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : null;
+  return localDateOf(entry.listenedAt);
 }
 
 function listeningTitle(prefix: string, analysis: ListeningAnalysis) {

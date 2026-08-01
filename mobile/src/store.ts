@@ -3,7 +3,7 @@ import { CapacitorSQLite, SQLiteConnection, type capSQLiteSet, type SQLiteDBConn
 import { buildAbstractMusicMap, buildVisualizationOptions, type VisualizationFilters } from "../../shared/visualizations";
 import { fetchHistoricalWeather, fetchHistoricalWeatherRange, parseWeatherLocation, parseWeatherRecord, searchWeatherLocations, type WeatherLocation, type WeatherRecord } from "../../shared/listeningContext";
 import type { ListeningLayer, SemanticOverride } from "../../shared/listeningAnalysis";
-import { excerpt } from "./format";
+import { excerpt, localDateOf } from "./format";
 import { formatEntriesCsv, formatEntriesTxt } from "./exportFormats";
 import { buildDayListeningSnapshot, buildMonthlyListeningSnapshot, buildYearlyListeningSnapshot, monthlySnapshotToMarkdown, parseMonthlyListeningSnapshot, parseYearlyListeningSnapshot, yearlySnapshotToMarkdown, type ListeningDaySnapshot, type MonthlyListeningSnapshot, type YearlyListeningSnapshot } from "./listeningYearbook";
 import { readMusicMetadata } from "./musicMetadata";
@@ -224,6 +224,8 @@ class Store {
     await this.init();
     if (!Capacitor.isNativePlatform()) {
       writeEntries(readEntries().filter((entry) => entry.id !== id));
+      // 与原生 SQLite 的 ON DELETE CASCADE 对齐：删除乐评时同步清理其追加记录
+      writeListeningMoments(readListeningMoments().filter((moment) => moment.entryId !== id));
       if (existing) await this.markGeneratedSummariesStale([existing]);
       return;
     }
@@ -1329,8 +1331,7 @@ function isAutomaticEntry(entry: ReviewEntry) {
 }
 
 function exactEntryDate(entry: ReviewEntry) {
-  const date = entry.listenedAt?.slice(0, 10) ?? null;
-  return date && /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : null;
+  return localDateOf(entry.listenedAt);
 }
 
 function weatherKey(location: WeatherLocation, date: string) {

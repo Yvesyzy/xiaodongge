@@ -19,7 +19,9 @@ function loadModule(path, localModules = {}) {
   return mod.exports;
 }
 
+const format = loadModule("../mobile/src/format.ts");
 const { buildInsights, seasonOf } = loadModule("../mobile/src/insights.ts", {
+  "./format": format,
   "./types": {},
   "../../shared/listeningContext": {},
 });

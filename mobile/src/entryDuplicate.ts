@@ -1,3 +1,4 @@
+import { localDateOf } from "./format";
 import type { EntryInput, ReviewEntry } from "./types";
 
 export function findSimilarEntry(entries: ReviewEntry[], input: EntryInput, ignoreId?: string) {
@@ -19,5 +20,5 @@ function textKey(value: string | null) {
 }
 
 function dateKey(value: string | null) {
-  return value ? value.slice(0, 10) : "";
+  return localDateOf(value) ?? "";
 }

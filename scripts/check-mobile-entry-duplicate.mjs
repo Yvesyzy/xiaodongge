@@ -4,16 +4,22 @@ import { Module } from "node:module";
 import ts from "typescript";
 
 const require = Module.createRequire(import.meta.url);
-const source = readFileSync(new URL("../mobile/src/entryDuplicate.ts", import.meta.url), "utf8");
-const { outputText } = ts.transpileModule(source, {
-  compilerOptions: {
-    module: ts.ModuleKind.CommonJS,
-    target: ts.ScriptTarget.ES2022,
-  },
-});
-const mod = { exports: {} };
-new Function("exports", "require", "module", outputText)(mod.exports, require, mod);
-const { findSimilarEntry } = mod.exports;
+function loadModule(path, localModules = {}) {
+  const source = readFileSync(new URL(path, import.meta.url), "utf8");
+  const { outputText } = ts.transpileModule(source, {
+    compilerOptions: {
+      module: ts.ModuleKind.CommonJS,
+      target: ts.ScriptTarget.ES2022,
+    },
+  });
+  const mod = { exports: {} };
+  const localRequire = (id) => localModules[id] ?? require(id);
+  new Function("exports", "require", "module", outputText)(mod.exports, localRequire, mod);
+  return mod.exports;
+}
+
+const format = loadModule("../mobile/src/format.ts");
+const { findSimilarEntry } = loadModule("../mobile/src/entryDuplicate.ts", { "./format": format, "./types": {} });
 
 const entry = {
   id: "entry-1",

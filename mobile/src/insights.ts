@@ -1,3 +1,4 @@
+import { localDateOf } from "./format";
 import type { ReviewEntry } from "./types";
 import type { WeatherRecord } from "../../shared/listeningContext";
 
@@ -49,8 +50,8 @@ export function buildInsights(entries: ReviewEntry[], weather: WeatherRecord[]):
   const dated: DatedEntry[] = entries
     .filter((entry) => entry.type === "song" || entry.type === "album")
     .map((entry) => {
-      const date = entry.listenedAt?.slice(0, 10) ?? null;
-      if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
+      const date = localDateOf(entry.listenedAt);
+      if (!date) return null;
       const month = Number(date.slice(5, 7));
       return { entry, date, weather: weatherByDate.get(date) ?? null, season: seasonOf(month) };
     })

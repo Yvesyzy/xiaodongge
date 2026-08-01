@@ -14,7 +14,8 @@ function load(path, localModules = {}) {
 
 const analysis = load("../shared/listeningAnalysis.ts");
 const context = load("../shared/listeningContext.ts");
-const yearbook = load("../mobile/src/listeningYearbook.ts", { "../../shared/listeningAnalysis": analysis, "../../shared/listeningContext": context, "./types": {} });
+const format = load("../mobile/src/format.ts");
+const yearbook = load("../mobile/src/listeningYearbook.ts", { "../../shared/listeningAnalysis": analysis, "../../shared/listeningContext": context, "./format": format, "./types": {} });
 assert.equal(yearbook.MONTH_THEMES.length, 12);
 assert.equal(new Set(yearbook.MONTH_THEMES.map((theme) => theme.id)).size, 12);
 assert.equal(new Set(yearbook.MONTH_THEMES.map((theme) => theme.name)).size, 12);
