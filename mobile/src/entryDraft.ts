@@ -40,6 +40,7 @@ export type EntryDraft = {
   ocrText: string;
   recognizedFields: MusicInfoFields | null;
   musicMetadata: MusicMetadata | null;
+  compositeRatingLocked: boolean;
   inspiration: boolean;
 };
 
@@ -181,6 +182,7 @@ function parseEntryDraft(value: unknown): EntryDraft | null {
     ocrText: value.ocrText,
     recognizedFields,
     musicMetadata,
+    compositeRatingLocked: value.compositeRatingLocked === true,
     inspiration: value.inspiration === true,
   };
 }

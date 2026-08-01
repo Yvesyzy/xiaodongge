@@ -51,6 +51,7 @@ const input = {
   ratingSongwriting: 9,
   ratingOriginality: 7.5,
   ratingResonance: 9.5,
+  compositeRatingLocked: true,
   firstListenedAt: null,
   listenedAt: "2026-03-08T00:00:00.000Z",
 };
@@ -59,6 +60,7 @@ assert.equal(created.ratingProduction, 8.5, "ratingProduction 应持久化");
 assert.equal(created.ratingSongwriting, 9, "ratingSongwriting 应持久化");
 assert.equal(created.ratingOriginality, 7.5, "ratingOriginality 应持久化");
 assert.equal(created.ratingResonance, 9.5, "ratingResonance 应持久化");
+assert.equal(created.compositeRatingLocked, true, "综合分锁定状态应持久化");
 const day = await store.getDayListeningSnapshot("2026-03-08");
 assert.equal(day.entryCount, 1);
 assert.equal(day.day.kind, "ordinary_holiday");
@@ -74,6 +76,7 @@ await store.updateEntry(created.id, { ...input, content: "人声很克制，旋�
 const updated = await store.getEntry(created.id);
 assert.equal(updated.ratingProduction, 8.5, "updateEntry 后 ratingProduction 应保留");
 assert.equal(updated.ratingResonance, 9.5, "updateEntry 后 ratingResonance 应保留");
+assert.equal(updated.compositeRatingLocked, true, "updateEntry 后综合分锁定状态应保留");
 assert.equal((await store.getMonthlySummary(2026, 3)).sourceFingerprint, null);
 assert.equal((await store.getSummary(2026)).sourceFingerprint, null);
 assert.ok((await store.getSummary(2026)).content.includes("私人听感标本册"));
@@ -103,6 +106,7 @@ await store.setWeatherLocation(null);
 const backup = JSON.parse(await store.exportBackup());
 assert.equal(backup.version, 5);
 assert.equal(backup.entries.length, 1);
+assert.equal(backup.entries[0].compositeRatingLocked, true);
 assert.equal(backup.monthlySummaries.length, 1);
 assert.equal(JSON.parse(backup.appData["listening-semantic-overrides"]).length, 1);
 assert.equal(Object.keys(backup.appData).some((key) => key === "listening-weather-location" || key.startsWith("listening-weather:")), false);

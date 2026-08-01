@@ -341,7 +341,8 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
     setRatingSongwriting(entry.ratingSongwriting);
     setRatingOriginality(entry.ratingOriginality);
     setRatingResonance(entry.ratingResonance);
-    setMultiDimension(entry.ratingProduction !== null || entry.ratingSongwriting !== null || entry.ratingOriginality !== null || entry.ratingResonance !== null);
+    compositeLockedRef.current = entry.compositeRatingLocked;
+    setMultiDimension(entry.compositeRatingLocked || entry.ratingProduction !== null || entry.ratingSongwriting !== null || entry.ratingOriginality !== null || entry.ratingResonance !== null);
     void loadEntryCover(entry).then((nextCover) => {
       if (!active) return;
       setCoverDataUrl(nextCover);
@@ -413,11 +414,12 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
         const dimOrig = result.draft.fields.ratingOriginality ? Number(result.draft.fields.ratingOriginality) : null;
         const dimReso = result.draft.fields.ratingResonance ? Number(result.draft.fields.ratingResonance) : null;
         const dimActive = dimProd !== null || dimSong !== null || dimOrig !== null || dimReso !== null;
+        compositeLockedRef.current = result.draft.compositeRatingLocked;
         setRatingProduction(dimProd !== null && dimProd >= 0.5 && dimProd <= 10 ? dimProd : null);
         setRatingSongwriting(dimSong !== null && dimSong >= 0.5 && dimSong <= 10 ? dimSong : null);
         setRatingOriginality(dimOrig !== null && dimOrig >= 0.5 && dimOrig <= 10 ? dimOrig : null);
         setRatingResonance(dimReso !== null && dimReso >= 0.5 && dimReso <= 10 ? dimReso : null);
-        setMultiDimension(dimActive);
+        setMultiDimension(result.draft.compositeRatingLocked || dimActive);
         setHasDraft(true);
         setDraftStatus("已恢复上次草稿");
         setDraftError(false);
@@ -433,10 +435,7 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
 
   // ponytail: 多维度开启且4维都有值时，综合分=4维平均（0.5步进）。用户可手动拖主滑块覆盖并锁定；之后维度变化不再覆盖，改任一维度则重新解锁计算。
   useEffect(() => {
-    if (!multiDimension) {
-      compositeLockedRef.current = false;
-      return;
-    }
+    if (!multiDimension) return;
     const dims = [ratingProduction, ratingSongwriting, ratingOriginality, ratingResonance];
     if (dims.some((d) => d === null)) return;
     if (compositeLockedRef.current) return;
@@ -493,6 +492,7 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
       ocrText,
       recognizedFields,
       musicMetadata,
+      compositeRatingLocked: multiDimension && compositeLockedRef.current,
       inspiration: mode === "create" && inspirationRef.current,
     };
   }
@@ -748,6 +748,7 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
         ratingSongwriting: multiDimension ? ratingSongwriting : null,
         ratingOriginality: multiDimension ? ratingOriginality : null,
         ratingResonance: multiDimension ? ratingResonance : null,
+        compositeRatingLocked: multiDimension && compositeLockedRef.current,
         firstListenedAt: readDate(form, "firstListenedAt"),
         listenedAt: readDate(form, "listenedAt"),
       };
@@ -888,12 +889,12 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
         <RatingSlider
           value={rating}
           modifier={ratingModifier}
-          onChange={(r, m) => { compositeLockedRef.current = r !== null; setRating(r); setRatingModifier(m); }}
+          onChange={(r, m) => { compositeLockedRef.current = multiDimension && r !== null; setRating(r); setRatingModifier(m); }}
           label={multiDimension ? "综合评分" : "评分"}
         />
         <div className="multi-dimension-toggle">
           <label>
-            <input type="checkbox" checked={multiDimension} onChange={(e) => setMultiDimension(e.target.checked)} />
+            <input type="checkbox" checked={multiDimension} onChange={(e) => { compositeLockedRef.current = false; setMultiDimension(e.target.checked); }} />
             多维度评分（制作 / 词曲 / 原创性 / 共鸣）
           </label>
           {multiDimension ? <small>开启后综合评分自动取四维平均；手动拖动综合滑块后即锁定，改四维可重新解锁。</small> : null}

@@ -67,6 +67,7 @@ assert.equal((await stats.getSongAggregates())[0].lastRecordedAt, "2026-01-01T00
 
 let createdConnections = 0;
 let metadataMigrations = 0;
+const ratingMigrations = new Map();
 let summaryMigrations = 0;
 const db = {
   isDBOpen: async () => ({ result: false }),
@@ -75,15 +76,19 @@ const db = {
   query: async (statement) => statement.includes("table_info") ? { values: [{ name: "id" }] } : { values: [] },
   run: async (statement) => {
     if (statement.includes("ADD COLUMN musicMetadata")) metadataMigrations += 1;
+    const ratingColumn = statement.match(/ADD COLUMN (ratingProduction|ratingSongwriting|ratingOriginality|ratingResonance|compositeRatingLocked)/)?.[1];
+    if (ratingColumn) ratingMigrations.set(ratingColumn, (ratingMigrations.get(ratingColumn) ?? 0) + 1);
     if (statement.includes("ALTER TABLE YearlySummary ADD COLUMN")) summaryMigrations += 1;
   },
 };
 const musicMetadata = loadModule("../mobile/src/musicMetadata.ts");
+const format = loadModule("../mobile/src/format.ts");
 const listeningAnalysis = loadModule("../shared/listeningAnalysis.ts");
 const listeningContext = loadModule("../shared/listeningContext.ts");
 const listeningYearbook = loadModule("../mobile/src/listeningYearbook.ts", {
   "../../shared/listeningAnalysis": listeningAnalysis,
   "../../shared/listeningContext": listeningContext,
+  "./format": format,
   "./types": {},
 });
 const storeModule = loadModule("../mobile/src/store.ts", {
@@ -98,7 +103,7 @@ const storeModule = loadModule("../mobile/src/store.ts", {
   },
   "../../shared/visualizations": { buildAbstractMusicMap: () => ({}), buildEmotionUniverse: () => ({}), buildVisualizationOptions: () => ({}) },
   "../../shared/listeningContext": listeningContext,
-  "./format": { excerpt: (value) => value },
+  "./format": format,
   "./exportFormats": { formatEntriesCsv: () => "", formatEntriesTxt: () => "" },
   "./listeningYearbook": listeningYearbook,
   "./musicMetadata": musicMetadata,
@@ -108,6 +113,9 @@ const storeModule = loadModule("../mobile/src/store.ts", {
 await Promise.all([storeModule.store.init(), storeModule.store.init()]);
 assert.equal(createdConnections, 1);
 assert.equal(metadataMigrations, 1);
+for (const column of ["ratingProduction", "ratingSongwriting", "ratingOriginality", "ratingResonance", "compositeRatingLocked"]) {
+  assert.equal(ratingMigrations.get(column), 1, `${column} 应完成一次原生迁移`);
+}
 assert.equal(summaryMigrations, 3);
 
 const backupEntry = {
@@ -130,7 +138,7 @@ const backupEntry = {
 const backupBase = { exportedAt: "2026-07-29T10:00:00.000Z", summaries: [], covers: [] };
 assert.equal(storeModule.store.previewBackup(JSON.stringify({ ...backupBase, version: 1, entries: [backupEntry] })).entryCount, 1);
 assert.equal(storeModule.store.previewBackup(JSON.stringify({ ...backupBase, version: 2, entries: [{ ...backupEntry, musicMetadata: { releaseYear: 2008 } }] })).entryCount, 1);
-assert.deepEqual(storeModule.store.previewBackup(JSON.stringify({ ...backupBase, version: 3, entries: [{ ...backupEntry, musicMetadata: null }], monthlySummaries: [], appData: {} })), { exportedAt: backupBase.exportedAt, entryCount: 1, summaryCount: 0, monthlySummaryCount: 0, coverCount: 0 });
+assert.deepEqual(storeModule.store.previewBackup(JSON.stringify({ ...backupBase, version: 3, entries: [{ ...backupEntry, musicMetadata: null }], monthlySummaries: [], appData: {} })), { exportedAt: backupBase.exportedAt, entryCount: 1, summaryCount: 0, monthlySummaryCount: 0, coverCount: 0, listeningMomentCount: 0 });
 assert.throws(
   () => storeModule.store.previewBackup(JSON.stringify({ ...backupBase, version: 2, entries: [backupEntry] })),
   /musicMetadata 缺失/,
@@ -145,7 +153,9 @@ assert.match(storeSource, /markGeneratedSummariesStale\(\[entry\]\)/);
 assert.match(storeSource, /markGeneratedSummariesStale\(\[old, entry\]\)/);
 assert.match(storeSource, /markGeneratedSummariesStale\(\[existing\]\)/);
 assert.match(storeSource, /ALTER TABLE ReviewEntry ADD COLUMN musicMetadata TEXT/);
-assert.match(storeSource, /version: 3/);
+assert.match(storeSource, /const dim of \["ratingProduction", "ratingSongwriting", "ratingOriginality", "ratingResonance"\]/);
+assert.match(storeSource, /ADD COLUMN compositeRatingLocked INTEGER NOT NULL DEFAULT 0/);
+assert.match(storeSource, /version: 5/);
 assert.match(createRouteSource, /invalidateYearlySummaries/);
 assert.match(entryRouteSource, /invalidateYearlySummaries/);
 assert.match(buildScriptSource, /\$env:ANDROID_SDK_ROOT/);

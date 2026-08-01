@@ -59,6 +59,7 @@ export type ReviewEntry = {
   ratingSongwriting: number | null;
   ratingOriginality: number | null;
   ratingResonance: number | null;
+  compositeRatingLocked: boolean;
   firstListenedAt: string | null;
   listenedAt: string | null;
   createdAt: string;

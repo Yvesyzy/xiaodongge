@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS ReviewEntry (
   ratingSongwriting REAL,
   ratingOriginality REAL,
   ratingResonance REAL,
+  compositeRatingLocked INTEGER NOT NULL DEFAULT 0,
   firstListenedAt TEXT,
   listenedAt TEXT,
   createdAt TEXT NOT NULL,
@@ -157,6 +158,9 @@ class Store {
         await this.db.run(`ALTER TABLE ReviewEntry ADD COLUMN ${dim} REAL`);
       }
     }
+    if (!(columns.values ?? []).some((column) => column.name === "compositeRatingLocked")) {
+      await this.db.run("ALTER TABLE ReviewEntry ADD COLUMN compositeRatingLocked INTEGER NOT NULL DEFAULT 0");
+    }
     const summaryColumns = await this.db.query("PRAGMA table_info(YearlySummary)");
     for (const [name, definition] of [["analysisJson", "TEXT"], ["analysisVersion", "INTEGER"], ["sourceFingerprint", "TEXT"]] as const) {
       if (!(summaryColumns.values ?? []).some((column) => column.name === name)) await this.db.run(`ALTER TABLE YearlySummary ADD COLUMN ${name} ${definition}`);
@@ -193,7 +197,7 @@ class Store {
       return entry;
     }
     await this.dbReady().run(
-      `INSERT INTO ReviewEntry (id, type, title, year, month, albumName, songName, artistName, musicMetadata, content, tags, moods, rating, ratingModifier, ratingProduction, ratingSongwriting, ratingOriginality, ratingResonance, firstListenedAt, listenedAt, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO ReviewEntry (id, type, title, year, month, albumName, songName, artistName, musicMetadata, content, tags, moods, rating, ratingModifier, ratingProduction, ratingSongwriting, ratingOriginality, ratingResonance, compositeRatingLocked, firstListenedAt, listenedAt, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       entryValues(entry),
     );
     await this.markGeneratedSummariesStale([entry]);
@@ -212,8 +216,8 @@ class Store {
       return entry;
     }
     await this.dbReady().run(
-      `UPDATE ReviewEntry SET type=?, title=?, year=?, month=?, albumName=?, songName=?, artistName=?, musicMetadata=?, content=?, tags=?, moods=?, rating=?, ratingModifier=?, ratingProduction=?, ratingSongwriting=?, ratingOriginality=?, ratingResonance=?, firstListenedAt=?, listenedAt=?, updatedAt=? WHERE id=?`,
-      [entry.type, entry.title, entry.year, entry.month, entry.albumName, entry.songName, entry.artistName, encodeMusicMetadata(entry.musicMetadata), entry.content, JSON.stringify(entry.tags), JSON.stringify(entry.moods), entry.rating, entry.ratingModifier, entry.ratingProduction, entry.ratingSongwriting, entry.ratingOriginality, entry.ratingResonance, entry.firstListenedAt, entry.listenedAt, entry.updatedAt, id],
+      `UPDATE ReviewEntry SET type=?, title=?, year=?, month=?, albumName=?, songName=?, artistName=?, musicMetadata=?, content=?, tags=?, moods=?, rating=?, ratingModifier=?, ratingProduction=?, ratingSongwriting=?, ratingOriginality=?, ratingResonance=?, compositeRatingLocked=?, firstListenedAt=?, listenedAt=?, updatedAt=? WHERE id=?`,
+      [entry.type, entry.title, entry.year, entry.month, entry.albumName, entry.songName, entry.artistName, encodeMusicMetadata(entry.musicMetadata), entry.content, JSON.stringify(entry.tags), JSON.stringify(entry.moods), entry.rating, entry.ratingModifier, entry.ratingProduction, entry.ratingSongwriting, entry.ratingOriginality, entry.ratingResonance, entry.compositeRatingLocked ? 1 : 0, entry.firstListenedAt, entry.listenedAt, entry.updatedAt, id],
     );
     await this.markGeneratedSummariesStale([old, entry]);
     return entry;
@@ -680,7 +684,7 @@ class Store {
       { statement: "DELETE FROM CoverImage" },
       { statement: "DELETE FROM AppData" },
       ...backup.listeningMoments.map((moment) => ({ statement: "INSERT INTO ListeningMoment (id, entryId, listenedAt, rating, ratingModifier, moods, content, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", values: listeningMomentValues(moment) })),
-      ...backup.entries.map((entry) => ({ statement: "INSERT INTO ReviewEntry (id, type, title, year, month, albumName, songName, artistName, musicMetadata, content, tags, moods, rating, ratingModifier, ratingProduction, ratingSongwriting, ratingOriginality, ratingResonance, firstListenedAt, listenedAt, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", values: entryValues(entry) })),
+      ...backup.entries.map((entry) => ({ statement: "INSERT INTO ReviewEntry (id, type, title, year, month, albumName, songName, artistName, musicMetadata, content, tags, moods, rating, ratingModifier, ratingProduction, ratingSongwriting, ratingOriginality, ratingResonance, compositeRatingLocked, firstListenedAt, listenedAt, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", values: entryValues(entry) })),
       ...backup.summaries.map((summary) => ({ statement: "INSERT INTO YearlySummary (id, year, title, content, analysisJson, analysisVersion, sourceFingerprint, sourceEntryCount, generatedAt, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", values: summaryValues(summary) })),
       ...backup.monthlySummaries.map((summary) => ({ statement: "INSERT INTO MonthlySummary (id, year, month, title, content, themeId, analysisJson, analysisVersion, sourceFingerprint, sourceEntryCount, generatedAt, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", values: monthlySummaryValues(summary) })),
       ...backup.covers.map((cover) => ({ statement: "INSERT INTO CoverImage (coverKey, kind, albumName, songName, artistName, dataUrl, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?)", values: coverValues(cover) })),
@@ -830,6 +834,7 @@ function rowToEntry(row: Record<string, unknown>): ReviewEntry {
     ratingSongwriting: row.ratingSongwriting === null || row.ratingSongwriting === undefined ? null : Number(row.ratingSongwriting),
     ratingOriginality: row.ratingOriginality === null || row.ratingOriginality === undefined ? null : Number(row.ratingOriginality),
     ratingResonance: row.ratingResonance === null || row.ratingResonance === undefined ? null : Number(row.ratingResonance),
+    compositeRatingLocked: Number(row.compositeRatingLocked) === 1,
     firstListenedAt: nullableString(row.firstListenedAt),
     listenedAt: nullableString(row.listenedAt),
     createdAt: String(row.createdAt),
@@ -898,7 +903,7 @@ function rowToListeningMoment(row: Record<string, unknown>): ListeningMoment {
 }
 
 function entryValues(entry: ReviewEntry) {
-  return [entry.id, entry.type, entry.title, entry.year, entry.month, entry.albumName, entry.songName, entry.artistName, encodeMusicMetadata(entry.musicMetadata), entry.content, JSON.stringify(entry.tags), JSON.stringify(entry.moods), entry.rating, entry.ratingModifier, entry.ratingProduction, entry.ratingSongwriting, entry.ratingOriginality, entry.ratingResonance, entry.firstListenedAt, entry.listenedAt, entry.createdAt, entry.updatedAt];
+  return [entry.id, entry.type, entry.title, entry.year, entry.month, entry.albumName, entry.songName, entry.artistName, encodeMusicMetadata(entry.musicMetadata), entry.content, JSON.stringify(entry.tags), JSON.stringify(entry.moods), entry.rating, entry.ratingModifier, entry.ratingProduction, entry.ratingSongwriting, entry.ratingOriginality, entry.ratingResonance, entry.compositeRatingLocked ? 1 : 0, entry.firstListenedAt, entry.listenedAt, entry.createdAt, entry.updatedAt];
 }
 
 function summaryValues(summary: YearlySummary) {
@@ -1001,6 +1006,7 @@ function readEntry(value: unknown, metadataRequired = false): ReviewEntry {
     ratingSongwriting: readNullableNumber(value.ratingSongwriting, "entries.ratingSongwriting"),
     ratingOriginality: readNullableNumber(value.ratingOriginality, "entries.ratingOriginality"),
     ratingResonance: readNullableNumber(value.ratingResonance, "entries.ratingResonance"),
+    compositeRatingLocked: value.compositeRatingLocked === true,
     firstListenedAt: readNullableDate(value.firstListenedAt, "entries.firstListenedAt"),
     listenedAt: readNullableDate(value.listenedAt, "entries.listenedAt"),
     createdAt: readDate(value.createdAt, "entries.createdAt"),

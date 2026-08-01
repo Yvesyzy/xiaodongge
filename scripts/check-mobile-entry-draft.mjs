@@ -88,6 +88,7 @@ const legacyDraft = {
   coverChanged: true,
   ocrText: "稻香\n周杰伦",
   recognizedFields: { type: "song", title: "稻香", songName: "稻香", artistName: "周杰伦" },
+  compositeRatingLocked: false,
 };
 const draft = {
   ...legacyDraft,
@@ -276,6 +277,7 @@ const dimDraft = {
     ratingOriginality: "7.5",
     ratingResonance: "9.5",
   },
+  compositeRatingLocked: true,
 };
 writeEntryDraft(dimStorage, dimDraft);
 const dimResult = readEntryDraft(dimStorage, "create", null, dimDraftId);
@@ -284,13 +286,15 @@ assert.equal(dimResult.draft.fields.ratingProduction, "8.5", "草稿 ratingProdu
 assert.equal(dimResult.draft.fields.ratingSongwriting, "9", "草稿 ratingSongwriting 应持久化");
 assert.equal(dimResult.draft.fields.ratingOriginality, "7.5", "草稿 ratingOriginality 应持久化");
 assert.equal(dimResult.draft.fields.ratingResonance, "9.5", "草稿 ratingResonance 应持久化");
+assert.equal(dimResult.draft.compositeRatingLocked, true, "草稿综合分锁定状态应持久化");
 
 // 旧版草稿（无 4 维字段）解析后兼容为空字符串
-const noDimRaw = JSON.stringify({ ...draft, fields: { ...draft.fields, ratingProduction: undefined, ratingSongwriting: undefined, ratingOriginality: undefined, ratingResonance: undefined } });
+const noDimRaw = JSON.stringify({ ...draft, compositeRatingLocked: undefined, fields: { ...draft.fields, ratingProduction: undefined, ratingSongwriting: undefined, ratingOriginality: undefined, ratingResonance: undefined } });
 dimStorage.setItem(entryDraftKey("create", null, draftIdA), noDimRaw);
 const noDimResult = readEntryDraft(dimStorage, "create", null, draftIdA);
 assert.equal(noDimResult.status, "valid");
 assert.equal(noDimResult.draft.fields.ratingProduction, "", "无 4 维字段的草稿应兼容为空字符串");
 assert.equal(noDimResult.draft.fields.ratingResonance, "", "无 4 维字段的草稿应兼容为空字符串");
+assert.equal(noDimResult.draft.compositeRatingLocked, false, "无锁定字段的旧草稿应兼容为 false");
 
 console.log("mobile entry draft check passed");
