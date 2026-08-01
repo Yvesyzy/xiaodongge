@@ -3,6 +3,7 @@ import { readMusicMetadata } from "./musicMetadata";
 import { ENTRY_TYPES, type EntryType, type MusicMetadata } from "./types";
 
 export type EntryDraftMode = "create" | "edit";
+export type EntryDraftCaptureMode = "quick" | "full";
 
 export type EntryDraftFields = {
   type: EntryType;
@@ -26,6 +27,7 @@ export type EntryDraftFields = {
 export type EntryDraft = {
   version: 2;
   mode: EntryDraftMode;
+  captureMode: EntryDraftCaptureMode;
   entryId: string | null;
   draftId: string | null;
   baseUpdatedAt: string | null;
@@ -105,6 +107,7 @@ export type EntryDraftMeta = {
   type: EntryType | null;
   savedAt: string;
   inspiration: boolean;
+  captureMode: EntryDraftCaptureMode;
 };
 
 const DRAFT_KEY_PREFIX = "music-feelings-entry-draft:v1:";
@@ -132,6 +135,7 @@ export function listEntryDrafts(storage: DraftStorage): EntryDraftMeta[] {
         type: draft.fields.type,
         savedAt: draft.savedAt,
         inspiration: draft.inspiration,
+        captureMode: draft.captureMode,
       });
     } catch {
       // 损坏草稿跳过，不影响列表
@@ -168,6 +172,7 @@ function parseEntryDraft(value: unknown): EntryDraft | null {
   return {
     version: 2,
     mode: value.mode,
+    captureMode: value.captureMode === "quick" ? "quick" : "full",
     entryId,
     draftId,
     baseUpdatedAt,

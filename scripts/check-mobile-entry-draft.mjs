@@ -93,6 +93,7 @@ const legacyDraft = {
 const draft = {
   ...legacyDraft,
   version: 2,
+  captureMode: "full",
   draftId: null,
   musicMetadata: {
     releaseDate: "2008-10-15T07:00:00Z",
@@ -122,7 +123,7 @@ assert.equal(storage.getItem(entryDraftKey("create", null)), "not-json");
 storage.setItem(entryDraftKey("create", null), JSON.stringify(legacyDraft));
 assert.deepEqual(readEntryDraft(storage, "create", null), {
   status: "valid",
-  draft: { ...legacyDraft, version: 2, draftId: null, musicMetadata: null, inspiration: false },
+  draft: { ...legacyDraft, version: 2, captureMode: "full", draftId: null, musicMetadata: null, inspiration: false },
 });
 
 storage.setItem(entryDraftKey("create", null), JSON.stringify({ ...draft, version: 3 }));
@@ -176,6 +177,14 @@ assert.equal(metas[1].draftId, draftIdA, "草稿 A 的 draftId 应正确");
 assert.equal(metas[2].draftId, null, "legacy 草稿 draftId 应为 null");
 assert.equal(metas[0].mode, "create", "mode 应为 create");
 assert.equal(metas[0].entryId, null, "create 草稿 entryId 应为 null");
+assert.equal(metas[0].captureMode, "full", "旧草稿应按完整乐评显示");
+
+const quickDraftId = createNewDraftId();
+const quickDraft = { ...draft, mode: "create", captureMode: "quick", entryId: null, draftId: quickDraftId, baseUpdatedAt: null, savedAt: "2026-07-29T10:30:00.000Z", fields: { ...draft.fields, title: "快速记录" } };
+writeEntryDraft(multiStorage, quickDraft);
+assert.equal(readEntryDraft(multiStorage, "create", null, quickDraftId).draft.captureMode, "quick", "快速记录模式应持久化");
+assert.equal(listEntryDrafts(multiStorage).find((item) => item.draftId === quickDraftId).captureMode, "quick", "草稿列表应暴露快速记录模式");
+removeEntryDraft(multiStorage, "create", null, quickDraftId);
 
 // 写入编辑草稿，验证 listEntryDrafts 混合列出
 const editDraftMulti = { ...draft, mode: "edit", entryId: "entry-edit-1", draftId: null, baseUpdatedAt: "2026-07-29T07:00:00.000Z", savedAt: "2026-07-29T11:00:00.000Z", fields: { ...draft.fields, title: "编辑草稿" } };

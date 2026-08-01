@@ -111,7 +111,7 @@ ReviewEntry      音乐感受记录
 MonthlySummary   月度听感作品及结构化分析快照
 YearlySummary    年度标本册及结构化分析快照
 CoverImage       专辑和歌曲封面
-AppData          天气城市、天气缓存、代表原句和本地语义校正
+AppData          今日重逢状态、天气城市、天气缓存、代表原句和本地语义校正
 ```
 
 第一版手机端从空库开始，不导入电脑上的 `prisma/dev.db`。
@@ -137,7 +137,7 @@ AppData          天气城市、天气缓存、代表原句和本地语义校正
 
 内置节假日数据来自[国务院办公厅 2025 年部分节假日安排](https://www.gov.cn/zhengce/zhengceku/202411/content_6986383.htm)和[国务院办公厅 2026 年部分节假日安排](https://www.gov.cn/zhengce/zhengceku/202511/content_7047091.htm)。城市搜索与历史天气使用 [Open-Meteo Geocoding API](https://open-meteo.com/en/docs/geocoding-api) 和 [Historical Weather API](https://open-meteo.com/en/docs/historical-weather-api)。
 
-JSON 备份格式升级为 v3，包含月度作品、结构化年度结果、天气设置/缓存、代表原句和语义校正，并继续接受 v1、v2 备份。
+JSON 备份格式为 v5，包含追加听感、今日重逢状态、月度作品、结构化年度结果、天气设置/缓存、代表原句和语义校正，并继续接受 v1 至 v4 备份。
 
 ## v2 可视化
 
@@ -187,6 +187,7 @@ npm.cmd run mobile:check:listening-context
 npm.cmd run mobile:check:listening-yearbook
 npm.cmd run mobile:check:listening-store
 npm.cmd run mobile:check:exports
+npm.cmd run mobile:check:v217
 npm.cmd run check:v1-reliability
 npm.cmd run mobile:build
 ```

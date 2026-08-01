@@ -83,6 +83,7 @@ const db = {
 };
 const musicMetadata = loadModule("../mobile/src/musicMetadata.ts");
 const format = loadModule("../mobile/src/format.ts");
+const resurfacing = loadModule("../mobile/src/resurfacing.ts", { "./format": format });
 const listeningAnalysis = loadModule("../shared/listeningAnalysis.ts");
 const listeningContext = loadModule("../shared/listeningContext.ts");
 const listeningYearbook = loadModule("../mobile/src/listeningYearbook.ts", {
@@ -107,6 +108,7 @@ const storeModule = loadModule("../mobile/src/store.ts", {
   "./exportFormats": { formatEntriesCsv: () => "", formatEntriesTxt: () => "" },
   "./listeningYearbook": listeningYearbook,
   "./musicMetadata": musicMetadata,
+  "./resurfacing": resurfacing,
   "./types": { ENTRY_TYPES: ["year", "month", "album", "song"] },
 });
 

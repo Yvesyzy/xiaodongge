@@ -20,6 +20,7 @@ const context = load("../shared/listeningContext.ts");
 const format = load("../mobile/src/format.ts");
 const yearbook = load("../mobile/src/listeningYearbook.ts", { "../../shared/listeningAnalysis": analysis, "../../shared/listeningContext": context, "./format": format, "./types": {} });
 const musicMetadata = load("../mobile/src/musicMetadata.ts");
+const resurfacing = load("../mobile/src/resurfacing.ts", { "./format": format });
 const storeModule = load("../mobile/src/store.ts", {
   "@capacitor/core": { Capacitor: { isNativePlatform: () => false } },
   "@capacitor-community/sqlite": { CapacitorSQLite: {}, SQLiteConnection: class {} },
@@ -29,6 +30,7 @@ const storeModule = load("../mobile/src/store.ts", {
   "./exportFormats": { formatEntriesCsv: () => "", formatEntriesTxt: () => "" },
   "./listeningYearbook": yearbook,
   "./musicMetadata": musicMetadata,
+  "./resurfacing": resurfacing,
   "./types": { ENTRY_TYPES: ["year", "month", "album", "song"] },
 });
 
@@ -88,6 +90,19 @@ assert.equal(correctedMonthly.analysis.feelings.some((item) => item.name === "�
 assert.equal(correctedMonthly.analysis.expressions.some((item) => item.name === "克制"), true);
 assert.equal((await store.getSemanticOverrides()).length, 1);
 
+const moment = await store.createListeningMoment(created.id, {
+  listenedAt: "2026-08-01T00:00:00.000Z",
+  rating: 9.5,
+  ratingModifier: null,
+  moods: ["怀旧"],
+  content: "半年后再次听见。",
+});
+assert.equal((await store.getListeningMoment(moment.id)).content, "半年后再次听见。", "应按 ID 读取重听记录");
+assert.equal((await store.listListeningMoments()).length, 1, "应列出全部重听记录");
+const resurfacingState = JSON.stringify({ date: "2026-08-01", entryId: created.id, dismissed: false });
+await store.setStoredAppData("daily-resurfacing", resurfacingState);
+assert.equal(await store.getStoredAppData("daily-resurfacing"), resurfacingState, "今日重逢状态应持久化");
+
 await store.setWeatherLocation({ name: "广州", admin1: "广东", country: "中国", countryCode: "CN", latitude: 23.13, longitude: 113.26, timezone: "Asia/Shanghai" });
 assert.equal((await store.getWeatherLocation()).name, "广州");
 let weatherFetchCount = 0;
@@ -108,6 +123,8 @@ assert.equal(backup.version, 5);
 assert.equal(backup.entries.length, 1);
 assert.equal(backup.entries[0].compositeRatingLocked, true);
 assert.equal(backup.monthlySummaries.length, 1);
+assert.equal(backup.listeningMoments.length, 1);
+assert.equal(backup.appData["daily-resurfacing"], resurfacingState);
 assert.equal(JSON.parse(backup.appData["listening-semantic-overrides"]).length, 1);
 assert.equal(Object.keys(backup.appData).some((key) => key === "listening-weather-location" || key.startsWith("listening-weather:")), false);
 assert.equal(store.previewBackup(JSON.stringify(backup)).monthlySummaryCount, 1);

@@ -7,6 +7,7 @@ import { excerpt, localDateOf } from "./format";
 import { formatEntriesCsv, formatEntriesTxt } from "./exportFormats";
 import { buildDayListeningSnapshot, buildMonthlyListeningSnapshot, buildYearlyListeningSnapshot, monthlySnapshotToMarkdown, parseMonthlyListeningSnapshot, parseYearlyListeningSnapshot, yearlySnapshotToMarkdown, type ListeningDaySnapshot, type MonthlyListeningSnapshot, type YearlyListeningSnapshot } from "./listeningYearbook";
 import { readMusicMetadata } from "./musicMetadata";
+import { DAILY_RESURFACING_KEY, parseDailyResurfacingState } from "./resurfacing";
 import { ENTRY_TYPES, type AlbumAggregate, type CoverKind, type CoverTarget, type EntryInput, type EntryType, type FrequencyItem, type ListeningMoment, type ListeningMomentInput, type MonthlySummary, type RatingModifier, type ReviewEntry, type SongAggregate, type YearStats, type YearlySummary } from "./types";
 
 const DB_NAME = "music_feelings_archive";
@@ -572,6 +573,13 @@ class Store {
     return (result.values ?? []).map(rowToListeningMoment);
   }
 
+  async getListeningMoment(id: string) {
+    await this.init();
+    if (!Capacitor.isNativePlatform()) return readListeningMoments().find((moment) => moment.id === id) ?? null;
+    const result = await this.dbReady().query("SELECT * FROM ListeningMoment WHERE id = ?", [id]);
+    return result.values?.[0] ? rowToListeningMoment(result.values[0]) : null;
+  }
+
   async deleteListeningMoment(id: string) {
     await this.init();
     if (!Capacitor.isNativePlatform()) {
@@ -592,6 +600,15 @@ class Store {
       "UPDATE ListeningMoment SET listenedAt=?, rating=?, ratingModifier=?, moods=?, content=?, updatedAt=? WHERE id=?",
       [input.listenedAt, input.rating, input.ratingModifier, JSON.stringify(input.moods), input.content, now, id],
     );
+  }
+
+  async getStoredAppData(key: string) {
+    return this.getAppData(key);
+  }
+
+  async setStoredAppData(key: string, value: string | null) {
+    if (!key.trim()) throw new Error("应用数据键不能为空");
+    await this.setAppData(key, value);
   }
 
   async exportBackup() {
@@ -774,7 +791,7 @@ class Store {
     return (result.values ?? []).map(rowToSummary);
   }
 
-  private async listListeningMoments() {
+  async listListeningMoments() {
     await this.init();
     if (!Capacitor.isNativePlatform()) return readListeningMoments();
     const result = await this.dbReady().query("SELECT * FROM ListeningMoment ORDER BY listenedAt ASC");
@@ -1068,7 +1085,9 @@ function readBackupAppData(value: unknown) {
     if (key === WEATHER_LOCATION_KEY) parseWeatherLocation(JSON.parse(raw));
     else if (key.startsWith("listening-weather:")) parseWeatherRecord(JSON.parse(raw));
     else if (key.startsWith("listening-quote:")) readPreferredQuote(JSON.parse(raw));
-    else if (key === SEMANTIC_OVERRIDES_KEY) {
+    else if (key === DAILY_RESURFACING_KEY) {
+      if (!parseDailyResurfacingState(raw)) throw new Error("今日重逢状态格式无效");
+    } else if (key === SEMANTIC_OVERRIDES_KEY) {
       const parsed = JSON.parse(raw);
       if (!Array.isArray(parsed)) throw new Error("本地语义校正格式无效");
       parsed.forEach(readSemanticOverride);

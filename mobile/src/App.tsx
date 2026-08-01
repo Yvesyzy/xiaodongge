@@ -11,13 +11,19 @@ import { excerpt, formatDate, formatDateOnly, monthLabel } from "./format";
 import { buildInsights, type Insight } from "./insights";
 import { DailyListeningNote, MonthlyListeningPage, YearlyListeningPage } from "./ListeningYearbookView";
 import { mergeMusicMetadata } from "./musicMetadata";
+import { sameMusicIdentity } from "./musicIdentity";
+import { NowPlaying } from "./nativeNowPlaying";
 import { applyAppleCatalogMatch, findAppleCatalogMatch, parseCatalogSearchResult, parseNowPlayingResult } from "./nowPlaying";
 import { parseMusicInfoText, type MusicInfoFields } from "./ocr";
+import QuickCapturePage from "./QuickCapturePage";
+import QuickMemoryCardPanel from "./QuickMemoryCardPanel";
 import RatingSlider from "./RatingSlider";
+import RelistenPage from "./RelistenPage";
+import { DAILY_RESURFACING_KEY, dismissDailyResurfacing, parseDailyResurfacingState, resolveDailyResurfacing, type DailyResurfacingState } from "./resurfacing";
 import { parseList, store } from "./store";
 import { ENTRY_TYPE_LABELS, ENTRY_TYPES, type AlbumAggregate, type EntryInput, type ListeningMoment, type ListeningMomentInput, type MusicMetadata, type RatingModifier, type ReviewEntry, type SongAggregate, type YearStats } from "./types";
 
-const APP_VERSION = "2.1.6";
+const APP_VERSION = "2.1.7";
 
 const nav = [
   ["/", "首页"],
@@ -34,11 +40,6 @@ type HomeEntry = ReviewEntry & { coverDataUrl: string | null };
 type ScreenshotOcrLine = { text: string; left: number; top: number; right: number; bottom: number };
 type ScreenshotOcrResult = { text: string; width: number; height: number; lines: ScreenshotOcrLine[] };
 type ScreenshotOcrPlugin = { recognize(options: { dataUrl: string }): Promise<ScreenshotOcrResult> };
-type NowPlayingPlugin = {
-  getCurrentTrack(): Promise<unknown>;
-  searchCatalog(options: { title: string; artistName: string; albumName?: string; country: "CN" | "US" }): Promise<unknown>;
-  openNotificationSettings(): Promise<void>;
-};
 type FilterDraft = { year: string; month: string; artistName: string; albumName: string; mood: string; tag: string; minRating: string; maxRating: string; groupBy: UniverseGroupBy };
 type GenreSelection = { level1: string; level2: string; level3: string };
 
@@ -59,7 +60,6 @@ const GROUP_BY_LABELS: Record<UniverseGroupBy, string> = {
 const MOOD_GROUPS = MOOD_CATEGORIES;
 
 const ScreenshotOcr = registerPlugin<ScreenshotOcrPlugin>("ScreenshotOcr");
-const NowPlaying = registerPlugin<NowPlayingPlugin>("NowPlaying");
 
 export default function App() {
   return (
@@ -72,9 +72,11 @@ export default function App() {
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/timeline" element={<TimelinePage />} />
+          <Route path="/capture" element={<QuickCapturePage />} />
           <Route path="/new" element={<EntryFormPage mode="create" />} />
           <Route path="/entries/:id" element={<EntryDetailPage />} />
           <Route path="/entries/:id/edit" element={<EntryFormPage mode="edit" />} />
+          <Route path="/relisten/:entryId" element={<RelistenPage />} />
           <Route path="/albums" element={<AlbumsPage />} />
           <Route path="/albums/detail" element={<AggregateDetail kind="album" />} />
           <Route path="/songs" element={<SongsPage />} />
@@ -104,20 +106,65 @@ export default function App() {
 function HomePage() {
   const [entries, setEntries] = useState<HomeEntry[]>([]);
   const [stats, setStats] = useState<YearStats | null>(null);
+  const [resurfacingEntry, setResurfacingEntry] = useState<HomeEntry | null>(null);
+  const [resurfacingState, setResurfacingState] = useState<DailyResurfacingState | null>(null);
+  const [nowPlayingMatch, setNowPlayingMatch] = useState(false);
   const currentYear = new Date().getFullYear();
 
   useEffect(() => {
     let active = true;
-    Promise.all([store.recentEntries(5), store.getYearStats(currentYear)]).then(async ([recent, yearStats]) => {
+    void Promise.all([
+      store.recentEntries(5),
+      store.getYearStats(currentYear),
+      store.listEntries(),
+      store.listListeningMoments(),
+      store.getStoredAppData(DAILY_RESURFACING_KEY),
+    ]).then(async ([recent, yearStats, allEntries, moments, savedState]) => {
       const recentWithCovers = await Promise.all(recent.map(loadHomeCover));
+      const today = localDateKey();
+      const resolved = resolveDailyResurfacing(allEntries, moments, today, parseDailyResurfacingState(savedState));
+      const nextState = JSON.stringify(resolved.state);
+      if (savedState !== nextState) await store.setStoredAppData(DAILY_RESURFACING_KEY, nextState);
+      const nextResurfacing = resolved.entry ? await loadHomeCover(resolved.entry) : null;
+      let currentMatches = false;
+      if (nextResurfacing && Capacitor.isNativePlatform()) {
+        try {
+          const current = parseNowPlayingResult(await NowPlaying.getCurrentTrack());
+          currentMatches = !!current.fields && sameMusicIdentity(nextResurfacing, {
+            songName: current.fields.songName,
+            artistName: current.fields.artistName,
+            albumName: current.fields.albumName,
+            musicMetadata: current.musicMetadata,
+          });
+        } catch {
+          currentMatches = false;
+        }
+      }
       if (!active) return;
       setEntries(recentWithCovers);
       setStats(yearStats);
+      setResurfacingEntry(nextResurfacing);
+      setResurfacingState(resolved.state);
+      setNowPlayingMatch(currentMatches);
+    }).catch(() => {
+      if (!active) return;
+      setResurfacingEntry(null);
+      setResurfacingState(null);
+      setNowPlayingMatch(false);
     });
     return () => {
       active = false;
     };
   }, [currentYear]);
+
+  async function dismissResurfacing() {
+    if (!resurfacingState) return;
+    const nextState = dismissDailyResurfacing(resurfacingState);
+    await store.setStoredAppData(DAILY_RESURFACING_KEY, JSON.stringify(nextState));
+    setResurfacingState(nextState);
+    setResurfacingEntry(null);
+    setNowPlayingMatch(false);
+  }
 
   return (
     <section className="home-page">
@@ -125,7 +172,10 @@ function HomePage() {
         <div className="home-hero-copy">
           <h1>私人音乐档案</h1>
           <p>记录每一次听歌的心情与感受</p>
-          <Link to="/new" className="home-new-button"><span aria-hidden="true">+</span>新建记录</Link>
+          <div className="home-capture-actions">
+            <Link to="/capture" className="home-new-button"><span aria-hidden="true">+</span>快速记下</Link>
+            <Link to="/new" className="home-full-entry-link">写完整乐评</Link>
+          </div>
         </div>
         <div className="hero-record" aria-hidden="true"><span>FOR ME<br />NOT FOR ALL</span></div>
       </section>
@@ -134,6 +184,25 @@ function HomePage() {
         <Stat label="今年专辑" value={`${stats?.albumCount ?? 0} 张`} />
         <Stat label="今年歌曲" value={`${stats?.songCount ?? 0} 首`} />
       </div>
+      {resurfacingEntry ? (
+        <section className="daily-resurfacing-card">
+          <div className="daily-resurfacing-cover">
+            <CoverArt src={resurfacingEntry.coverDataUrl} label={resurfacingEntry.albumName ?? resurfacingEntry.songName ?? resurfacingEntry.title} large />
+            <span aria-hidden="true" />
+          </div>
+          <div className="daily-resurfacing-copy">
+            <span className="page-eyebrow">今日重逢</span>
+            <h2>{resurfacingEntry.songName ?? resurfacingEntry.title}</h2>
+            <p>{[resurfacingEntry.artistName, resurfacingEntry.albumName].filter(Boolean).join(" · ")}</p>
+            <blockquote>{excerpt(resurfacingEntry.content, 86)}</blockquote>
+            {nowPlayingMatch ? <strong className="now-playing-match">此刻正在播放这首歌</strong> : null}
+            <div className="action-row">
+              <Link className="primary-button" to={`/relisten/${resurfacingEntry.id}`}>先听，再揭晓</Link>
+              <button className="secondary-button" type="button" onClick={() => void dismissResurfacing()}>今天略过</button>
+            </div>
+          </div>
+        </section>
+      ) : null}
       <div className="home-section-title">
         <h2>可视化记忆</h2>
       </div>
@@ -478,6 +547,7 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
     return {
       version: 2,
       mode,
+      captureMode: "full",
       entryId,
       draftId,
       baseUpdatedAt: mode === "edit" ? entry?.updatedAt ?? null : null,
@@ -1134,6 +1204,7 @@ function mergeTagLists(...lists: string[][]) {
 function EntryDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const [entry, setEntry] = useState<ReviewEntry | null>(null);
   const [coverDataUrl, setCoverDataUrl] = useState<string | null>(null);
   const [moments, setMoments] = useState<ListeningMoment[]>([]);
@@ -1250,11 +1321,14 @@ function EntryDetailPage() {
         </div>
       </div>
       <div className="action-row">
+        {entry.type === "song" ? <Link className="primary-button" to={`/relisten/${entry.id}`}>再次听见</Link> : null}
         <Link className="secondary-button" to={`/entries/${entry.id}/edit`}>编辑</Link>
         <button className="danger-button" onClick={remove}>删除</button>
       </div>
       {error ? <p className="error">{error}</p> : null}
+      {searchParams.get("draftCleanup") === "failed" ? <p className="hint">记录已保存，但原快速草稿未能清理；可稍后在草稿箱手动删除。</p> : null}
       <article className="content-card">{entry.content}</article>
+      <QuickMemoryCardPanel entry={entry} coverUrl={coverDataUrl} emphasized={searchParams.get("card") === "quick"} />
       <DailyListeningNote entry={entry} />
       <div className="detail-card">
         <Meta label="专辑" value={entry.albumName} />
@@ -1455,9 +1529,22 @@ function AggregateDetail({ kind }: { kind: "album" | "song" }) {
           {message ? <p className="hint">{message}</p> : null}
         </div>
       </div>
+      {kind === "song" && entries.length ? (
+        <Link className="primary-button full aggregate-relisten-link" to={`/relisten/${oldestEntry(entries).id}`}>再次听见这首歌</Link>
+      ) : null}
       <EntryList entries={entries} />
     </Page>
   );
+}
+
+function localDateKey() {
+  const date = new Date();
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+function oldestEntry(entries: ReviewEntry[]) {
+  return entries.reduce((oldest, entry) => (entry.listenedAt ?? entry.createdAt).localeCompare(oldest.listenedAt ?? oldest.createdAt) < 0 ? entry : oldest);
 }
 
 function SearchPage() {
@@ -1645,7 +1732,7 @@ function DraftsPage() {
               <button type="button" className="draft-card-main" onClick={() => continueDraft(draft)}>
                 <strong>{draft.title}</strong>
                 <span className="draft-meta">
-                  {draft.inspiration ? "灵感速记" : draft.mode === "create" ? "新建草稿" : "编辑记录"}
+                  {draft.inspiration ? "灵感速记" : draft.captureMode === "quick" ? "快速记录" : draft.mode === "create" ? "新建草稿" : "编辑记录"}
                   {draft.type ? ` · ${ENTRY_TYPE_LABELS[draft.type]}` : ""}
                   {" · "}{formatDate(draft.savedAt)}
                 </span>
