@@ -62,6 +62,7 @@ const MOOD_GROUPS = MOOD_CATEGORIES;
 const ScreenshotOcr = registerPlugin<ScreenshotOcrPlugin>("ScreenshotOcr");
 
 export default function App() {
+  const [createSheetOpen, setCreateSheetOpen] = useState(false);
   return (
     <div className="app-shell">
       <header className="app-header">
@@ -93,12 +94,33 @@ export default function App() {
         </Routes>
       </main>
       <nav className="bottom-nav">
-        {nav.map(([to, label]) => (
+        {nav.slice(0, 2).map(([to, label]) => (
+          <NavLink key={to} to={to} className={({ isActive }) => (isActive ? "active" : "")} end={to === "/"}>
+            {label}
+          </NavLink>
+        ))}
+        {/* 中间 + 号：点击弹出「速记 / 正式记录」选择，而不是直接进完整表单 */}
+        <a href="#" aria-label="新建记录" onClick={(event) => { event.preventDefault(); setCreateSheetOpen(true); }}>新建</a>
+        {nav.slice(3).map(([to, label]) => (
           <NavLink key={to} to={to} className={({ isActive }) => (isActive ? "active" : "")} end={to === "/"}>
             {label}
           </NavLink>
         ))}
       </nav>
+      {createSheetOpen ? (
+        <BottomSheet title="新建" text="选择记录方式" onClose={() => setCreateSheetOpen(false)}>
+          <div className="create-choice">
+            <Link to="/capture" className="create-choice-card" onClick={() => setCreateSheetOpen(false)}>
+              <strong>速记</strong>
+              <span>60 秒听感，先留一句真实感受，之后随时展开成完整乐评</span>
+            </Link>
+            <Link to="/new" className="create-choice-card" onClick={() => setCreateSheetOpen(false)}>
+              <strong>正式记录</strong>
+              <span>完整乐评：专辑、曲风、情绪、多维度评分</span>
+            </Link>
+          </div>
+        </BottomSheet>
+      ) : null}
     </div>
   );
 }

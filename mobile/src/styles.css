@@ -1727,6 +1727,32 @@ textarea {
   line-height: 1.5;
 }
 
+.create-choice {
+  display: grid;
+  gap: 10px;
+}
+
+.create-choice-card {
+  display: grid;
+  gap: 5px;
+  padding: 15px 16px;
+  border: 1px solid rgba(255, 253, 248, 0.12);
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--green-950), var(--green-900));
+  color: var(--paper);
+}
+
+.create-choice-card strong {
+  font-size: 17px;
+  color: #f2d79d;
+}
+
+.create-choice-card span {
+  font-size: 13px;
+  color: rgba(255, 253, 248, 0.72);
+  line-height: 1.5;
+}
+
 .filter-sheet-form,
 .visual-song-detail {
   display: grid;
