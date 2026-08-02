@@ -40,7 +40,7 @@
 最新安装包下载：
 
 ```text
-https://github.com/Yvesyzy/xiaodongge/releases/download/v2.1.9/xiaodongge-v2.1.9-debug.apk
+https://github.com/Yvesyzy/xiaodongge/releases/download/v2.1.9/xiaodongge-v2.1.9.apk
 ```
 
 发布页：
@@ -49,7 +49,9 @@ https://github.com/Yvesyzy/xiaodongge/releases/download/v2.1.9/xiaodongge-v2.1.9
 https://github.com/Yvesyzy/xiaodongge/releases/tag/v2.1.9
 ```
 
-公开下载文件名带 `debug` 的安装包使用开发签名，适合当前设备测试安装。正式长期发布必须使用下方同一份长期 keystore 构建的 release APK。
+公开下载文件 `xiaodongge-v2.1.9.apk` 已使用长期发布密钥正式签名。证书 SHA-256 指纹为 `71:BD:27:89:5F:23:2E:54:65:09:AD:B7:F8:2A:7F:42:E4:A4:F8:A5:3D:FD:34:DE:4D:30:5A:56:AE:D2:9D:20`；后续 Android 版本必须继续使用同一份密钥，才能覆盖安装升级。
+
+如果手机已安装旧的 debug 签名版本，正式 APK 不能直接覆盖安装。请先在应用的备份页导出 JSON，再卸载旧版、安装正式 APK并导入备份；从本次正式版开始，后续版本可以正常覆盖升级。
 
 ## 构建 APK
 
