@@ -12,5 +12,7 @@ mobile/dist
 android/app/build
 gradle-*.zip
 release/
+*.jks
+*.keystore
 .firecrawl/
 .superpowers/

@@ -1,6 +1,22 @@
 $ErrorActionPreference = "Stop"
 
 $root = Split-Path -Parent $PSScriptRoot
+$requiredSigningVariables = @(
+  "XIAODONGGE_KEYSTORE_FILE",
+  "XIAODONGGE_KEYSTORE_PASSWORD",
+  "XIAODONGGE_KEY_ALIAS",
+  "XIAODONGGE_KEY_PASSWORD"
+)
+$missingSigningVariables = $requiredSigningVariables | Where-Object {
+  [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($_))
+}
+if ($missingSigningVariables.Count -gt 0) {
+  throw "Release signing configuration is incomplete. Missing: $($missingSigningVariables -join ', ')"
+}
+$keystore = [Environment]::GetEnvironmentVariable("XIAODONGGE_KEYSTORE_FILE")
+if (-not (Test-Path -LiteralPath $keystore -PathType Leaf)) {
+  throw "Release keystore file not found: $keystore"
+}
 $sdk = if ($env:ANDROID_SDK_ROOT) {
   $env:ANDROID_SDK_ROOT
 } elseif ($env:ANDROID_HOME) {
@@ -25,9 +41,18 @@ $env:JAVA_HOME = $jdk
 $env:ANDROID_HOME = $sdk
 $env:ANDROID_SDK_ROOT = $sdk
 $env:Path = "$jdk\bin;$sdk\platform-tools;$sdk\build-tools\36.0.0;$env:Path"
+$buildTools = Join-Path $sdk "build-tools\36.0.0"
+$apkSigner = Join-Path $buildTools "apksigner.bat"
+$aapt2 = Join-Path $buildTools "aapt2.exe"
+if (-not (Test-Path -LiteralPath $apkSigner -PathType Leaf)) { throw "apksigner not found: $apkSigner" }
+if (-not (Test-Path -LiteralPath $aapt2 -PathType Leaf)) { throw "aapt2 not found: $aapt2" }
 
 Push-Location $root
 try {
+  & npm.cmd run mobile:build
+  if ($LASTEXITCODE -ne 0) { throw "Mobile build failed with exit code $LASTEXITCODE" }
+  & npm.cmd run android:sync
+  if ($LASTEXITCODE -ne 0) { throw "Capacitor Android sync failed with exit code $LASTEXITCODE" }
   $initScript = Join-Path $root "scripts\gradle-mirrors.init.gradle"
   if (-not (Test-Path -LiteralPath $initScript)) {
     throw "Gradle init script not found: $initScript"
@@ -39,15 +64,25 @@ try {
   } finally {
     Pop-Location
   }
-  $apk = Join-Path $root "android\app\build\outputs\apk\release\app-release-unsigned.apk"
+  $apk = Join-Path $root "android\app\build\outputs\apk\release\app-release.apk"
   if (-not (Test-Path -LiteralPath $apk)) {
-    $alt = Join-Path $root "android\app\build\outputs\apk\release\app-release.apk"
-    if (-not (Test-Path -LiteralPath $alt)) {
-      throw "Release APK not found: $apk"
-    }
-    $apk = $alt
+    throw "Signed release APK not found: $apk"
   }
-  Write-Host "Release APK built: $apk"
+  & $apkSigner verify --verbose --print-certs $apk
+  if ($LASTEXITCODE -ne 0) { throw "APK signature verification failed with exit code $LASTEXITCODE" }
+  $badging = & $aapt2 dump badging $apk
+  if ($LASTEXITCODE -ne 0) { throw "APK metadata inspection failed with exit code $LASTEXITCODE" }
+  $packageLine = $badging | Where-Object { $_ -like "package:*" } | Select-Object -First 1
+  if ($packageLine -notmatch "name='com\.yves\.musicarchive'") { throw "Unexpected APK package metadata: $packageLine" }
+  if ($packageLine -notmatch "versionCode='12'") { throw "Unexpected APK versionCode metadata: $packageLine" }
+  if ($packageLine -notmatch "versionName='2\.1\.9'") { throw "Unexpected APK versionName metadata: $packageLine" }
+  $releaseDirectory = Join-Path $root "release"
+  New-Item -ItemType Directory -Path $releaseDirectory -Force | Out-Null
+  $publishedApk = Join-Path $releaseDirectory "xiaodongge-v2.1.9.apk"
+  Copy-Item -LiteralPath $apk -Destination $publishedApk -Force
+  $hash = (Get-FileHash -LiteralPath $publishedApk -Algorithm SHA256).Hash.ToLowerInvariant()
+  Write-Host "Signed release APK verified: $publishedApk"
+  Write-Host "SHA-256: $hash"
 } finally {
   Pop-Location
 }

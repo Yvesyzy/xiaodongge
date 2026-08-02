@@ -21,6 +21,7 @@ const format = load("../mobile/src/format.ts");
 const yearbook = load("../mobile/src/listeningYearbook.ts", { "../../shared/listeningAnalysis": analysis, "../../shared/listeningContext": context, "./format": format, "./types": {} });
 const musicMetadata = load("../mobile/src/musicMetadata.ts");
 const resurfacing = load("../mobile/src/resurfacing.ts", { "./format": format });
+const storageSafety = load("../mobile/src/storageSafety.ts");
 const storeModule = load("../mobile/src/store.ts", {
   "@capacitor/core": { Capacitor: { isNativePlatform: () => false } },
   "@capacitor-community/sqlite": { CapacitorSQLite: {}, SQLiteConnection: class {} },
@@ -31,6 +32,7 @@ const storeModule = load("../mobile/src/store.ts", {
   "./listeningYearbook": yearbook,
   "./musicMetadata": musicMetadata,
   "./resurfacing": resurfacing,
+  "./storageSafety": storageSafety,
   "./types": { ENTRY_TYPES: ["year", "month", "album", "song"] },
 });
 

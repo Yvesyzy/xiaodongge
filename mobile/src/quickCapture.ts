@@ -1,9 +1,11 @@
 import { MOOD_TAGS } from "../../shared/moods";
-import type { EntryInput, MusicMetadata, RatingModifier, ReviewEntry } from "./types";
+import { toAlbumFirstRecognition } from "./albumFirst";
+import type { EntryInput, EntryType, MusicMetadata, RatingModifier, ReviewEntry } from "./types";
 
 const MOOD_SET = new Set<string>(MOOD_TAGS);
 
 export type QuickCaptureInput = {
+  type?: EntryType;
   title?: string | null;
   songName?: string | null;
   artistName?: string | null;
@@ -18,7 +20,18 @@ export type QuickCaptureInput = {
 
 export function quickCaptureToEntryInput(input: QuickCaptureInput): EntryInput {
   const songName = clean(input.songName);
-  const title = clean(input.title) ?? songName;
+  const requestedType = input.type ?? "album";
+  const albumFirst = requestedType === "album"
+    ? toAlbumFirstRecognition({
+      type: requestedType,
+      title: clean(input.title) ?? songName ?? undefined,
+      songName,
+      albumName: clean(input.albumName) ?? undefined,
+      artistName: clean(input.artistName) ?? undefined,
+    }, input.musicMetadata ?? null)
+    : null;
+  const type: EntryType = albumFirst?.fields.type ?? requestedType;
+  const title = clean(albumFirst?.fields.title) ?? clean(input.title) ?? songName;
   const content = input.content.trim();
   if (!title) throw new Error("请填写标题或歌曲名");
   if (!content) throw new Error("请写下一句话感受");
@@ -30,14 +43,14 @@ export function quickCaptureToEntryInput(input: QuickCaptureInput): EntryInput {
   const listenedAt = localDateInputToIso(input.listenedOn);
   const date = new Date(listenedAt);
   return {
-    type: "song",
+    type,
     title,
     year: date.getFullYear(),
     month: date.getMonth() + 1,
-    albumName: clean(input.albumName),
-    songName,
-    artistName: clean(input.artistName),
-    musicMetadata: input.musicMetadata ?? null,
+    albumName: clean(albumFirst?.fields.albumName) ?? clean(input.albumName),
+    songName: type === "album" ? null : songName,
+    artistName: clean(albumFirst?.fields.artistName) ?? clean(input.artistName),
+    musicMetadata: albumFirst?.musicMetadata ?? input.musicMetadata ?? null,
     content,
     tags: [],
     moods: unique(input.moods.filter((mood) => MOOD_SET.has(mood))),

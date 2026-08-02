@@ -440,7 +440,7 @@ textarea:focus-visible {
   backdrop-filter: blur(16px);
 }
 
-.bottom-nav a {
+.bottom-nav > :is(a, button) {
   min-height: 56px;
   display: flex;
   flex-direction: column;
@@ -451,37 +451,41 @@ textarea:focus-visible {
   color: rgba(255, 253, 248, 0.76);
   font-size: 12px;
   font-weight: 700;
+  font-family: inherit;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
 }
 
-.bottom-nav a::before {
+.bottom-nav > :is(a, button)::before {
   font-size: 24px;
   font-weight: 500;
   line-height: 1;
 }
 
-.bottom-nav a:nth-child(1)::before {
+.bottom-nav > :nth-child(1)::before {
   content: "⌂";
 }
 
-.bottom-nav a:nth-child(2)::before {
-  content: "◷";
+.bottom-nav > :nth-child(2)::before {
+  content: "◉";
 }
 
-.bottom-nav a:nth-child(4)::before {
+.bottom-nav > :nth-child(4)::before {
   content: "⌕";
 }
 
-.bottom-nav a:nth-child(5)::before {
+.bottom-nav > :nth-child(5)::before {
   content: "▥";
 }
 
-.bottom-nav a.active {
+.bottom-nav > .active {
   background: transparent;
   color: #f2d79d;
   box-shadow: none;
 }
 
-.bottom-nav a:nth-child(3) {
+.bottom-nav > :nth-child(3) {
   min-height: 64px;
   margin-top: -30px;
   align-self: start;
@@ -494,7 +498,7 @@ textarea:focus-visible {
   box-shadow: 0 10px 26px rgba(7, 31, 27, 0.3);
 }
 
-.bottom-nav a:nth-child(3)::before {
+.bottom-nav > :nth-child(3)::before {
   content: "+";
   font-size: 28px;
   font-weight: 500;
@@ -2544,7 +2548,7 @@ textarea {
   .primary-button,
   .secondary-button,
   .danger-button,
-  .bottom-nav a {
+  .bottom-nav > :is(a, button) {
     transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease, background 160ms ease;
   }
 
@@ -3412,6 +3416,68 @@ textarea {
 .relisten-form {
   display: grid;
   gap: 16px;
+}
+
+.quick-extras,
+.shared-music-card {
+  padding: 18px;
+  border: 1px solid rgba(7, 31, 27, 0.1);
+  border-radius: 16px;
+  background: var(--paper);
+  box-shadow: var(--shadow-soft);
+}
+
+.quick-extras > summary {
+  cursor: pointer;
+  color: var(--green-800);
+  font-weight: 800;
+}
+
+.quick-extras[open] {
+  display: grid;
+  gap: 16px;
+}
+
+.shared-music-card p {
+  margin: 10px 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.shared-music-card small {
+  color: var(--muted);
+}
+
+.backup-health-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.backup-health-grid span,
+.backup-health-grid strong {
+  display: block;
+}
+
+.backup-health-grid span {
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--paper-soft);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.backup-health-grid strong {
+  margin-top: 5px;
+  overflow: hidden;
+  color: var(--green-800);
+  font-size: 14px;
+  text-overflow: ellipsis;
+}
+
+.corruption-card {
+  border-color: rgba(167, 61, 45, 0.35);
 }
 
 .quick-identity-fields,

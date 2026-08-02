@@ -8,6 +8,7 @@ import { formatEntriesCsv, formatEntriesTxt } from "./exportFormats";
 import { buildDayListeningSnapshot, buildMonthlyListeningSnapshot, buildYearlyListeningSnapshot, monthlySnapshotToMarkdown, parseMonthlyListeningSnapshot, parseYearlyListeningSnapshot, yearlySnapshotToMarkdown, type ListeningDaySnapshot, type MonthlyListeningSnapshot, type YearlyListeningSnapshot } from "./listeningYearbook";
 import { readMusicMetadata } from "./musicMetadata";
 import { DAILY_RESURFACING_KEY, parseDailyResurfacingState } from "./resurfacing";
+import { readSafeJson } from "./storageSafety";
 import { ENTRY_TYPES, type AlbumAggregate, type CoverKind, type CoverTarget, type EntryInput, type EntryType, type FrequencyItem, type ListeningMoment, type ListeningMomentInput, type MonthlySummary, type RatingModifier, type ReviewEntry, type SongAggregate, type YearStats, type YearlySummary } from "./types";
 
 const DB_NAME = "music_feelings_archive";
@@ -1265,13 +1266,7 @@ function restoreStorage(key: string, value: string | null) {
 }
 
 function readJson<T>(key: string, fallback: T): T {
-  const raw = localStorage.getItem(key);
-  if (!raw) return fallback;
-  try {
-    return JSON.parse(raw) as T;
-  } catch {
-    return fallback;
-  }
+  return readSafeJson(localStorage, key, fallback);
 }
 
 function decodeList(value: string | null) {

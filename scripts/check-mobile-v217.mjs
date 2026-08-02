@@ -16,8 +16,9 @@ function load(path, localModules = {}) {
 
 const format = load("../mobile/src/format.ts");
 const moods = load("../shared/moods.ts");
+const albumFirst = load("../mobile/src/albumFirst.ts");
 const musicIdentity = load("../mobile/src/musicIdentity.ts");
-const quickCapture = load("../mobile/src/quickCapture.ts", { "../../shared/moods": moods });
+const quickCapture = load("../mobile/src/quickCapture.ts", { "../../shared/moods": moods, "./albumFirst": albumFirst });
 const resurfacing = load("../mobile/src/resurfacing.ts", { "./format": format });
 const comparison = load("../mobile/src/relistenComparison.ts", { "./format": format, "./resurfacing": resurfacing });
 const shareCard = load("../mobile/src/shareCard.ts", { "./format": format });
@@ -55,6 +56,7 @@ assert.equal(musicIdentity.sameMusicIdentity(baseEntry, { songName: "稻香", ar
 assert.equal(musicIdentity.findMusicIdentityMatches([baseEntry], { songName: "稻香", artistName: "周杰伦" }).length, 1);
 
 const quickInput = {
+  type: "song",
   songName: " 稻香 ",
   artistName: " 周杰伦 ",
   albumName: " 魔杰座 ",

@@ -1,5 +1,11 @@
 apply plugin: 'com.android.application'
 
+def releaseKeystoreFile = System.getenv("XIAODONGGE_KEYSTORE_FILE")
+def releaseKeystorePassword = System.getenv("XIAODONGGE_KEYSTORE_PASSWORD")
+def releaseKeyAlias = System.getenv("XIAODONGGE_KEY_ALIAS")
+def releaseKeyPassword = System.getenv("XIAODONGGE_KEY_PASSWORD")
+def releaseSigningReady = releaseKeystoreFile && releaseKeystorePassword && releaseKeyAlias && releaseKeyPassword
+
 android {
     namespace = "com.yves.musicarchive"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,8 +13,8 @@ android {
         applicationId "com.yves.musicarchive"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 11
-        versionName "2.1.8"
+        versionCode 12
+        versionName "2.1.9"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,8 +22,19 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        if (releaseSigningReady) {
+            release {
+                storeFile file(releaseKeystoreFile)
+                storePassword releaseKeystorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
+        }
+    }
     buildTypes {
         release {
+            if (releaseSigningReady) signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

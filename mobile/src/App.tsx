@@ -1,11 +1,13 @@
-import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Capacitor, registerPlugin } from "@capacitor/core";
 import { Directory, Filesystem, Encoding } from "@capacitor/filesystem";
-import { Link, NavLink, Route, Routes, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Link, NavLink, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { GENRE_TAGS, GENRE_TREE, findGenrePath, genreChildren, isKnownGenreTag, type GenreNode } from "../../shared/genres";
 import { MOOD_CATEGORIES, MOOD_TAGS } from "../../shared/moods";
 import { ABSTRACT_MAP_REGION_DEFS, UNCLASSIFIED_REGION_ID, UNIVERSE_GROUP_BY_OPTIONS, type AbstractMapRegion, type AbstractMapResult, type UniverseGroupBy, type VisualizationFilters, type VisualizationOptions, type VisualizationSong } from "../../shared/visualizations";
 import { canRestoreEditDraft, countNewDrafts, createNewDraftId, deleteEntryDraftByKey, listEntryDrafts, MAX_NEW_DRAFTS, readEntryDraft, removeEntryDraft, writeEntryDraft, type EntryDraft, type EntryDraftFields, type EntryDraftMeta } from "./entryDraft";
+import { toAlbumFirstRecognition } from "./albumFirst";
+import { BACKUP_HEALTH_KEY, inspectBackup, parseBackupHealth, type BackupHealth } from "./backupHealth";
 import { findSimilarEntry } from "./entryDuplicate";
 import { excerpt, formatDate, formatDateOnly, monthLabel } from "./format";
 import { buildInsights, type Insight } from "./insights";
@@ -13,6 +15,7 @@ import { DailyListeningNote, MonthlyListeningPage, YearlyListeningPage } from ".
 import { mergeMusicMetadata } from "./musicMetadata";
 import { sameMusicIdentity } from "./musicIdentity";
 import { NowPlaying } from "./nativeNowPlaying";
+import { parseSharedMusicPayload, rememberSharedMusic, SharedMusic } from "./nativeSharedMusic";
 import { applyAppleCatalogMatch, findAppleCatalogMatch, parseCatalogSearchResult, parseNowPlayingResult } from "./nowPlaying";
 import { parseMusicInfoText, type MusicInfoFields } from "./ocr";
 import QuickCapturePage from "./QuickCapturePage";
@@ -21,19 +24,20 @@ import RatingSlider from "./RatingSlider";
 import RelistenPage from "./RelistenPage";
 import { DAILY_RESURFACING_KEY, dismissDailyResurfacing, parseDailyResurfacingState, resolveDailyResurfacing, type DailyResurfacingState } from "./resurfacing";
 import { parseList, store } from "./store";
+import { clearStorageCorruption, readStorageCorruption, type StorageCorruption } from "./storageSafety";
 import { ENTRY_TYPE_LABELS, ENTRY_TYPES, type AlbumAggregate, type EntryInput, type ListeningMoment, type ListeningMomentInput, type MusicMetadata, type RatingModifier, type ReviewEntry, type SongAggregate, type YearStats } from "./types";
 
-const APP_VERSION = "2.1.8";
+const APP_VERSION = "2.1.9";
 
 const nav = [
   ["/", "首页"],
-  ["/timeline", "时间轴"],
+  ["/albums", "专辑"],
   ["/new", "新建"],
   ["/search", "搜索"],
   ["/summary", "总结"],
 ];
 
-type BackupPreview = { exportedAt: string; entryCount: number; summaryCount: number; monthlySummaryCount: number; coverCount: number };
+type BackupPreview = { exportedAt: string; entryCount: number; summaryCount: number; monthlySummaryCount: number; coverCount: number; listeningMomentCount: number };
 type ExportKind = "json" | "txt" | "csv";
 type ExportedData = { kind: ExportKind; content: string; fileName: string; mimeType: string };
 type HomeEntry = ReviewEntry & { coverDataUrl: string | null };
@@ -63,6 +67,39 @@ const ScreenshotOcr = registerPlugin<ScreenshotOcrPlugin>("ScreenshotOcr");
 
 export default function App() {
   const [createSheetOpen, setCreateSheetOpen] = useState(false);
+  const createButtonRef = useRef<HTMLButtonElement | null>(null);
+  const lastShareIdRef = useRef("");
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    setCreateSheetOpen(false);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
+    let active = true;
+    let listener: { remove(): Promise<void> } | null = null;
+    const accept = (value: unknown) => {
+      if (!active) return;
+      const payload = parseSharedMusicPayload(value);
+      if (!payload || payload.id === lastShareIdRef.current) return;
+      lastShareIdRef.current = payload.id;
+      rememberSharedMusic(payload);
+      setCreateSheetOpen(false);
+      navigate(`/capture?share=${encodeURIComponent(payload.id)}`);
+    };
+    void SharedMusic.addListener("shareReceived", accept).then((handle) => {
+      if (!active) void handle.remove();
+      else listener = handle;
+    }).catch(() => undefined);
+    void SharedMusic.consumePendingShare().then(accept).catch(() => undefined);
+    return () => {
+      active = false;
+      if (listener) void listener.remove();
+    };
+  }, [navigate]);
+
   return (
     <div className="app-shell">
       <header className="app-header">
@@ -100,7 +137,7 @@ export default function App() {
           </NavLink>
         ))}
         {/* 中间 + 号：点击弹出「速记 / 正式记录」选择，而不是直接进完整表单 */}
-        <a href="#" aria-label="新建记录" onClick={(event) => { event.preventDefault(); setCreateSheetOpen(true); }}>新建</a>
+        <button ref={createButtonRef} type="button" aria-label="新建记录" onClick={() => setCreateSheetOpen(true)}>新建</button>
         {nav.slice(3).map(([to, label]) => (
           <NavLink key={to} to={to} className={({ isActive }) => (isActive ? "active" : "")} end={to === "/"}>
             {label}
@@ -108,7 +145,7 @@ export default function App() {
         ))}
       </nav>
       {createSheetOpen ? (
-        <BottomSheet title="新建" text="选择记录方式" onClose={() => setCreateSheetOpen(false)}>
+        <BottomSheet title="新建" text="选择记录方式" onClose={() => setCreateSheetOpen(false)} returnFocusRef={createButtonRef}>
           <div className="create-choice">
             <Link to="/capture" className="create-choice-card" onClick={() => setCreateSheetOpen(false)}>
               <strong>速记</strong>
@@ -686,9 +723,12 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
         return;
       }
 
-      const changed = fillRecognizedFields(formRef.current, result.fields, true);
       const retainedMetadata = mergeMusicMetadata(result.musicMetadata, musicMetadata);
-      setMusicMetadata(retainedMetadata);
+      const firstResult = prefersAlbumEntry(formRef.current, mode)
+        ? toAlbumFirstRecognition(result.fields, retainedMetadata)
+        : { fields: result.fields, musicMetadata: retainedMetadata };
+      const changed = fillRecognizedFields(formRef.current, firstResult.fields, true);
+      setMusicMetadata(firstResult.musicMetadata);
       if (changed) scheduleDraftSave();
       const songName = result.fields.songName?.trim();
       const artistName = result.fields.artistName?.trim();
@@ -711,10 +751,13 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
           return;
         }
         const enriched = applyAppleCatalogMatch(result.fields, retainedMetadata, match);
-        const catalogChanged = fillRecognizedFields(formRef.current, enriched.fields, true);
-        setMusicMetadata(enriched.musicMetadata);
+        const finalResult = prefersAlbumEntry(formRef.current, mode)
+          ? toAlbumFirstRecognition(enriched.fields, enriched.musicMetadata)
+          : enriched;
+        const catalogChanged = fillRecognizedFields(formRef.current, finalResult.fields, true);
+        setMusicMetadata(finalResult.musicMetadata);
         if (catalogChanged) scheduleDraftSave();
-        setNowPlayingMessage(`${recognitionNotice(enriched.fields)}，联网补全完成`);
+        setNowPlayingMessage(`${recognitionNotice(finalResult.fields)}，联网补全完成`);
       } catch (catalogError) {
         setNowPlayingMessage(`${recognitionNotice(result.fields)}，已保留原生信息；${catalogError instanceof Error ? catalogError.message : "联网补全失败"}，可重试`);
       }
@@ -785,13 +828,17 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
 
   function applyRecognizedFields() {
     if (!recognizedFields) return;
-    const clearMetadata = musicIdentityWouldChange(formRef.current, recognizedFields);
-    const changed = fillRecognizedFields(formRef.current, recognizedFields);
+    const result = prefersAlbumEntry(formRef.current, mode)
+      ? toAlbumFirstRecognition(recognizedFields, musicMetadata)
+      : { fields: recognizedFields, musicMetadata };
+    const clearMetadata = musicIdentityWouldChange(formRef.current, result.fields);
+    const changed = fillRecognizedFields(formRef.current, result.fields);
     if (changed) {
-      if (clearMetadata) setMusicMetadata(null);
+      setMusicMetadata(clearMetadata && !result.musicMetadata?.displayTitle ? null : result.musicMetadata);
       scheduleDraftSave();
     }
-    setNotice(changed ? `${recognitionNotice(recognizedFields)}，已应用到表单` : "识别结果没有可应用的字段");
+    setRecognizedFields(result.fields);
+    setNotice(changed ? `${recognitionNotice(result.fields)}，已应用到表单` : "识别结果没有可应用的字段");
   }
 
   function handleFormMutation(event: FormEvent<HTMLFormElement>) {
@@ -946,7 +993,7 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
             </section>
           ) : null}
         </section>
-        <label>记录类型<select name="type" defaultValue={source?.type ?? "song"}>{ENTRY_TYPES.map((type) => <option key={type} value={type}>{ENTRY_TYPE_LABELS[type]} / {type}</option>)}</select></label>
+        <label>记录类型<select name="type" defaultValue={source?.type ?? "album"}>{ENTRY_TYPES.map((type) => <option key={type} value={type}>{ENTRY_TYPE_LABELS[type]} / {type}</option>)}</select></label>
         <label>标题<input name="title" defaultValue={source?.title ?? ""} required /></label>
         <div className="form-grid">
           <label>年份<input name="year" type="number" min="1" max="9999" defaultValue={source?.year ?? new Date().getFullYear()} required /></label>
@@ -1776,6 +1823,47 @@ function BackupPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [health, setHealth] = useState<BackupHealth | null>(null);
+  const [corruption, setCorruption] = useState<StorageCorruption | null>(() => readStorageCorruption(localStorage));
+
+  useEffect(() => {
+    let active = true;
+    void store.getStoredAppData(BACKUP_HEALTH_KEY).then((raw) => {
+      if (active) setHealth(parseBackupHealth(raw));
+    }).catch((err) => {
+      if (active) {
+        setCorruption(readStorageCorruption(localStorage));
+        setError(err instanceof Error ? err.message : "备份健康记录读取失败");
+      }
+    });
+    return () => { active = false; };
+  }, []);
+
+  async function saveHealth(next: BackupHealth) {
+    await store.setStoredAppData(BACKUP_HEALTH_KEY, JSON.stringify(next));
+    setHealth(next);
+  }
+
+  async function verifyBackup() {
+    setMessage("");
+    setError("");
+    setBusy(true);
+    try {
+      const raw = await store.exportBackup();
+      const next = await inspectBackup(raw, store.previewBackup(raw));
+      await saveHealth(next);
+      setMessage("备份健康检查通过：SQLite v5、记录数量和 SHA-256 已确认");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "备份健康检查失败");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function markJsonSaved(fileName: string, raw: string) {
+    const sha = await inspectBackup(raw, store.previewBackup(raw));
+    await saveHealth({ ...sha, lastSavedAt: new Date().toISOString(), lastSavedFileName: fileName });
+  }
 
   async function exportData(kind: ExportKind) {
     setMessage("");
@@ -1804,6 +1892,13 @@ function BackupPage() {
           encoding: Encoding.UTF8,
         });
         setMessage(`已保存到 Documents/${exported.fileName}`);
+        if (exported.kind === "json") {
+          try {
+            await markJsonSaved(exported.fileName, exported.content);
+          } catch (healthError) {
+            setError(`文件已保存，但备份健康状态更新失败：${healthError instanceof Error ? healthError.message : "未知错误"}`);
+          }
+        }
         return;
       } catch (err) {
         setError("保存文件失败：可能缺少存储权限。请到系统设置 → 应用 → 小懂哥 → 权限 → 存储/文件，授予访问权限后重试；或使用「复制内容」手动保存。");
@@ -1836,30 +1931,29 @@ function BackupPage() {
     if (!exported) return;
     setMessage("");
     setError("");
-    const text = exported.content;
-    // ponytail: navigator.clipboard 在 Capacitor WebView 中常因权限失败，用 execCommand 回退
     try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(text);
-        setMessage(`${EXPORT_LABELS[exported.kind]} 已复制`);
-        return;
-      }
-    } catch { /* fall through to execCommand */ }
-    try {
-      const ta = document.createElement("textarea");
-      ta.value = text;
-      ta.style.position = "fixed";
-      ta.style.left = "-9999px";
-      ta.style.top = "0";
-      document.body.appendChild(ta);
-      ta.focus();
-      ta.select();
-      document.execCommand("copy");
-      document.body.removeChild(ta);
+      await copyText(exported.content);
       setMessage(`${EXPORT_LABELS[exported.kind]} 已复制`);
     } catch {
       setError("复制失败，请手动选择上方文本复制");
     }
+  }
+
+  async function copyCorruption() {
+    if (!corruption) return;
+    try {
+      await copyText(corruption.raw);
+      setMessage("损坏数据原文已复制");
+    } catch {
+      setError("损坏数据复制失败");
+    }
+  }
+
+  function dismissCorruption() {
+    if (!corruption || !confirm("确认清除这份隔离副本？清除后无法从应用内恢复原文。")) return;
+    clearStorageCorruption(localStorage);
+    setCorruption(null);
+    setMessage("隔离副本已清除");
   }
 
   function changeImportText(value: string) {
@@ -1959,6 +2053,32 @@ function BackupPage() {
 
   return (
     <Page title="备份" text="JSON 用于恢复备份；TXT 和 CSV 用于手机查看。">
+      <section className="form-card backup-health-card">
+        <div className="assist-panel-head">
+          <strong>备份健康</strong>
+          <button className="secondary-button" type="button" onClick={verifyBackup} disabled={busy}>{busy ? "检查中" : "立即检查"}</button>
+        </div>
+        {health ? (
+          <div className="backup-health-grid">
+            <span>最近验证<strong>{formatDate(health.verifiedAt)}</strong></span>
+            <span>最近保存<strong>{health.lastSavedAt ? formatDate(health.lastSavedAt) : "尚未保存 JSON 文件"}</strong></span>
+            <span>内容统计<strong>{health.entryCount} 条记录 · {health.listeningMomentCount} 次复听</strong></span>
+            <span>校验摘要<strong title={health.sha256}>{health.sha256.slice(0, 12)}…</strong></span>
+          </div>
+        ) : <p className="hint">尚未检查。检查会实际生成 SQLite v5 备份并计算 SHA-256，不会修改乐评。</p>}
+        {health?.lastSavedFileName ? <p className="hint">最近保存：{health.lastSavedFileName}</p> : null}
+      </section>
+      {corruption ? (
+        <section className="form-card corruption-card">
+          <strong>发现并隔离了损坏的本地数据</strong>
+          <p className="error">来源：{corruption.key} · {formatDate(corruption.detectedAt)}。应用没有用空数据覆盖它。</p>
+          <textarea readOnly rows={6} value={corruption.raw} />
+          <div className="export-output-actions">
+            <button className="secondary-button" type="button" onClick={copyCorruption}>复制原始内容</button>
+            <button className="danger-button" type="button" onClick={dismissCorruption}>清除隔离副本</button>
+          </div>
+        </section>
+      ) : null}
       <div className="backup-export-actions">
         <button className="primary-button" type="button" onClick={() => exportData("json")}>导出 JSON</button>
         <button className="secondary-button" type="button" onClick={() => exportData("txt")}>导出 TXT</button>
@@ -2003,6 +2123,7 @@ function BackupPage() {
 function MorePage() {
   const [draftCount] = useState(() => listEntryDrafts(localStorage).length);
   const items = [
+    ["/timeline", "时间轴", "按时间查看所有听感记录。"],
     ["/abstract-map", "抽象地图", "按情绪把记录放进听歌大陆。"],
     ["/insights", "情绪洞察", "按天气和季节看你的听歌偏好。"],
     ["/albums", "专辑", "按专辑名称聚合记录。"],
@@ -2253,14 +2374,53 @@ function TagList({ values }: { values: string[] }) {
   return <div className="tag-row">{list.map((value) => <span key={value}>{value}</span>)}</div>;
 }
 
-function BottomSheet({ title, text, children, onClose }: { title: string; text?: string; children: React.ReactNode; onClose: () => void }) {
+function BottomSheet({ title, text, children, onClose, returnFocusRef }: { title: string; text?: string; children: React.ReactNode; onClose: () => void; returnFocusRef?: React.RefObject<HTMLElement | null> }) {
+  const titleId = useId();
+  const dialogRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    const dialog = dialogRef.current;
+    if (!dialog) return;
+    const background = [".app-header", ".app-main", ".bottom-nav"]
+      .map((selector) => document.querySelector<HTMLElement>(selector))
+      .filter((element): element is HTMLElement => Boolean(element));
+    background.forEach((element) => { element.inert = true; });
+    const focusable = () => Array.from(dialog.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'));
+    focusable()[0]?.focus();
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose();
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const items = focusable();
+      if (!items.length) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      background.forEach((element) => { element.inert = false; });
+      returnFocusRef?.current?.focus();
+    };
+  }, [onClose, returnFocusRef]);
+
   return (
     <div className="sheet-backdrop" role="presentation" onClick={onClose}>
-      <section className="bottom-sheet" role="dialog" aria-modal="true" aria-label={title} onClick={(event) => event.stopPropagation()}>
+      <section ref={dialogRef} className="bottom-sheet" role="dialog" aria-modal="true" aria-labelledby={titleId} onClick={(event) => event.stopPropagation()}>
         <div className="sheet-handle" />
         <div className="sheet-head">
           <div>
-            <h2>{title}</h2>
+            <h2 id={titleId}>{title}</h2>
             {text ? <p>{text}</p> : null}
           </div>
           <button type="button" onClick={onClose} aria-label="关闭">×</button>
@@ -2401,7 +2561,7 @@ function PrivacyPage() {
         <h2>天气背景</h2>
         <p>只有用户手动选择城市后，应用才会把粗略城市坐标和乐评日期发送给 Open-Meteo 查询历史天气。应用不持续定位，不读取 vivo 或其他手机的系统天气，也不会在天气请求中发送乐评正文。</p>
         <h2>导出与删除</h2>
-        <p>用户可以通过备份页导出或恢复本地数据，也可以在记录详情页删除记录。卸载应用会按照 Android 的系统行为处理应用本地数据。</p>
+        <p>用户可以通过备份页导出或恢复本地数据，也可以在记录详情页删除记录。Android 系统云备份已关闭，卸载应用前请先手动导出 JSON。</p>
       </article>
     </Page>
   );
@@ -2520,6 +2680,30 @@ function fillRecognizedFields(form: HTMLFormElement | null, fields: MusicInfoFie
   return changed;
 }
 
+async function copyText(text: string) {
+  // ponytail: Capacitor WebView 的 Clipboard API 可能被权限策略拒绝，保留同步 DOM 回退。
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+  } catch { /* fall through */ }
+  const input = document.createElement("textarea");
+  input.value = text;
+  input.style.position = "fixed";
+  input.style.left = "-9999px";
+  document.body.appendChild(input);
+  input.select();
+  const copied = document.execCommand("copy");
+  input.remove();
+  if (!copied) throw new Error("复制失败");
+}
+
+function prefersAlbumEntry(form: HTMLFormElement | null, mode: "create" | "edit") {
+  const type = form ? formValue(form, "type") : "";
+  return mode === "create" && (!type || type === "album");
+}
+
 function musicIdentityCompatible(form: HTMLFormElement | null, fields: MusicInfoFields) {
   if (!form) return false;
   for (const [name, value] of [["songName", fields.songName], ["artistName", fields.artistName]] as const) {
@@ -2541,7 +2725,9 @@ function musicIdentityWouldChange(form: HTMLFormElement | null, fields: MusicInf
 
 function formValue(form: HTMLFormElement, name: string) {
   const field = form.elements.namedItem(name);
-  return field instanceof HTMLInputElement ? field.value.trim() : "";
+  return field instanceof HTMLInputElement || field instanceof HTMLSelectElement || field instanceof HTMLTextAreaElement
+    ? field.value.trim()
+    : "";
 }
 
 function normalizeIdentity(value: string) {

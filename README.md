@@ -1,10 +1,13 @@
-# 小懂哥 v2.1.0
+# 小懂哥 v2.1.9
 
-一个在安卓手机本地运行的私人音乐感受记录 APK。它只保存你手动输入或截图识别后确认的记录，不自动编造歌曲、专辑、歌手或感受。v2.1.0 新增完全在手机本地运行的每日、月度和年度听感分析，不调用在线 AI，也不上传乐评正文。
+一个在安卓手机本地运行、以专辑为中心的私人音乐感受记录 APK。它只保存你手动输入或确认过的信息，不自动编造歌曲、专辑、歌手或感受。v2.1.9 新增专辑优先速记、Android 系统分享入口、备份健康检查和严格签名发布链。
 
 ## 功能
 
 - 新建、查看、编辑、删除音乐感受记录
+- 识别当前播放后默认建立专辑记录，并把触发记录的歌曲保留为来源曲目
+- 一屏完成一句话专辑速记，评分、情绪和音乐身份按需展开
+- 从 Android 其他音乐应用的系统分享菜单直接进入速记
 - 按年份和月份查看时间轴
 - 查看专辑聚合和歌曲聚合
 - 给专辑或歌曲保存封面
@@ -21,6 +24,7 @@
 - 对本地语义误识别进行排除或分类校正
 - 查看抽象听歌地图：按 `moods` 和 `tags` 把记录归入情绪大陆
 - 导出、导入备份，并支持撤销最近一次导入
+- 检查 SQLite v5 备份的记录数量和 SHA-256，区分最近验证与最近成功保存
 
 ## 技术栈
 
@@ -36,16 +40,16 @@
 最新安装包下载：
 
 ```text
-https://github.com/Yvesyzy/xiaodongge/releases/download/v2.1.0/xiaodongge-v2.1.0-debug.apk
+https://github.com/Yvesyzy/xiaodongge/releases/download/v2.1.9/xiaodongge-v2.1.9-debug.apk
 ```
 
 发布页：
 
 ```text
-https://github.com/Yvesyzy/xiaodongge/releases/tag/v2.1.0
+https://github.com/Yvesyzy/xiaodongge/releases/tag/v2.1.9
 ```
 
-当前公开下载的是 debug APK，适合测试安装；长期公开发布建议改用正式签名 APK。
+公开下载文件名带 `debug` 的安装包使用开发签名，适合当前设备测试安装。正式长期发布必须使用下方同一份长期 keystore 构建的 release APK。
 
 ## 构建 APK
 
@@ -83,24 +87,24 @@ C:\Users\lenovo\AppData\Local\Android\Sdk\platform-tools\adb.exe install -r andr
 
 ## 正式签名 APK
 
-当前仓库没有提交 keystore，也没有保存签名密码。正式发布前需要先准备：
+仓库不会提交 keystore 或签名密码。正式发布脚本从以下环境变量读取长期签名身份：
 
 ```text
-keystore 文件
-key alias
-store password
-key password
+XIAODONGGE_KEYSTORE_FILE
+XIAODONGGE_KEYSTORE_PASSWORD
+XIAODONGGE_KEY_ALIAS
+XIAODONGGE_KEY_PASSWORD
 ```
 
 这些信息必须长期保存，不能提交到 Git。安卓应用升级时需要继续使用同一个 keystore，否则用户无法直接覆盖安装新版。
 
-最小流程：
+四项变量全部存在后执行：
 
-1. 生成或准备自己的 Android keystore。
-2. 在本机私有配置中保存签名路径、alias 和密码。
-3. 给 Android release 构建接入 signingConfig。
-4. 构建 release APK。
-5. 把 release APK 上传到 GitHub Releases，替换当前 debug APK。
+```cmd
+npm.cmd run android:build:release
+```
+
+脚本会重新构建 Web 资源并同步 Android，随后执行 `assembleRelease`。只有 APK 签名、包名 `com.yves.musicarchive`、版本 `2.1.9 (12)` 全部验证通过，才会输出 `release/xiaodongge-v2.1.9.apk` 和 SHA-256；缺少任一签名变量时会在构建前失败。
 
 ## 本地数据
 
@@ -137,7 +141,7 @@ AppData          今日重逢状态、天气城市、天气缓存、代表原句
 
 内置节假日数据来自[国务院办公厅 2025 年部分节假日安排](https://www.gov.cn/zhengce/zhengceku/202411/content_6986383.htm)和[国务院办公厅 2026 年部分节假日安排](https://www.gov.cn/zhengce/zhengceku/202511/content_7047091.htm)。城市搜索与历史天气使用 [Open-Meteo Geocoding API](https://open-meteo.com/en/docs/geocoding-api) 和 [Historical Weather API](https://open-meteo.com/en/docs/historical-weather-api)。
 
-JSON 备份格式为 v5，包含追加听感、今日重逢状态、月度作品、结构化年度结果、天气设置/缓存、代表原句和语义校正，并继续接受 v1 至 v4 备份。
+JSON 备份格式为 v5，包含追加听感、今日重逢状态、月度作品、结构化年度结果、天气设置/缓存、代表原句和语义校正，并继续接受 v1 至 v4 备份。Android 系统云备份已关闭，避免私人乐评被系统自动复制；卸载前应从备份页保存 JSON。
 
 ## v2 可视化
 

@@ -2,15 +2,17 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { Capacitor } from "@capacitor/core";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { MOOD_CATEGORIES, MOOD_TAGS } from "../../shared/moods";
+import { toAlbumFirstRecognition } from "./albumFirst";
 import { countNewDrafts, createNewDraftId, MAX_NEW_DRAFTS, readEntryDraft, removeEntryDraft, writeEntryDraft, type EntryDraft, type EntryDraftCaptureMode } from "./entryDraft";
-import { findMusicIdentityMatches, sameMusicIdentity, type MusicIdentity } from "./musicIdentity";
+import { findEntryIdentityMatches, sameMusicIdentity, type MusicIdentity } from "./musicIdentity";
 import { mergeMusicMetadata } from "./musicMetadata";
 import { NowPlaying } from "./nativeNowPlaying";
+import { readSharedMusic } from "./nativeSharedMusic";
 import { applyAppleCatalogMatch, findAppleCatalogMatch, parseCatalogSearchResult, parseNowPlayingResult, type ParsedNowPlayingResult } from "./nowPlaying";
 import { quickCaptureToEntryInput, recentSavedMoods } from "./quickCapture";
 import RatingSlider from "./RatingSlider";
 import { store } from "./store";
-import type { MusicMetadata, RatingModifier, ReviewEntry } from "./types";
+import type { EntryType, MusicMetadata, RatingModifier, ReviewEntry } from "./types";
 
 export default function QuickCapturePage() {
   const navigate = useNavigate();
@@ -21,6 +23,7 @@ export default function QuickCapturePage() {
     return countNewDrafts(localStorage) < MAX_NEW_DRAFTS ? createNewDraftId() : null;
   });
   const [title, setTitle] = useState("");
+  const [entryType, setEntryType] = useState<EntryType>("album");
   const [songName, setSongName] = useState("");
   const [artistName, setArtistName] = useState("");
   const [albumName, setAlbumName] = useState("");
@@ -33,7 +36,7 @@ export default function QuickCapturePage() {
   const [entries, setEntries] = useState<ReviewEntry[]>([]);
   const [recentMoods, setRecentMoods] = useState<string[]>([]);
   const [matches, setMatches] = useState<ReviewEntry[]>([]);
-  const [identityOpen, setIdentityOpen] = useState(true);
+  const [identityOpen, setIdentityOpen] = useState(!Capacitor.isNativePlatform());
   const [pendingTrack, setPendingTrack] = useState<ParsedNowPlayingResult | null>(null);
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -41,6 +44,8 @@ export default function QuickCapturePage() {
   const [error, setError] = useState("");
   const dirtyRef = useRef(false);
   const saveTimerRef = useRef<number | null>(null);
+  const shareId = searchParams.get("share")?.trim() ?? null;
+  const sharedMusic = readSharedMusic(shareId);
 
   useEffect(() => {
     if (!draftId) {
@@ -75,8 +80,12 @@ export default function QuickCapturePage() {
   }, []);
 
   useEffect(() => {
-    if (ready && Capacitor.isNativePlatform()) void refreshNowPlaying(false);
-  }, [ready]);
+    if (ready && Capacitor.isNativePlatform() && !shareId) void refreshNowPlaying(false);
+  }, [ready, shareId]);
+
+  useEffect(() => {
+    if (ready && Capacitor.isNativePlatform() && shareId) void refreshNowPlaying(false);
+  }, [ready, shareId]);
 
   useEffect(() => {
     if (!ready || !draftId || !dirtyRef.current) return;
@@ -92,7 +101,7 @@ export default function QuickCapturePage() {
     return () => {
       if (saveTimerRef.current !== null) window.clearTimeout(saveTimerRef.current);
     };
-  }, [albumName, artistName, content, draftId, listenedOn, moods, musicMetadata, rating, ratingModifier, ready, songName, title]);
+  }, [albumName, artistName, content, draftId, entryType, listenedOn, moods, musicMetadata, rating, ratingModifier, ready, songName, title]);
 
   useEffect(() => {
     if (!ready || !Capacitor.isNativePlatform()) return;
@@ -104,6 +113,7 @@ export default function QuickCapturePage() {
   }, [ready, title, songName, artistName, albumName, musicMetadata]);
 
   function applyDraft(draft: EntryDraft) {
+    setEntryType(draft.fields.type);
     setTitle(draft.fields.title);
     setSongName(draft.fields.songName);
     setArtistName(draft.fields.artistName);
@@ -129,7 +139,7 @@ export default function QuickCapturePage() {
       baseUpdatedAt: null,
       savedAt: new Date().toISOString(),
       fields: {
-        type: "song",
+        type: entryType,
         title,
         year,
         month: String(Number(month)),
@@ -212,14 +222,19 @@ export default function QuickCapturePage() {
     }
   }
 
-  function applyTrack(result: ParsedNowPlayingResult) {
+  function applyTrack(result: ParsedNowPlayingResult, preferredType: EntryType = entryType) {
     if (!result.fields) return;
-    const nextSong = result.fields.songName?.trim() ?? "";
-    setTitle(result.fields.title?.trim() || nextSong);
-    setSongName(nextSong);
-    setArtistName(result.fields.artistName?.trim() ?? "");
-    setAlbumName(result.fields.albumName?.trim() ?? "");
-    setMusicMetadata(mergeMusicMetadata(result.musicMetadata, musicMetadata));
+    const mergedMetadata = mergeMusicMetadata(result.musicMetadata, musicMetadata);
+    const recognized = preferredType === "song"
+      ? { fields: result.fields, musicMetadata: mergedMetadata }
+      : toAlbumFirstRecognition(result.fields, mergedMetadata);
+    setEntryType(recognized.fields.type ?? "song");
+    setTitle(recognized.fields.title?.trim() ?? "");
+    setSongName(recognized.fields.songName?.trim() ?? "");
+    setArtistName(recognized.fields.artistName?.trim() ?? "");
+    setAlbumName(recognized.fields.albumName?.trim() ?? "");
+    setMusicMetadata(recognized.musicMetadata);
+    setIdentityOpen(!recognized.fields.albumName);
     setPendingTrack(null);
   }
 
@@ -242,7 +257,7 @@ export default function QuickCapturePage() {
       setDraftId(nextDraftId);
       setSearchParams({ draft: nextDraftId }, { replace: true });
       clearForm();
-      applyTrack(await enrichNowPlaying(pendingTrack));
+      applyTrack(await enrichNowPlaying(pendingTrack), "album");
       dirtyRef.current = false;
       setMessage("原草稿已保存，已切换到新的当前播放");
     } catch (err) {
@@ -251,6 +266,7 @@ export default function QuickCapturePage() {
   }
 
   function clearForm() {
+    setEntryType("album");
     setTitle("");
     setSongName("");
     setArtistName("");
@@ -268,11 +284,11 @@ export default function QuickCapturePage() {
     setBusy(true);
     setError("");
     try {
-      const input = quickCaptureToEntryInput({ title, songName, artistName, albumName, musicMetadata, content, moods, rating, ratingModifier, listenedOn });
-      const existing = findMusicIdentityMatches(entries, input);
+      const input = quickCaptureToEntryInput({ type: entryType, title, songName, artistName, albumName, musicMetadata, content, moods, rating, ratingModifier, listenedOn });
+      const existing = findEntryIdentityMatches(entries, input);
       if (!forceNew && existing.length) {
         setMatches(existing);
-        setMessage(existing.length === 1 ? "已经有这首歌的档案，可以追加听感或新建另一篇。" : "找到多条同歌曲档案，请选择要追加的记录。");
+        setMessage(existing.length === 1 ? "已经有这个专辑或歌曲档案，可以追加听感或新建另一篇。" : "找到多条相同音乐档案，请选择要追加的记录。");
         return;
       }
       const saved = await store.createEntry(input);
@@ -325,8 +341,8 @@ export default function QuickCapturePage() {
       <section className="quick-track-card">
         {artwork ? <img src={artwork} alt="" /> : <div className="quick-record-placeholder" aria-hidden="true"><span /></div>}
         <div>
-          <strong>{songName || title || "还没有歌曲信息"}</strong>
-          <span>{[artistName, albumName].filter(Boolean).join(" · ") || "读取当前播放，或手动填写"}</span>
+          <strong>{albumName || title || "还没有专辑信息"}</strong>
+          <span>{[artistName, musicMetadata?.displayTitle || songName].filter(Boolean).join(" · ") || "读取当前播放，或手动填写"}</span>
         </div>
         {Capacitor.isNativePlatform() ? <button type="button" className="secondary-button" onClick={() => refreshNowPlaying(false)} disabled={busy}>{busy ? "读取中" : "读取当前播放"}</button> : null}
       </section>
@@ -342,48 +358,60 @@ export default function QuickCapturePage() {
         </section>
       ) : null}
 
+      {sharedMusic ? (
+        <section className="shared-music-card" aria-label="Android 分享内容">
+          <strong>{sharedMusic.subject || "从其他应用分享"}</strong>
+          <p>{sharedMusic.text}</p>
+          <small>分享文字仅作为核对线索；专辑、歌曲和歌手仍以当前媒体会话与目录补全为准。</small>
+        </section>
+      ) : null}
+
       <form className="quick-capture-form" onSubmit={submit}>
-        <details className="quick-identity-fields" open={identityOpen} onToggle={(event) => setIdentityOpen(event.currentTarget.open)}>
-          <summary>歌曲信息</summary>
-          <label>标题<input value={title} onChange={(event) => edit(setTitle, event.target.value)} required /></label>
-          <label>歌曲<input value={songName} onChange={(event) => edit(setSongName, event.target.value)} /></label>
-          <div className="form-grid">
-            <label>歌手<input value={artistName} onChange={(event) => edit(setArtistName, event.target.value)} /></label>
-            <label>专辑<input value={albumName} onChange={(event) => edit(setAlbumName, event.target.value)} /></label>
-          </div>
-        </details>
-
-        <RatingSlider value={rating} modifier={ratingModifier} onChange={(nextRating, nextModifier) => {
-          dirtyRef.current = true;
-          setRating(nextRating);
-          setRatingModifier(nextModifier);
-        }} label="此刻评分" />
-
-        <fieldset className="quick-moods">
-          <legend>此刻情绪</legend>
-          {recentMoods.length ? <div className="quick-mood-group"><span>最近使用</span><div>{recentMoods.map((mood) => <button type="button" key={mood} className={moods.includes(mood) ? "selected" : ""} onClick={() => toggleMood(mood)}>{mood}</button>)}</div></div> : null}
-          <details>
-            <summary>全部情绪</summary>
-            <div className="quick-mood-all">{MOOD_TAGS.map((mood) => <button type="button" key={mood} className={moods.includes(mood) ? "selected" : ""} onClick={() => toggleMood(mood)}>{mood}</button>)}</div>
-          </details>
-        </fieldset>
-
         <label>一句话感受<textarea rows={5} value={content} onChange={(event) => edit(setContent, event.target.value)} placeholder="这一次，哪里最打动你？" required /></label>
         <label>收听日期<input type="date" value={listenedOn} onChange={(event) => edit(setListenedOn, event.target.value)} required /></label>
         {message ? <p className="hint" role="status">{message}</p> : null}
         {error ? <p className="error">{error}</p> : null}
-        <button className="primary-button full" type="submit" disabled={busy}>{busy ? "保存中" : "保存快速记录"}</button>
+        <button className="primary-button full" type="submit" disabled={busy}>{busy ? "保存中" : `保存${entryType === "album" ? "专辑" : "歌曲"}听感`}</button>
+
+        <details className="quick-extras">
+          <summary>补充评分、情绪和音乐信息</summary>
+          <RatingSlider value={rating} modifier={ratingModifier} onChange={(nextRating, nextModifier) => {
+            dirtyRef.current = true;
+            setRating(nextRating);
+            setRatingModifier(nextModifier);
+          }} label="此刻评分" />
+
+          <fieldset className="quick-moods">
+            <legend>此刻情绪</legend>
+            {recentMoods.length ? <div className="quick-mood-group"><span>最近使用</span><div>{recentMoods.map((mood) => <button type="button" key={mood} className={moods.includes(mood) ? "selected" : ""} onClick={() => toggleMood(mood)}>{mood}</button>)}</div></div> : null}
+            <details>
+              <summary>全部情绪</summary>
+              <div className="quick-mood-all">{MOOD_TAGS.map((mood) => <button type="button" key={mood} className={moods.includes(mood) ? "selected" : ""} onClick={() => toggleMood(mood)}>{mood}</button>)}</div>
+            </details>
+          </fieldset>
+
+          <details className="quick-identity-fields" open={identityOpen} onToggle={(event) => setIdentityOpen(event.currentTarget.open)}>
+            <summary>音乐信息</summary>
+            <label>记录类型<select value={entryType} onChange={(event) => { dirtyRef.current = true; setEntryType(event.target.value as EntryType); }}><option value="album">专辑</option><option value="song">歌曲</option></select></label>
+            <label>标题<input value={title} onChange={(event) => edit(setTitle, event.target.value)} /></label>
+            <label>歌曲<input value={songName} onChange={(event) => edit(setSongName, event.target.value)} /></label>
+            <div className="form-grid">
+              <label>歌手<input value={artistName} onChange={(event) => edit(setArtistName, event.target.value)} /></label>
+              <label>专辑<input value={albumName} onChange={(event) => edit(setAlbumName, event.target.value)} /></label>
+            </div>
+          </details>
+        </details>
         <button className="secondary-button full" type="button" onClick={expandFull}>展开完整乐评</button>
       </form>
 
       {matches.length ? (
         <section className="quick-match-sheet">
-          <h2>已有这首歌的档案</h2>
+          <h2>已有相同音乐档案</h2>
           <p>追加听感会保留第一次记录，也能在以后看见评分和情绪变化。</p>
           <div className="card-list">
             {matches.map((entry) => <Link key={entry.id} className="entry-card" to={"/relisten/" + entry.id}><h3>{entry.title}</h3><p>{entry.year} · {entry.rating === null ? "未评分" : entry.rating + "/10"}</p></Link>)}
           </div>
-          <button type="button" className="secondary-button full" onClick={() => void saveQuickRecord(true)}>仍然新建另一篇乐评</button>
+          <button type="button" className="secondary-button full" onClick={() => void saveQuickRecord(true)}>仍然新建另一篇听感</button>
         </section>
       ) : null}
     </section>
