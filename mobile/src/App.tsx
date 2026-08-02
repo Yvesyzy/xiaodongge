@@ -23,7 +23,7 @@ import { DAILY_RESURFACING_KEY, dismissDailyResurfacing, parseDailyResurfacingSt
 import { parseList, store } from "./store";
 import { ENTRY_TYPE_LABELS, ENTRY_TYPES, type AlbumAggregate, type EntryInput, type ListeningMoment, type ListeningMomentInput, type MusicMetadata, type RatingModifier, type ReviewEntry, type SongAggregate, type YearStats } from "./types";
 
-const APP_VERSION = "2.1.7";
+const APP_VERSION = "2.1.8";
 
 const nav = [
   ["/", "首页"],
