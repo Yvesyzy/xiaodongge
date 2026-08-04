@@ -39,6 +39,19 @@ v2.1.9 备份页的 JSON、TXT、CSV 内容生成正常，但 Android 中“保�
 - APK 大小：69,498,262 bytes
 - APK SHA-256：`6DAFCC8BEE350C99716314A2353CA3EB5FFE8E9DE1A6836C1823DD454149E5E3`
 
+## 正式签名 APK
+
+- 使用原长期 keystore：`D:\xiaodongge-signing\xiaodongge-release.jks`
+- 正式 APK：`release/xiaodongge-v2.1.9-native-export-2fd6711.apk`
+- 大小：68,011,081 bytes
+- SHA-256：`d3b6d8ea16c8238f4cd9af923366435d6be82b73a0f75d71da099927e606e7f4`
+- 签名证书 SHA-256：`71bd27895f232e546509adb7f82a7f42e4a4f8a53dfd34de4d305a56aed29d20`
+- 包名：`com.yves.musicarchive`
+- versionCode：`12`
+- versionName：`2.1.9`
+
+现有正式 `release/xiaodongge-v2.1.9.apk` 与新 APK 的签名证书、包名、versionCode 和 versionName 已逐项比对，全部一致，因此新 APK可以直接覆盖安装现有正式 v2.1.9。新增 `scripts/codex_verify_android_release.ps1`，自动阻止覆盖已有发布文件，并校验签名、包名和版本号后才复制发布产物。
+
 Gradle Wrapper 直接下载 `services.gradle.org` 两次超时，随后复用本机已有的完整 Gradle 8.13 分发目录完成构建；这不是代码编译失败。
 
 ## 当前状态与下一步
@@ -51,4 +64,4 @@ ADB 设备列表为空，因此尚未完成手机上的交互验收。需要安�
 4. 复制后可在其他 Android App 粘贴完整内容。
 5. 系统窗口打开期间重复点击不会创建多个窗口。
 
-实现改动尚未提交；分支尚未推送；正式签名 release APK 尚未生成。`.claude/` 未修改、未暂存。
+实现改动已提交为 `2fd6711`；分支尚未推送。正式签名 release APK 已生成且受 `release/` 的 Git 忽略规则保护。`.claude/` 未修改、未暂存。
