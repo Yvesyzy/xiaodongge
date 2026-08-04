@@ -21,6 +21,7 @@
     "mobile:check:listening-store": "node scripts/check-mobile-listening-store.mjs",
     "mobile:check:local-date": "node scripts/check-mobile-local-date.mjs",
     "mobile:check:exports": "node scripts/check-mobile-export-formats.mjs",
+    "mobile:check:native-export": "node scripts/codex_check_native_export.mjs",
     "mobile:check:v217": "node scripts/check-mobile-v217.mjs",
     "mobile:check:v218:e2e": "node scripts/check-mobile-v218-e2e.mjs",
     "mobile:check:v219": "node scripts/check-mobile-v219.mjs",

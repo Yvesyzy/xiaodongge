@@ -1,6 +1,5 @@
 import { ChangeEvent, FormEvent, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Capacitor, registerPlugin } from "@capacitor/core";
-import { Directory, Filesystem, Encoding } from "@capacitor/filesystem";
 import { Link, NavLink, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { GENRE_TAGS, GENRE_TREE, findGenrePath, genreChildren, isKnownGenreTag, type GenreNode } from "../../shared/genres";
 import { MOOD_CATEGORIES, MOOD_TAGS } from "../../shared/moods";
@@ -15,6 +14,7 @@ import { DailyListeningNote, MonthlyListeningPage, YearlyListeningPage } from ".
 import { mergeMusicMetadata } from "./musicMetadata";
 import { sameMusicIdentity } from "./musicIdentity";
 import { NowPlaying } from "./nativeNowPlaying";
+import { NativeExport } from "./nativeExport";
 import { parseSharedMusicPayload, rememberSharedMusic, SharedMusic } from "./nativeSharedMusic";
 import { applyAppleCatalogMatch, findAppleCatalogMatch, parseCatalogSearchResult, parseNowPlayingResult } from "./nowPlaying";
 import { parseMusicInfoText, type MusicInfoFields } from "./ocr";
@@ -1817,6 +1817,8 @@ function DraftsPage() {
 
 function BackupPage() {
   const [exported, setExported] = useState<ExportedData | null>(null);
+  const [exportAction, setExportAction] = useState<"save" | "share" | "copy" | null>(null);
+  const [exportStatus, setExportStatus] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [importText, setImportText] = useState("");
   const [preview, setPreview] = useState<BackupPreview | null>(null);
   const [undoPreview, setUndoPreview] = useState<BackupPreview | null>(() => store.previewImportUndo());
@@ -1868,11 +1870,12 @@ function BackupPage() {
   async function exportData(kind: ExportKind) {
     setMessage("");
     setError("");
+    setExportStatus(null);
     try {
       const content = kind === "json" ? await store.exportBackup() : kind === "txt" ? await store.exportTxt() : await store.exportCsv();
       const meta = EXPORT_FILE_META[kind];
       setExported({ kind, content, fileName: exportFileName(kind), mimeType: meta.mimeType });
-      setMessage(`${EXPORT_LABELS[kind]} 已生成`);
+      setExportStatus({ tone: "success", text: `${EXPORT_LABELS[kind]} 已生成，可以保存、分享或复制` });
     } catch (err) {
       setError(err instanceof Error ? err.message : "导出失败");
     }
@@ -1880,62 +1883,73 @@ function BackupPage() {
 
   async function saveExportFile() {
     if (!exported) return;
-    setMessage("");
-    setError("");
-    // Native 端：直接写入 Documents 目录（Android 公共文档目录）
-    if (Capacitor.isNativePlatform()) {
-      try {
-        await Filesystem.writeFile({
-          path: exported.fileName,
-          data: exported.content,
-          directory: Directory.Documents,
-          encoding: Encoding.UTF8,
-        });
-        setMessage(`已保存到 Documents/${exported.fileName}`);
+    setExportAction("save");
+    setExportStatus({ tone: "success", text: Capacitor.isNativePlatform() ? "正在打开系统文件选择器……" : "正在保存文件……" });
+    try {
+      if (Capacitor.isNativePlatform()) {
+        const result = await NativeExport.saveFile(exported);
+        if (result.status === "cancelled") {
+          setExportStatus({ tone: "success", text: "已取消保存" });
+          return;
+        }
         if (exported.kind === "json") {
           try {
             await markJsonSaved(exported.fileName, exported.content);
           } catch (healthError) {
-            setError(`文件已保存，但备份健康状态更新失败：${healthError instanceof Error ? healthError.message : "未知错误"}`);
+            setExportStatus({ tone: "error", text: `文件已保存，但备份健康状态更新失败：${healthError instanceof Error ? healthError.message : "未知错误"}` });
+            return;
           }
         }
-        return;
-      } catch (err) {
-        setError("保存文件失败：可能缺少存储权限。请到系统设置 → 应用 → 小懂哥 → 权限 → 存储/文件，授予访问权限后重试；或使用「复制内容」手动保存。");
-        return;
-      }
-    }
-    // Web 端：用系统分享或 <a download>
-    const file = new File([exported.content], exported.fileName, { type: exported.mimeType });
-    try {
-      if (typeof navigator.share === "function") {
-        await navigator.share({ files: [file], title: exported.fileName, text: "小懂哥导出文件" });
-        setMessage("已打开系统分享");
-        return;
+        setExportStatus({ tone: "success", text: `文件已保存：${exported.fileName}` });
+      } else {
+        downloadExportFile(new File([exported.content], exported.fileName, { type: exported.mimeType }));
+        setExportStatus({ tone: "success", text: `已开始下载：${exported.fileName}` });
       }
     } catch (err) {
-      if (err instanceof DOMException && err.name === "AbortError") {
-        setMessage("已取消分享");
-        return;
-      }
+      setExportStatus({ tone: "error", text: err instanceof Error ? `保存失败：${err.message}` : "保存失败，请重试" });
+    } finally {
+      setExportAction(null);
     }
+  }
+
+  async function shareExportFile() {
+    if (!exported) return;
+    setExportAction("share");
+    setExportStatus({ tone: "success", text: "正在打开系统分享……" });
     try {
-      downloadExportFile(file);
-      setMessage("已尝试保存文件");
-    } catch {
-      setError("保存失败，请使用复制内容手动保存");
+      if (Capacitor.isNativePlatform()) {
+        await NativeExport.shareFile(exported);
+      } else {
+        const file = new File([exported.content], exported.fileName, { type: exported.mimeType });
+        if (typeof navigator.share !== "function" || navigator.canShare?.({ files: [file] }) === false) {
+          throw new Error("当前浏览器不支持分享文件");
+        }
+        await navigator.share({ files: [file], title: exported.fileName, text: "小懂哥导出文件" });
+      }
+      setExportStatus({ tone: "success", text: "已打开系统分享" });
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") {
+        setExportStatus({ tone: "success", text: "已取消分享" });
+      } else {
+        setExportStatus({ tone: "error", text: err instanceof Error ? `分享失败：${err.message}` : "分享失败，请重试" });
+      }
+    } finally {
+      setExportAction(null);
     }
   }
 
   async function copyExport() {
     if (!exported) return;
-    setMessage("");
-    setError("");
+    setExportAction("copy");
+    setExportStatus({ tone: "success", text: "正在复制内容……" });
     try {
-      await copyText(exported.content);
-      setMessage(`${EXPORT_LABELS[exported.kind]} 已复制`);
-    } catch {
-      setError("复制失败，请手动选择上方文本复制");
+      if (Capacitor.isNativePlatform()) await NativeExport.copyText({ text: exported.content });
+      else await copyText(exported.content);
+      setExportStatus({ tone: "success", text: `${EXPORT_LABELS[exported.kind]} 内容已复制` });
+    } catch (err) {
+      setExportStatus({ tone: "error", text: err instanceof Error ? `复制失败：${err.message}` : "复制失败，请重试" });
+    } finally {
+      setExportAction(null);
     }
   }
 
@@ -2089,10 +2103,16 @@ function BackupPage() {
           <strong>导出的 {EXPORT_LABELS[exported.kind]}</strong>
           <p className="hint">{exported.fileName}</p>
           <textarea readOnly rows={10} value={exported.content} />
-          <div className="export-output-actions">
-            <button className="primary-button" type="button" onClick={saveExportFile}>保存/分享文件</button>
-            <button className="secondary-button" type="button" onClick={copyExport}>复制内容</button>
+          <div className="export-output-actions native-export-actions">
+            <button className="primary-button" type="button" onClick={saveExportFile} disabled={exportAction !== null}>保存到文件夹</button>
+            <button className="secondary-button" type="button" onClick={shareExportFile} disabled={exportAction !== null}>系统分享</button>
+            <button className="secondary-button" type="button" onClick={copyExport} disabled={exportAction !== null}>复制内容</button>
           </div>
+          {exportStatus ? (
+            <p className={exportStatus.tone === "error" ? "error" : "hint"} role={exportStatus.tone === "error" ? "alert" : "status"} aria-live="polite">
+              {exportStatus.text}
+            </p>
+          ) : null}
         </section>
       ) : null}
       {undoPreview ? (

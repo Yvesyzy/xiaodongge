@@ -1,0 +1,35 @@
+项目：小懂哥 Android 原生导出按钮修复
+日期：2026-08-04
+状态：实现与自动验证完成，等待 Android 真机点击验收
+
+已完成：
+1. 创建分支 codex/android-native-export，并提交设计文档 f74df81。
+2. 新增 NativeExportPlugin：ACTION_CREATE_DOCUMENT 保存、ACTION_SEND 附件分享、ClipboardManager 原生复制。
+3. 在 MainActivity 注册 NativeExport，并新增 TypeScript 类型化桥接。
+4. 将原“保存/分享文件”拆为“保存到文件夹”“系统分享”“复制内容”。
+5. 在按钮下方增加处理中、成功、取消和精确错误反馈，执行期间禁止重复点击。
+6. JSON 备份健康状态只在 Android 系统确认写入成功后更新；Web 下载不再误记为确认保存。
+7. 新增 scripts/codex_check_native_export.mjs 集成检查和 package.json 命令。
+
+验证结果：
+- npm run typecheck：通过。
+- npm run mobile:check:native-export：通过，且实现前按预期因缺失 NativeExportPlugin 失败。
+- npm run mobile:check:exports：通过。
+- npm run mobile:check:v219：通过。
+- npm run mobile:build：通过；仅有现存的 500 kB chunk 警告。
+- npm run android:sync：通过。
+- Gradle 8.13 assembleDebug：BUILD SUCCESSFUL。
+- Gradle 8.13 lintDebug：BUILD SUCCESSFUL，App lint 无新增问题。
+- git diff --check：通过。
+
+产物：
+- android/app/build/outputs/apk/debug/app-debug.apk
+- 大小：69,498,262 bytes
+- SHA-256：6DAFCC8BEE350C99716314A2353CA3EB5FFE8E9DE1A6836C1823DD454149E5E3
+
+待真机验收：
+ADB 当前未发现连接设备。安装 debug APK 后，分别用 JSON/TXT/CSV 验证保存位置、附件分享、复制后粘贴、取消保存和重复点击保护。
+
+注意：
+- .claude/ 为用户文件，未修改、未暂存。
+- 尚未提交实现代码、推送分支或制作正式签名 release APK。
