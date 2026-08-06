@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>小懂哥 · 新启动图标预览</title>
+<style>
+  :root{
+    --green-950:#071f1b; --green-900:#0b3029; --green-800:#17483e; --green-700:#226357;
+    --paper:#fffdf8; --paper-soft:#f3f6f0; --amber:#c9973f; --line:#dfe5dc; --muted:#6f756d;
+    --shadow-soft:0 8px 24px rgba(7,31,27,.07);
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; font-family:Inter,"PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    color:var(--green-950);
+    background:
+      linear-gradient(180deg, rgba(11,48,41,.14), rgba(243,246,240,0) 320px),
+      linear-gradient(90deg, rgba(201,151,63,.06) 0 1px, transparent 1px 100%),
+      var(--paper-soft);
+  }
+  .wrap{max-width:980px;margin:0 auto;padding:36px 22px 72px}
+  h1{margin:0 0 6px;font-size:27px;letter-spacing:.5px}
+  .sub{margin:0 0 30px;color:var(--muted);font-size:14px}
+  section{margin-bottom:38px}
+  h2{margin:0 0 16px;font-size:16px;font-weight:700;padding-left:10px;border-left:4px solid var(--amber)}
+  .cards{display:flex;gap:20px;flex-wrap:wrap}
+  .card{background:#fff;border:1px solid var(--line);border-radius:16px;padding:20px;box-shadow:var(--shadow-soft)}
+  .card .cap{margin-top:12px;font-size:12px;color:var(--muted);text-align:center}
+
+  /* 大图舞台 */
+  .stage{display:flex;gap:24px;flex-wrap:wrap;align-items:center}
+  .bigbox{width:220px;height:220px;overflow:hidden;border-radius:26px;box-shadow:0 20px 44px rgba(7,31,27,.22);flex:none}
+  .bigbox img{width:100%;height:100%;object-fit:cover;display:block}
+  .stage .note{max-width:340px;color:var(--muted);font-size:13px;line-height:1.7}
+  .stage .note b{color:var(--green-900)}
+
+  /* 手机主屏模拟 */
+  .phone{width:300px;flex:none;border-radius:40px;padding:14px 12px 20px;
+    background:linear-gradient(160deg,var(--green-900),var(--green-700));
+    box-shadow:0 30px 60px rgba(7,31,27,.35); border:6px solid #0a0f0d}
+  .phone .bar{height:14px;display:flex;justify-content:space-between;align-items:center;
+    color:rgba(255,253,248,.85);font-size:9px;padding:0 8px 10px;letter-spacing:.5px}
+  .phone .screen{background:rgba(255,253,248,.04);border-radius:22px;padding:26px 14px 14px;
+    display:grid;grid-template-columns:repeat(3,1fr);gap:18px 12px;justify-items:center}
+  .app{display:flex;flex-direction:column;align-items:center;gap:6px}
+  .app .ico{width:64px;height:64px;border-radius:16px;overflow:hidden;box-shadow:0 6px 14px rgba(0,0,0,.3)}
+  .app .ico img{width:100%;height:100%;object-fit:cover;display:block}
+  .app .name{color:rgba(255,253,248,.92);font-size:10px;text-shadow:0 1px 3px rgba(0,0,0,.4)}
+
+  /* 遮罩 */
+  .maskbox{display:flex;flex-direction:column;align-items:center;gap:8px}
+  .mask{width:180px;height:180px;overflow:hidden;box-shadow:0 14px 30px rgba(7,31,27,.16)}
+  .mask img{width:100%;height:100%;object-fit:cover;display:block}
+  .mask-circle{border-radius:50%}
+  .mask-round{border-radius:22%}
+  .mask-square{border-radius:6%}
+  .mask-squircle{border-radius:40% 38% 40% 38% / 44% 40% 42% 44%}
+  .mask-tag{font-size:12px;color:var(--muted)}
+
+  /* 前景 + 背景色板 */
+  .fgbox{display:flex;flex-direction:column;align-items:center;gap:8px}
+  .fgstage{width:180px;height:180px;border-radius:50%;overflow:hidden;display:grid;place-items:center;
+    background:conic-gradient(from 180deg at 50% 50%, #17483e, #0b3029, #226357, #17483e);
+    box-shadow:0 14px 30px rgba(7,31,27,.18)}
+  .fgstage img{width:62%;height:62%;object-fit:contain;display:block;filter:drop-shadow(0 8px 16px rgba(7,31,27,.25))}
+
+  /* 小尺寸 */
+  .row{display:flex;gap:26px;flex-wrap:wrap;align-items:flex-end}
+  .sz{display:flex;flex-direction:column;align-items:center;gap:8px}
+  .sz .box{border-radius:16%;overflow:hidden;box-shadow:var(--shadow-soft)}
+  .sz .box img{width:100%;height:100%;object-fit:cover;display:block}
+  .sz .lab{font-size:11px;color:var(--muted)}
+
+  /* 配色协调 */
+  .harmony{display:flex;gap:22px;flex-wrap:wrap;align-items:stretch}
+  .hdr{width:250px;border-radius:14px;overflow:hidden;border:1px solid var(--line);box-shadow:var(--shadow-soft)}
+  .hdr .top{display:flex;align-items:center;gap:10px;padding:14px 16px;
+    background:repeating-radial-gradient(circle at right -42px top -46px, rgba(255,253,248,.12) 0 1px, transparent 1px 12px),
+      linear-gradient(135deg,var(--green-950),var(--green-800));
+    color:var(--paper)}
+  .hdr .top .ico{width:40px;height:40px;border-radius:11px;overflow:hidden;flex:none}
+  .hdr .top .ico img{width:100%;height:100%;object-fit:cover;display:block}
+  .hdr .top .t{font-size:15px;font-weight:700}
+  .hdr .top .s{font-size:11px;opacity:.75}
+  .hdr .body{padding:12px 16px;background:#fff;font-size:12px;color:var(--muted);line-height:1.7}
+  .palette{display:flex;flex-direction:column;gap:8px;justify-content:center}
+  .sw{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--muted)}
+  .sw i{width:26px;height:26px;border-radius:7px;flex:none;border:1px solid rgba(7,31,27,.12)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>小懂哥 · 新启动图标预览</h1>
+  <p class="sub">深绿渐变 + 米白黑胶唱片 + 琥珀标签 + 音符，与 App 主题一致</p>
+
+  <section>
+    <h2>大图预览</h2>
+    <div class="stage">
+      <div class="bigbox"><img src="icon-master.svg" alt="新图标"></div>
+      <div class="note">
+        <b>设计说明：</b><br>
+        · 底色取自 App 顶部导航的深绿渐变（#0b3029 → #17483e）<br>
+        · 米白黑胶唱片带密纹沟槽与光泽，呼应 App 的「听歌年鉴 / 黑胶」视觉语言<br>
+        · 中心琥珀标签（#c9973f）+ 米白音符，作为音乐档案的识别点<br>
+        · 唱片直径控制在自适应图标安全区内，任意遮罩都不会被裁切
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>手机主屏模拟</h2>
+    <div class="phone">
+      <div class="bar"><span>9:41</span><span>●●● ▲</span></div>
+      <div class="screen">
+        <div class="app"><div class="ico"><img src="icon-master.svg" alt=""></div><div class="name">小懂哥</div></div>
+        <div class="app"><div class="ico"><img src="icon-master.svg" alt=""></div><div class="name">音乐档案</div></div>
+        <div class="app"><div class="ico"><img src="icon-master.svg" alt=""></div><div class="name">听歌年鉴</div></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>自适应图标 · 不同系统遮罩</h2>
+    <div class="cards">
+      <div class="maskbox">
+        <div class="mask mask-circle"><img src="icon-master.svg" alt="圆形"></div>
+        <div class="mask-tag">圆形遮罩</div>
+      </div>
+      <div class="maskbox">
+        <div class="mask mask-round"><img src="icon-master.svg" alt="圆角方形"></div>
+        <div class="mask-tag">圆角方形（最常见）</div>
+      </div>
+      <div class="maskbox">
+        <div class="mask mask-squircle"><img src="icon-master.svg" alt="拟物形"></div>
+        <div class="mask-tag">拟物形（Pixel 系）</div>
+      </div>
+      <div class="maskbox">
+        <div class="mask mask-square"><img src="icon-master.svg" alt="方形"></div>
+        <div class="mask-tag">方形（近圆角）</div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>前景图层 &amp; 尺寸可读性</h2>
+    <div class="row">
+      <div class="fgbox">
+        <div class="fgstage"><img src="icon-foreground.svg" alt="前景"></div>
+        <div class="mask-tag">前景层（透明底，单独看）</div>
+      </div>
+      <div class="sz"><div class="box" style="width:96px;height:96px"><img src="icon-master.svg" alt=""></div><div class="lab">96px</div></div>
+      <div class="sz"><div class="box" style="width:64px;height:64px"><img src="icon-master.svg" alt=""></div><div class="lab">64px</div></div>
+      <div class="sz"><div class="box" style="width:48px;height:48px"><img src="icon-master.svg" alt=""></div><div class="lab">48px</div></div>
+      <div class="sz"><div class="box" style="width:36px;height:36px"><img src="icon-master.svg" alt=""></div><div class="lab">36px</div></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>与 App 配色协调</h2>
+    <div class="harmony">
+      <div class="hdr">
+        <div class="top">
+          <div class="ico"><img src="icon-master.svg" alt=""></div>
+          <div>
+            <div class="t">私人音乐档案</div>
+            <div class="s">小懂哥 · 2.1.9</div>
+          </div>
+        </div>
+        <div class="body">模拟 App 顶部导航：图标与深绿渐变 header 同源，米白文字与唱片同色，琥珀标签与强调色一致。</div>
+      </div>
+      <div class="palette">
+        <div class="sw"><i style="background:#0b3029"></i>--green-900 #0b3029</div>
+        <div class="sw"><i style="background:#17483e"></i>--green-800 #17483e</div>
+        <div class="sw"><i style="background:#fffdf8"></i>--paper #fffdf8</div>
+        <div class="sw"><i style="background:#c9973f"></i>--amber #c9973f</div>
+      </div>
+    </div>
+  </section>
+</div>
+</body>
+</html>
