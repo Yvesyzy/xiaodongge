@@ -173,28 +173,10 @@ GET /api/visualizations/abstract-map
 abstract-map: year, month, artist, artistName, albumName, album_id, mood
 ```
 
-检查可视化规则：
-
-```cmd
-npm.cmd run mobile:check:visualizations
-```
-
-完整移动端检查建议：
+移动端构建前检查：
 
 ```cmd
 npm.cmd run typecheck
-npm.cmd run mobile:check:duplicates
-npm.cmd run mobile:check:ocr
-npm.cmd run mobile:check:now-playing
-npm.cmd run mobile:check:drafts
-npm.cmd run mobile:check:visualizations
-npm.cmd run mobile:check:listening-analysis
-npm.cmd run mobile:check:listening-context
-npm.cmd run mobile:check:listening-yearbook
-npm.cmd run mobile:check:listening-store
-npm.cmd run mobile:check:exports
-npm.cmd run mobile:check:v217
-npm.cmd run check:v1-reliability
 npm.cmd run mobile:build
 ```
 
