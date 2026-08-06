@@ -74,11 +74,11 @@ try {
   if ($LASTEXITCODE -ne 0) { throw "APK metadata inspection failed with exit code $LASTEXITCODE" }
   $packageLine = $badging | Where-Object { $_ -like "package:*" } | Select-Object -First 1
   if ($packageLine -notmatch "name='com\.yves\.musicarchive'") { throw "Unexpected APK package metadata: $packageLine" }
-  if ($packageLine -notmatch "versionCode='12'") { throw "Unexpected APK versionCode metadata: $packageLine" }
-  if ($packageLine -notmatch "versionName='2\.1\.9'") { throw "Unexpected APK versionName metadata: $packageLine" }
+  if ($packageLine -notmatch "versionCode='13'") { throw "Unexpected APK versionCode metadata: $packageLine" }
+  if ($packageLine -notmatch "versionName='2\.2'") { throw "Unexpected APK versionName metadata: $packageLine" }
   $releaseDirectory = Join-Path $root "release"
   New-Item -ItemType Directory -Path $releaseDirectory -Force | Out-Null
-  $publishedApk = Join-Path $releaseDirectory "xiaodongge-v2.1.9.apk"
+  $publishedApk = Join-Path $releaseDirectory "xiaodongge-v2.2.apk"
   Copy-Item -LiteralPath $apk -Destination $publishedApk -Force
   $hash = (Get-FileHash -LiteralPath $publishedApk -Algorithm SHA256).Hash.ToLowerInvariant()
   Write-Host "Signed release APK verified: $publishedApk"

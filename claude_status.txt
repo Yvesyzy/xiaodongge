@@ -1,0 +1,12 @@
+项目：小懂哥 v2.2 发布
+日期：2026-08-07
+状态：已合并到 main 并推送 GitHub，tag v2.2 已打，GitHub Release v2.2 已发布，分支已删除
+
+本版本内容：
+1. Android 原生导出/分享/复制修复（来自 codex/android-native-export 分支：f74df81 设计、2fd6711 实现、9b9bf97 验证）——保存走系统文件创建器、分享真实附件、复制走原生剪贴板。
+2. 新启动图标——深绿渐变 + 米白黑胶唱片 + 琥珀标签 + 音符，贴合 App 主题。设计源在 docs/app-icon/（SVG 母稿 + generate-pngs.mjs 可复现 + preview.html 预览）。
+3. 版本 2.1.9 → 2.2，versionCode 12 → 13。
+
+正式签名 APK：release/xiaodongge-v2.2.apk（签名证书与 v2.1.9 一致，可覆盖安装）。APK 不进入 Git（release/ 受 .gitignore 保护），仅作 GitHub Release 附件。
+
+后续注意：services.gradle.org 在本机不可达，构建前已把本机完整 Gradle 8.13 分发复制到官方 URL 的 wrapper 缓存目录（C:\Users\lenovo\.gradle\wrapper\dists\gradle-8.13-bin\5xuhj0ry160q40clulazy9h7d\）并加 .ok 标记，之后无需联网下载。
