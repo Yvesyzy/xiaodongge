@@ -1,12 +1,38 @@
-项目：小懂哥 v2.2 发布
+项目：小懂哥 v2.2 发布 + 2026-08-07 清理
 日期：2026-08-07
-状态：已合并到 main 并推送 GitHub，tag v2.2 已打，GitHub Release v2.2 已发布，分支已删除
+状态：v2.2 已发布并同步 README；旧版本/冗余/临时文件已清理（本地提交 9e82d23，未推送）
 
-本版本内容：
+## v2.2 发布（已完成）
+
 1. Android 原生导出/分享/复制修复（来自 codex/android-native-export 分支：f74df81 设计、2fd6711 实现、9b9bf97 验证）——保存走系统文件创建器、分享真实附件、复制走原生剪贴板。
-2. 新启动图标——深绿渐变 + 米白黑胶唱片 + 琥珀标签 + 音符，贴合 App 主题。设计源在 docs/app-icon/（SVG 母稿 + generate-pngs.mjs 可复现 + preview.html 预览）。
+2. 新启动图标——深绿渐变 + 米白黑胶唱片 + 琥珀标签 + 音符。设计源在 docs/app-icon/。
 3. 版本 2.1.9 → 2.2，versionCode 12 → 13。
+4. README 已更新至 v2.2（提交 04c0ee5）。
 
-正式签名 APK：release/xiaodongge-v2.2.apk（签名证书与 v2.1.9 一致，可覆盖安装）。APK 不进入 Git（release/ 受 .gitignore 保护），仅作 GitHub Release 附件。
+正式签名 APK：release/xiaodongge-v2.2.apk（SHA-256 d9a88c8f…975a，签名证书与 v2.1.9 一致，可覆盖安装）。APK 不进入 Git。
 
-后续注意：services.gradle.org 在本机不可达，构建前已把本机完整 Gradle 8.13 分发复制到官方 URL 的 wrapper 缓存目录（C:\Users\lenovo\.gradle\wrapper\dists\gradle-8.13-bin\5xuhj0ry160q40clulazy9h7d\）并加 .ok 标记，之后无需联网下载。
+## 2026-08-07 清理（已执行，本地提交 9e82d23，未推送 origin）
+
+按用户指示删除（保留 v2.2 及 codex 总结所需文件）：
+
+- release/ 旧 APK 全部删除（10 个），只留 xiaodongge-v2.2.apk。
+- scripts/ 删除 18 个 per-version 检查脚本（check-mobile-*.mjs、check-v1-reliability.mjs、codex_check_native_export.mjs）；保留构建/发布必需：build-android-debug.ps1、build-android-release.ps1、codex_verify_android_release.ps1、gradle-mirrors.init.gradle。
+- docs/releases/ 只留 v2.2.md（删 v2.1.0/v2.1.8/v2.1.9）。
+- 删除 screenshots/（5 张）、mobile-vite*.log（3 个）、.next/、android/app/build、android/.gradle、android/build、.firecrawl/、.superpowers/、.github/、tsconfig.tsbuildinfo、空目录 .agents/.codex。
+- package.json 移除 17 个 mobile:check:* 失效命令；README 同步删除检查命令清单。
+- C 盘 Temp：11 份 cc_summary_*.md、claude-1e0c-cwd、Temp/claude 下旧会话任务输出已删。Temp/claude/D--codex-workspaces---- 是当前会话活动目录，保留。
+
+保留项（勿删）：
+- claude_status.txt / codex_status.txt / docs/session_summary_2026-08-04_codex.md（交接文件）
+- docs/superpowers/specs/（9 份设计文档）、docs/releases/v2.2.md、docs/app-icon/
+- 正式签名环境变量 XIAODONGGE_KEYSTORE_* 四项
+- C 盘 Gradle wrapper 缓存（services.gradle.org 不可达，构建依赖本机缓存的 gradle-8.13：C:\Users\lenovo\.gradle\wrapper\dists\gradle-8.13-bin\5xuhj0ry160q40clulazy9h7d\，已加 .ok 标记）
+- C 盘 Android SDK、总-项目总结归档
+
+GitHub 侧保持原样（未推送、未删旧 Release）：本地 main 领先 origin/main 1 个提交（9e82d23），如需同步执行 git push。
+
+## 后续注意
+
+- 代码检查用 npm run typecheck + npm run mobile:build 即可（专项检查脚本已删）。
+- 构建 APK：powershell -ExecutionPolicy Bypass -File scripts/build-android-debug.ps1（debug）或 npm.cmd run android:build:release（正式，需四项环境变量）。
+- Codex 交接待办（未完成）：Android 真机交互验收——保存位置、取消保存、分享附件 MIME、复制粘贴、重复点击保护（见 docs/session_summary_2026-08-04_codex.md）。
