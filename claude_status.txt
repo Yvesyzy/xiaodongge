@@ -1,38 +1,30 @@
-项目：小懂哥 v2.2 发布 + 2026-08-07 清理
-日期：2026-08-07
-状态：v2.2 已发布并同步 README；旧版本/冗余/临时文件已清理（本地提交 9e82d23，未推送）
+项目：小懂哥 v2.3 发布
+日期：2026-08-15
+状态：v2.3 已推送并发布 GitHub Release（tag v2.3），README 已同步
 
-## v2.2 发布（已完成）
+## v2.3 发布（已完成）
 
-1. Android 原生导出/分享/复制修复（来自 codex/android-native-export 分支：f74df81 设计、2fd6711 实现、9b9bf97 验证）——保存走系统文件创建器、分享真实附件、复制走原生剪贴板。
-2. 新启动图标——深绿渐变 + 米白黑胶唱片 + 琥珀标签 + 音符。设计源在 docs/app-icon/。
-3. 版本 2.1.9 → 2.2，versionCode 12 → 13。
-4. README 已更新至 v2.2（提交 04c0ee5）。
+1. 备份导出/导入闭环修复——导出过滤设备本地 backup-health 键，导入白名单兼容旧备份；撤销快照原生端改存 SQLite 单行表 UndoBackup（绕开 WebView localStorage 5MB 配额）。
+2. Web 读取容错对齐原生端——单条损坏跳过并告警，不阻塞整列表；备份导入仍走严格校验。
+3. 死代码清理 + shareCard 去重（DEFAULT_PRIVACY/downloadBlob 单一来源）。
+4. 测试护栏——shared 语义分析、日期/天气、备份解析链三套 node:test 单元测试（23 用例，零新依赖），`npm test` 可运行。
+5. 版本 2.2 → 2.3，versionCode 13 → 14。
 
-正式签名 APK：release/xiaodongge-v2.2.apk（SHA-256 d9a88c8f…975a，签名证书与 v2.1.9 一致，可覆盖安装）。APK 不进入 Git。
+正式签名 APK：release/xiaodongge-v2.3.apk（SHA-256 c489a58a…8123，签名证书与 v2.2 一致，可覆盖安装）。APK 不进入 Git。
 
-## 2026-08-07 清理（已执行，本地提交 9e82d23，未推送 origin）
+## 本轮提交（本地 main 领先 origin/main 7 个）
 
-按用户指示删除（保留 v2.2 及 codex 总结所需文件）：
-
-- release/ 旧 APK 全部删除（10 个），只留 xiaodongge-v2.2.apk。
-- scripts/ 删除 18 个 per-version 检查脚本（check-mobile-*.mjs、check-v1-reliability.mjs、codex_check_native_export.mjs）；保留构建/发布必需：build-android-debug.ps1、build-android-release.ps1、codex_verify_android_release.ps1、gradle-mirrors.init.gradle。
-- docs/releases/ 只留 v2.2.md（删 v2.1.0/v2.1.8/v2.1.9）。
-- 删除 screenshots/（5 张）、mobile-vite*.log（3 个）、.next/、android/app/build、android/.gradle、android/build、.firecrawl/、.superpowers/、.github/、tsconfig.tsbuildinfo、空目录 .agents/.codex。
-- package.json 移除 17 个 mobile:check:* 失效命令；README 同步删除检查命令清单。
-- C 盘 Temp：11 份 cc_summary_*.md、claude-1e0c-cwd、Temp/claude 下旧会话任务输出已删。Temp/claude/D--codex-workspaces---- 是当前会话活动目录，保留。
-
-保留项（勿删）：
-- claude_status.txt / codex_status.txt / docs/session_summary_2026-08-04_codex.md（交接文件）
-- docs/superpowers/specs/（9 份设计文档）、docs/releases/v2.2.md、docs/app-icon/
-- 正式签名环境变量 XIAODONGGE_KEYSTORE_* 四项
-- C 盘 Gradle wrapper 缓存（services.gradle.org 不可达，构建依赖本机缓存的 gradle-8.13：C:\Users\lenovo\.gradle\wrapper\dists\gradle-8.13-bin\5xuhj0ry160q40clulazy9h7d\，已加 .ok 标记）
-- C 盘 Android SDK、总-项目总结归档
-
-GitHub 侧保持原样（未推送、未删旧 Release）：本地 main 领先 origin/main 1 个提交（9e82d23），如需同步执行 git push。
+- 37c0a16 docs: record 2026-08-07 cleanup in claude_status.txt
+- ac953d4 test: add node:test suites for shared analysis and date rules
+- f74532c fix: restore backup import/export loop and align storage tolerance
+- f05a52b chore: remove dead exports and dedupe download helpers
+- f5e4c11 docs: review metadata fallback chain with gap list
+- （release: v2.3 (versionCode 14)）
+- （docs: update README to v2.3）
 
 ## 后续注意
 
-- 代码检查用 npm run typecheck + npm run mobile:build 即可（专项检查脚本已删）。
-- 构建 APK：powershell -ExecutionPolicy Bypass -File scripts/build-android-debug.ps1（debug）或 npm.cmd run android:build:release（正式，需四项环境变量）。
+- 代码检查用 npm run typecheck + npm run mobile:build + npm test 即可。
+- 构建 APK：npm.cmd run android:build:release（正式，需四项环境变量）。
+- 评审文档 docs/superpowers/specs/2026-08-15-metadata-fallback-chain-review.md 记录 4 个未做缺口：G1 截图 OCR 目录补全（高）、G2 暂停状态媒体读取（中）、G4 OCR 空识别感知（低）；G3/G5 已推迟。
 - Codex 交接待办（未完成）：Android 真机交互验收——保存位置、取消保存、分享附件 MIME、复制粘贴、重复点击保护（见 docs/session_summary_2026-08-04_codex.md）。
