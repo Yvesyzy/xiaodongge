@@ -1,6 +1,6 @@
-# 小懂哥 v2.2
+# 小懂哥 v2.3
 
-一个在安卓手机本地运行、以专辑为中心的私人音乐感受记录 APK。它只保存你手动输入或确认过的信息，不自动编造歌曲、专辑、歌手或感受。v2.2 修复备份页导出无反应的问题，改用 Android 系统原生保存、分享与剪贴板，并换上贴合应用主题的新启动图标。
+一个在安卓手机本地运行、以专辑为中心的私人音乐感受记录 APK。它只保存你手动输入或确认过的信息，不自动编造歌曲、专辑、歌手或感受。v2.3 修复备份导出与导入的闭环问题，撤销快照改存 SQLite 避免浏览器存储上限，并为本地分析规则建立单元测试护栏。
 
 ## 功能
 
@@ -40,16 +40,16 @@
 最新安装包下载：
 
 ```text
-https://github.com/Yvesyzy/xiaodongge/releases/download/v2.2/xiaodongge-v2.2.apk
+https://github.com/Yvesyzy/xiaodongge/releases/download/v2.3/xiaodongge-v2.3.apk
 ```
 
 发布页：
 
 ```text
-https://github.com/Yvesyzy/xiaodongge/releases/tag/v2.2
+https://github.com/Yvesyzy/xiaodongge/releases/tag/v2.3
 ```
 
-公开下载文件 `xiaodongge-v2.2.apk` 已使用长期发布密钥正式签名。证书 SHA-256 指纹为 `71:BD:27:89:5F:23:2E:54:65:09:AD:B7:F8:2A:7F:42:E4:A4:F8:A5:3D:FD:34:DE:4D:30:5A:56:AE:D2:9D:20`；后续 Android 版本必须继续使用同一份密钥，才能覆盖安装升级。
+公开下载文件 `xiaodongge-v2.3.apk` 已使用长期发布密钥正式签名。证书 SHA-256 指纹为 `71:BD:27:89:5F:23:2E:54:65:09:AD:B7:F8:2A:7F:42:E4:A4:F8:A5:3D:FD:34:DE:4D:30:5A:56:AE:D2:9D:20`；后续 Android 版本必须继续使用同一份密钥，才能覆盖安装升级。
 
 如果手机已安装旧的 debug 签名版本，正式 APK 不能直接覆盖安装。请先在应用的备份页导出 JSON，再卸载旧版、安装正式 APK并导入备份；从本次正式版开始，后续版本可以正常覆盖升级。
 
@@ -106,7 +106,7 @@ XIAODONGGE_KEY_PASSWORD
 npm.cmd run android:build:release
 ```
 
-脚本会重新构建 Web 资源并同步 Android，随后执行 `assembleRelease`。只有 APK 签名、包名 `com.yves.musicarchive`、版本 `2.2 (13)` 全部验证通过，才会输出 `release/xiaodongge-v2.2.apk` 和 SHA-256；缺少任一签名变量时会在构建前失败。
+脚本会重新构建 Web 资源并同步 Android，随后执行 `assembleRelease`。只有 APK 签名、包名 `com.yves.musicarchive`、版本 `2.3 (14)` 全部验证通过，才会输出 `release/xiaodongge-v2.3.apk` 和 SHA-256；缺少任一签名变量时会在构建前失败。
 
 ## 本地数据
 
