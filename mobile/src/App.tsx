@@ -1821,7 +1821,16 @@ function BackupPage() {
   const [exportStatus, setExportStatus] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [importText, setImportText] = useState("");
   const [preview, setPreview] = useState<BackupPreview | null>(null);
-  const [undoPreview, setUndoPreview] = useState<BackupPreview | null>(() => store.previewImportUndo());
+  const [undoPreview, setUndoPreview] = useState<BackupPreview | null>(null);
+  useEffect(() => {
+    let active = true;
+    void store.previewImportUndo().then((preview) => {
+      if (active) setUndoPreview(preview);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -2037,7 +2046,7 @@ function BackupPage() {
     setBusy(true);
     try {
       await store.importBackup(importText);
-      setUndoPreview(store.previewImportUndo());
+      setUndoPreview(await store.previewImportUndo());
       setMessage("导入完成");
       setExported(null);
     } catch (err) {
@@ -2055,7 +2064,7 @@ function BackupPage() {
     setBusy(true);
     try {
       await store.restoreImportUndo();
-      setUndoPreview(store.previewImportUndo());
+      setUndoPreview(await store.previewImportUndo());
       setExported(null);
       setMessage("已撤销上次导入");
     } catch (err) {

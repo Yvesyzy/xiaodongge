@@ -1,4 +1,4 @@
-export const BACKUP_HEALTH_KEY = "backup-health:v1";
+export { BACKUP_HEALTH_KEY } from "../../shared/backupAppData";
 
 export type BackupPreview = {
   exportedAt: string;

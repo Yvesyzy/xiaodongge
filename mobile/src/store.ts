@@ -7,7 +7,8 @@ import { excerpt, localDateOf } from "./format";
 import { formatEntriesCsv, formatEntriesTxt } from "./exportFormats";
 import { buildDayListeningSnapshot, buildMonthlyListeningSnapshot, buildYearlyListeningSnapshot, monthlySnapshotToMarkdown, parseMonthlyListeningSnapshot, parseYearlyListeningSnapshot, yearlySnapshotToMarkdown, type ListeningDaySnapshot, type MonthlyListeningSnapshot, type YearlyListeningSnapshot } from "./listeningYearbook";
 import { readMusicMetadata } from "./musicMetadata";
-import { DAILY_RESURFACING_KEY, parseDailyResurfacingState } from "./resurfacing";
+import { BACKUP_HEALTH_KEY, readBackupAppData, readPreferredQuote, readSemanticOverride, SEMANTIC_OVERRIDES_KEY, WEATHER_LOCATION_KEY } from "../../shared/backupAppData";
+import type { BackupPreview } from "./backupHealth";
 import { readSafeJson } from "./storageSafety";
 import { ENTRY_TYPES, type AlbumAggregate, type CoverKind, type CoverTarget, type EntryInput, type EntryType, type FrequencyItem, type ListeningMoment, type ListeningMomentInput, type MonthlySummary, type RatingModifier, type ReviewEntry, type SongAggregate, type YearStats, type YearlySummary } from "./types";
 
@@ -19,8 +20,6 @@ const COVERS_KEY = "music-feelings-mobile-covers";
 const LISTENING_MOMENTS_KEY = "music-feelings-mobile-listening-moments";
 const APP_DATA_KEY = "music-feelings-mobile-app-data";
 const IMPORT_UNDO_KEY = "music-feelings-mobile-import-undo";
-const WEATHER_LOCATION_KEY = "listening-weather-location";
-const SEMANTIC_OVERRIDES_KEY = "listening-semantic-overrides";
 
 const schemaSql = `
 CREATE TABLE IF NOT EXISTS ReviewEntry (
@@ -106,6 +105,10 @@ CREATE TABLE IF NOT EXISTS CoverImage (
 );
 CREATE TABLE IF NOT EXISTS AppData (
   key TEXT NOT NULL PRIMARY KEY,
+  value TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS UndoBackup (
+  id INTEGER NOT NULL PRIMARY KEY CHECK (id = 1),
   value TEXT NOT NULL
 );
 `;
@@ -621,7 +624,8 @@ class Store {
       monthlySummaries: await this.listMonthlySummaries(),
       covers: await this.listCovers(),
       listeningMoments: await this.listListeningMoments(),
-      appData: await this.listAppData(),
+      // 备份健康是设备本地状态(最近验证/保存时间)，不属于用户数据，不应进入备份
+      appData: Object.fromEntries(Object.entries(await this.listAppData()).filter(([key]) => key !== BACKUP_HEALTH_KEY)),
     }, null, 2);
   }
 
@@ -636,29 +640,59 @@ class Store {
   async importBackup(raw: string) {
     const backup = parseBackup(raw);
     const undoBackup = await this.exportBackup();
-    try {
-      localStorage.setItem(IMPORT_UNDO_KEY, undoBackup);
-    } catch {
-      throw new Error("无法保存导入前快照，已取消导入");
-    }
+    await this.saveImportUndo(undoBackup);
     await this.writeBackup(backup);
   }
 
   async restoreImportUndo() {
-    const raw = localStorage.getItem(IMPORT_UNDO_KEY);
+    const raw = await this.readImportUndo();
     if (!raw) throw new Error("没有可撤销的导入");
     await this.writeBackup(parseBackup(raw));
-    localStorage.removeItem(IMPORT_UNDO_KEY);
+    await this.clearImportUndo();
   }
 
-  previewImportUndo() {
-    const raw = localStorage.getItem(IMPORT_UNDO_KEY);
+  async previewImportUndo(): Promise<BackupPreview | null> {
+    const raw = await this.readImportUndo();
     if (!raw) return null;
     try {
       return summarizeBackup(parseBackup(raw));
     } catch {
-      localStorage.removeItem(IMPORT_UNDO_KEY);
+      await this.clearImportUndo();
       return null;
+    }
+  }
+
+  // ponytail: 原生端快照存 SQLite(单行表,无 localStorage 5MB 配额),Web 端沿用 localStorage
+  private async saveImportUndo(raw: string) {
+    if (Capacitor.isNativePlatform()) {
+      await this.init();
+      await this.dbReady().run("DELETE FROM UndoBackup");
+      await this.dbReady().run("INSERT INTO UndoBackup (id, value) VALUES (1, ?)", [raw]);
+      return;
+    }
+    try {
+      localStorage.setItem(IMPORT_UNDO_KEY, raw);
+    } catch {
+      throw new Error("无法保存导入前快照，已取消导入");
+    }
+  }
+
+  private async readImportUndo(): Promise<string | null> {
+    if (Capacitor.isNativePlatform()) {
+      await this.init();
+      const result = await this.dbReady().query("SELECT value FROM UndoBackup WHERE id = 1");
+      const row = (result.values ?? [])[0];
+      return row && typeof row.value === "string" ? row.value : null;
+    }
+    return localStorage.getItem(IMPORT_UNDO_KEY);
+  }
+
+  private async clearImportUndo() {
+    if (Capacitor.isNativePlatform()) {
+      await this.init();
+      await this.dbReady().run("DELETE FROM UndoBackup");
+    } else {
+      localStorage.removeItem(IMPORT_UNDO_KEY);
     }
   }
 
@@ -1078,26 +1112,6 @@ function readMonthlySummary(value: unknown): MonthlySummary {
   return summary;
 }
 
-function readBackupAppData(value: unknown) {
-  if (!isRecord(value)) throw new Error("appData 必须是对象");
-  const result: Record<string, string> = {};
-  for (const [key, raw] of Object.entries(value)) {
-    if (typeof raw !== "string") throw new Error("appData 值必须是字符串");
-    if (key === WEATHER_LOCATION_KEY) parseWeatherLocation(JSON.parse(raw));
-    else if (key.startsWith("listening-weather:")) parseWeatherRecord(JSON.parse(raw));
-    else if (key.startsWith("listening-quote:")) readPreferredQuote(JSON.parse(raw));
-    else if (key === DAILY_RESURFACING_KEY) {
-      if (!parseDailyResurfacingState(raw)) throw new Error("今日重逢状态格式无效");
-    } else if (key === SEMANTIC_OVERRIDES_KEY) {
-      const parsed = JSON.parse(raw);
-      if (!Array.isArray(parsed)) throw new Error("本地语义校正格式无效");
-      parsed.forEach(readSemanticOverride);
-    } else throw new Error(`appData 包含不支持的键：${key}`);
-    result[key] = raw;
-  }
-  return result;
-}
-
 function readCover(value: unknown): CoverRow {
   if (!isRecord(value)) throw new Error("covers 必须是封面对象数组");
   const kind = readString(value.kind, "covers.kind") as CoverKind;
@@ -1182,9 +1196,21 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
+// ponytail: 与原生 rowToEntry 对齐——单条损坏不阻塞整列表;备份导入仍走严格 parseBackup
+function tolerantMap<T>(values: unknown[], read: (value: unknown) => T): T[] {
+  return values.flatMap((value) => {
+    try {
+      return [read(value)];
+    } catch (error) {
+      console.warn("跳过损坏的本地数据条目", error);
+      return [];
+    }
+  });
+}
+
 function readEntries() {
   const values = readJson<unknown[]>(ENTRIES_KEY, []);
-  return Array.isArray(values) ? values.map((entry) => readEntry(entry)) : [];
+  return Array.isArray(values) ? tolerantMap(values, (entry) => readEntry(entry)) : [];
 }
 
 function writeEntries(entries: ReviewEntry[]) {
@@ -1193,23 +1219,7 @@ function writeEntries(entries: ReviewEntry[]) {
 
 function readSummaries() {
   const values = readJson<unknown[]>(SUMMARIES_KEY, []);
-  return Array.isArray(values) ? values.map((summary) => readSummary(summary)) : [];
-}
-
-function readPreferredQuote(value: unknown) {
-  if (!isRecord(value) || typeof value.entryId !== "string" || !value.entryId || typeof value.sentence !== "string" || !value.sentence.trim()) throw new Error("代表原句格式无效");
-  return { entryId: value.entryId, sentence: value.sentence };
-}
-
-function readSemanticOverride(value: unknown): SemanticOverride {
-  if (!isRecord(value) || !isListeningLayer(value.layer) || typeof value.term !== "string" || !value.term.trim() || (value.action !== "exclude" && value.action !== "move")) throw new Error("本地语义校正格式无效");
-  const targetLayer = value.targetLayer === null ? null : isListeningLayer(value.targetLayer) ? value.targetLayer : null;
-  if (value.action === "move" && !targetLayer) throw new Error("语义分类校正缺少目标类别");
-  return { layer: value.layer, term: value.term.trim(), action: value.action, targetLayer: value.action === "exclude" ? null : targetLayer };
-}
-
-function isListeningLayer(value: unknown): value is ListeningLayer {
-  return value === "feeling" || value === "subject" || value === "expression" || value === "genre";
+  return Array.isArray(values) ? tolerantMap(values, (summary) => readSummary(summary)) : [];
 }
 
 function writeSummaries(summaries: YearlySummary[]) {
@@ -1218,7 +1228,7 @@ function writeSummaries(summaries: YearlySummary[]) {
 
 function readMonthlySummaries() {
   const values = readJson<unknown[]>(MONTHLY_SUMMARIES_KEY, []);
-  return Array.isArray(values) ? values.map(readMonthlySummary) : [];
+  return Array.isArray(values) ? tolerantMap(values, readMonthlySummary) : [];
 }
 
 function writeMonthlySummaries(summaries: MonthlySummary[]) {
@@ -1235,7 +1245,7 @@ function writeCovers(covers: CoverRow[]) {
 
 function readListeningMoments(): ListeningMoment[] {
   const values = readJson<unknown[]>(LISTENING_MOMENTS_KEY, []);
-  return Array.isArray(values) ? values.map(readListeningMoment) : [];
+  return Array.isArray(values) ? tolerantMap(values, readListeningMoment) : [];
 }
 
 function writeListeningMoments(moments: ListeningMoment[]) {

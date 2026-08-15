@@ -1,13 +1,10 @@
 import { localDateOf } from "./format";
 import type { ListeningMoment, ReviewEntry } from "./types";
+import { DAILY_RESURFACING_KEY, parseDailyResurfacingState } from "../../shared/backupAppData";
+import type { DailyResurfacingState } from "../../shared/backupAppData";
 
-export const DAILY_RESURFACING_KEY = "daily-resurfacing";
-
-export type DailyResurfacingState = {
-  date: string;
-  entryId: string | null;
-  dismissed: boolean;
-};
+export { DAILY_RESURFACING_KEY, parseDailyResurfacingState };
+export type { DailyResurfacingState };
 
 export function resolveDailyResurfacing(
   entries: ReviewEntry[],
@@ -64,21 +61,6 @@ export function selectDailyResurfacing(entries: ReviewEntry[], moments: Listenin
     || a.entry.id.localeCompare(b.entry.id)
   ));
   return scored[0]?.entry ?? null;
-}
-
-export function parseDailyResurfacingState(raw: string | null) {
-  if (!raw) return null;
-  try {
-    const value = JSON.parse(raw);
-    if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-    const record = value as Record<string, unknown>;
-    if (typeof record.date !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(record.date)) return null;
-    if (record.entryId !== null && (typeof record.entryId !== "string" || !record.entryId.trim())) return null;
-    if (typeof record.dismissed !== "boolean") return null;
-    return { date: record.date, entryId: record.entryId, dismissed: record.dismissed } as DailyResurfacingState;
-  } catch {
-    return null;
-  }
 }
 
 export function daysBetween(from: string, to: string) {
