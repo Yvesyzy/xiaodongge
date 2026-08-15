@@ -208,7 +208,9 @@ function dates(start: string, end: string) {
 }
 
 function assertDate(value: string) {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) !== value) throw new Error("日期必须是有效的 YYYY-MM-DD");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new Error("日期必须是有效的 YYYY-MM-DD");
+  const date = new Date(`${value}T00:00:00Z`);
+  if (Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value) throw new Error("日期必须是有效的 YYYY-MM-DD");
 }
 
 function roundCoordinate(value: number) {
