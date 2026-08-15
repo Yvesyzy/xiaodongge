@@ -132,6 +132,19 @@ export function blobToBase64(blob: Blob) {
   });
 }
 
+export const DEFAULT_PRIVACY: MemoryCardPrivacy = { hideContent: false, hideRating: false, hideDate: false, hideBrand: false };
+
+export function downloadBlob(blob: Blob, fileName: string) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
 function displayDate(value: string | null) {
   return localDateOf(value)?.replaceAll("-", ".") ?? "";
 }

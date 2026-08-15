@@ -6,11 +6,10 @@ import { MOOD_TAGS } from "../../shared/moods";
 import { formatDateOnly } from "./format";
 import { compareRelisten } from "./relistenComparison";
 import RatingSlider from "./RatingSlider";
-import { blobToBase64, buildRelistenMemoryCard, renderMemoryCard, type MemoryCardPrivacy } from "./shareCard";
+import { blobToBase64, buildRelistenMemoryCard, DEFAULT_PRIVACY, downloadBlob, renderMemoryCard, type MemoryCardPrivacy } from "./shareCard";
 import { store } from "./store";
 import type { ListeningMoment, RatingModifier, ReviewEntry } from "./types";
 
-const DEFAULT_PRIVACY: MemoryCardPrivacy = { hideContent: false, hideRating: false, hideDate: false, hideBrand: false };
 
 export default function RelistenPage() {
   const { entryId } = useParams();
@@ -272,13 +271,3 @@ function localToday() {
   return String(date.getFullYear()) + "-" + pad(date.getMonth() + 1) + "-" + pad(date.getDate());
 }
 
-function downloadBlob(blob: Blob, fileName: string) {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = fileName;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-}

@@ -1,4 +1,4 @@
-import { LISTENING_ANALYSIS_VERSION, analyzeListeningEntries, applySemanticOverrides, mergeListeningAnalyses, type ListeningAnalysis, type ListeningEntry, type SemanticOverride } from "../../shared/listeningAnalysis";
+import { LISTENING_ANALYSIS_VERSION, analyzeListeningEntries, applySemanticOverrides, mergeListeningAnalyses, type ListeningAnalysis, type SemanticOverride } from "../../shared/listeningAnalysis";
 import { classifyDay, parseWeatherRecord, type DayContext, type DayKind, type WeatherRecord } from "../../shared/listeningContext";
 import { localDateOf } from "./format";
 import type { ReviewEntry } from "./types";
@@ -166,7 +166,7 @@ export function monthlySnapshotToMarkdown(snapshot: MonthlyListeningSnapshot, re
     ...metricLines(snapshot.analysis.subjects),
     "",
     "## 对象与描述词",
-    ...(snapshot.analysis.pairs.slice(0, 5).map((pair) => `- ${pair.subject} × ${pair.descriptor}：${pair.count} 次，涉及 ${pair.entryCount} 篇乐评`) || []),
+    ...snapshot.analysis.pairs.slice(0, 5).map((pair) => `- ${pair.subject} × ${pair.descriptor}：${pair.count} 次，涉及 ${pair.entryCount} 篇乐评`),
     "",
     "## 表达方式",
     ...metricLines(snapshot.analysis.expressions),
@@ -424,11 +424,3 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
-// ponytail: snapshots share the current version; add field-level migrations when a second format ships.
-export function isSnapshotCurrent(snapshot: { version: number; analysis: ListeningAnalysis }) {
-  return snapshot.version === LISTENING_YEARBOOK_VERSION && snapshot.analysis.version === 1;
-}
-
-export function toListeningEntry(entry: ReviewEntry): ListeningEntry {
-  return entry;
-}

@@ -1,10 +1,9 @@
 import { useState } from "react";
 import { Capacitor } from "@capacitor/core";
 import { Directory, Filesystem } from "@capacitor/filesystem";
-import { blobToBase64, buildQuickMemoryCard, renderMemoryCard, type MemoryCardPrivacy } from "./shareCard";
+import { blobToBase64, buildQuickMemoryCard, DEFAULT_PRIVACY, downloadBlob, renderMemoryCard, type MemoryCardPrivacy } from "./shareCard";
 import type { ReviewEntry } from "./types";
 
-const DEFAULT_PRIVACY: MemoryCardPrivacy = { hideContent: false, hideRating: false, hideDate: false, hideBrand: false };
 
 export default function QuickMemoryCardPanel({ entry, coverUrl, emphasized = false }: { entry: ReviewEntry; coverUrl: string | null; emphasized?: boolean }) {
   const [privacy, setPrivacy] = useState(DEFAULT_PRIVACY);
@@ -60,13 +59,3 @@ function dateStamp() {
   return String(date.getFullYear()) + String(date.getMonth() + 1).padStart(2, "0") + String(date.getDate()).padStart(2, "0");
 }
 
-function downloadBlob(blob: Blob, fileName: string) {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = fileName;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
-}

@@ -261,10 +261,3 @@ function uniqueNumbers(values: Array<number | null>) {
   return Array.from(new Set(values.filter((value): value is number => Number.isInteger(value))));
 }
 
-function roundOne(value: number) {
-  return Math.round(value * 10) / 10;
-}
-
-function clamp(value: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, value));
-}

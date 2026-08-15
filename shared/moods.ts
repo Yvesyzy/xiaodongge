@@ -45,13 +45,3 @@ export const MOOD_CATEGORIES: readonly MoodCategory[] = [
 ] as const;
 
 export const MOOD_TAGS = Array.from(new Set(MOOD_CATEGORIES.flatMap((category) => category.moods)));
-
-const MOOD_TAG_SET = new Set(MOOD_TAGS);
-
-export function isKnownMoodTag(value: string) {
-  return MOOD_TAG_SET.has(value);
-}
-
-export function defaultMoodCategoryId(moods: string[]) {
-  return MOOD_CATEGORIES.find((category) => category.moods.some((mood) => moods.includes(mood)))?.id ?? MOOD_CATEGORIES[0].id;
-}
