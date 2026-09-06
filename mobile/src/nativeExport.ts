@@ -17,6 +17,9 @@ export type SaveFileResult = {
 };
 
 type NativeExportPlugin = {
+  stageFile(options: ExportFileOptions): Promise<{ token: string }>;
+  shareFiles(options: { tokens: string[] }): Promise<{ status: "opened" }>;
+  saveFiles(options: { tokens: string[] }): Promise<{ status: "saved" | "cancelled" | "partial"; saved: string[]; error?: string }>;
   saveFile(options: ExportFileOptions): Promise<SaveFileResult>;
   shareFile(options: ExportFileOptions): Promise<{ status: "opened" }>;
   copyText(options: CopyTextOptions): Promise<void>;

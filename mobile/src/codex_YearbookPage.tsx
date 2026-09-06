@@ -1,3 +1,5 @@
+import { EMPTY_EDITION, JournalEditor, journalQuote } from "./codex_JournalEditor";
+import { JOURNAL_EDITION_PREFIX, readJournalEdition, type JournalEdition } from "../../shared/backupAppData";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { excerpt } from "./format";
@@ -38,7 +40,19 @@ function JournalContent({ year, all }: { year: number; all: ReviewEntry[] }) {
   const [exportKind, setExportKind] = useState<JournalExportKind | null>(null);
   const view = params.get("view") ?? "cover";
   const selected = entries.find((entry) => entry.id === params.get("entry"));
-  const cover = entries.find((entry) => entry.id === params.get("cover")) ?? entries[0];
+  const [edition, setEdition] = useState<JournalEdition>(EMPTY_EDITION);
+  const [editionReady, setEditionReady] = useState(false);
+  const [editionError, setEditionError] = useState("");
+  useEffect(() => {
+    let active = true;
+    void store.getStoredAppData(JOURNAL_EDITION_PREFIX + year).then((raw) => {
+      if (!active) return;
+      const saved = raw ? readJournalEdition(JSON.parse(raw)) : EMPTY_EDITION;
+      setEdition({ ...saved, coverId: entries.some((e) => e.id === saved.coverId) ? saved.coverId : null, entryIds: saved.entryIds.filter((id) => entries.some((e) => e.id === id)), quotes: Object.fromEntries(Object.entries(saved.quotes).filter(([id, quote]) => entries.some((e) => e.id === id && e.content.includes(quote)))) }); setEditionReady(true);
+    }).catch((e: unknown) => { if (active) setEditionError(e instanceof Error ? e.message : "年度精选读取失败"); });
+    return () => { active = false; };
+  }, [year, entries]);
+  const cover = entries.find((entry) => entry.id === edition.coverId) ?? entries.find((entry) => entry.id === params.get("cover")) ?? entries[0];
   const exportEntries = useMemo(() => view === "work" && selected ? [selected] : exportKind === "cover" && cover ? [cover, ...entries.filter((e) => e.id !== cover.id)] : entries, [entries, selected, view, cover, exportKind]);
   const reflections = all.filter((e) => (e.type === "month" || e.type === "year") && inRecordingPeriod(e, year));
   const href = (nextView: string, entry?: string) => {
@@ -60,9 +74,13 @@ function JournalContent({ year, all }: { year: number; all: ReviewEntry[] }) {
   return <>
     {view === "cover" && <>
       <h1>我的音乐年记</h1><p className="journal-muted">{year} 年 · 记录截至 {cutoff}</p><p className="journal-stat"><strong>{entries.length}</strong> 篇记录 <span>按记录时间整理</span></p>
-      <div className="journal-cover"><JournalCover entry={cover} /><p>{journalTitle(cover)}{cover.artistName ? ` · ${cover.artistName}` : ""}</p><label className="journal-muted">封面作品<select aria-label="封面作品" value={cover.id} onChange={(e) => { const next = new URLSearchParams(params); next.set("cover", e.target.value); setParams(next, { replace: true }); }}>{entries.map((entry) => <option key={entry.id} value={entry.id}>{journalTitle(entry)}</option>)}</select></label></div>
-      <h2>这一年的记录</h2><div className="journal-contents"><Link to={href("overview")}>作品与感受 <span>{entries.length} 篇 →</span></Link><Link to={href("overview")}>记录日历 <span>查看 →</span></Link><Link to={href("quotes")}>年度摘录 <span>查看 →</span></Link></div>
-      <div className="journal-quote"><small>原文摘录 · {journalTitle(cover)}</small><p>{excerpt(cover.content, 100)}</p></div>
+      <div className="journal-cover"><JournalCover entry={cover} year={year} /><p>{journalTitle(cover)}{cover.artistName ? ` · ${cover.artistName}` : ""}</p></div>
+      {edition.message && <div className="journal-quote"><small>给这一年的话</small><p>{edition.message}</p></div>}
+      {editionError && <p className="journal-error" role="alert">{editionError}；重新打开本页可重试。</p>}
+      {editionReady && <JournalEditor entries={entries} edition={edition} onSave={async (value) => { await store.setStoredAppData(JOURNAL_EDITION_PREFIX + year, JSON.stringify(value)); setEdition(value); }} />}
+      {edition.entryIds.length > 0 && <section><h2>我的年度代表作品</h2>{edition.entryIds.map((id) => { const entry = entries.find((e) => e.id === id)!; return <Link className="journal-quote" key={id} to={href("work", id)}><small>{journalTitle(entry)} · {journalRating(entry)}</small><p>{journalQuote(entry, edition) ?? excerpt(entry.content, 100)}</p></Link>; })}</section>}
+      <h2>这一年的记录</h2><div className="journal-contents"><Link to={href("overview")}>作品与记录日历 <span>{entries.length} 篇 →</span></Link><Link to={href("quotes")}>年度摘录 <span>查看 →</span></Link></div>
+      <div className="journal-quote"><small>原文摘录 · {journalTitle(cover)}</small><p>{journalQuote(cover, edition) ?? excerpt(cover.content, 100)}</p></div>
       <div className="journal-actions"><Link className="journal-primary" to={href("work", entries[0].id)}>开始阅读</Link><button onClick={() => setExportKind("cover")}>保存封面</button></div>
     </>}
     {view === "overview" && <>
@@ -84,11 +102,11 @@ function JournalContent({ year, all }: { year: number; all: ReviewEntry[] }) {
       <div className="journal-actions"><button onClick={() => setExportKind("works")} className="journal-primary">保存作品全文</button>{entries.indexOf(selected) < entries.length - 1 ? <Link className="journal-button" to={href("work", entries[entries.indexOf(selected) + 1].id)}>下一篇 →</Link> : <Link className="journal-button" to={href("overview")}>返回总览</Link>}</div>
       {entries.indexOf(selected) > 0 && <Link className="journal-text-link" to={href("work", entries[entries.indexOf(selected) - 1].id)}>← 上一篇</Link>}
     </> : <><h1>记录不存在</h1><p>这篇记录已删除或不属于当前年份。</p><Link to={href("overview")}>返回年度总览</Link></>)}
-    {view === "quotes" && <JournalQuotes entries={entries} href={href} />}
+    {view === "quotes" && <JournalQuotes entries={entries} href={href} edition={edition} />}
     {!["cover", "overview", "work", "quotes"].includes(view) && <Link to={href("cover")}>返回年度封面</Link>}
     <ReflectionLinks entries={reflections} />
     <div className="journal-secondary-nav"><Link to={`/summary/analysis?year=${year}`}>月报与听感分析 →</Link><span>草稿不计入；月度、年度自述单独保留。</span></div>
-    {exportKind && <JournalExport year={year} entries={exportEntries} kind={exportKind} onClose={() => setExportKind(null)} />}
+    {exportKind && <JournalExport year={year} entries={exportEntries} kind={exportKind} edition={edition} onClose={() => setExportKind(null)} />}
   </>;
 }
 
@@ -135,21 +153,21 @@ function JournalList({ entries, href }: { entries: ReviewEntry[]; href: (view: s
   </section>;
 }
 
-function JournalQuotes({ entries, href }: { entries: ReviewEntry[]; href: (view: string, entry?: string) => string }) {
+function JournalQuotes({ entries, href, edition }: { entries: ReviewEntry[]; href: (view: string, entry?: string) => string; edition: JournalEdition }) {
   const [limit, setLimit] = useState(20);
-  return <><h1>年度摘录</h1><p className="journal-muted">每篇取正文开头；点击作品查看完整原文。</p>{entries.slice(0, limit).map((entry) => <Link className="journal-quote" to={href("work", entry.id)} key={entry.id}><small>{journalTitle(entry)} · {journalDate(entry)}</small><p>{excerpt(entry.content, 180)}</p></Link>)}{limit < entries.length && <button onClick={() => setLimit(limit + 20)}>显示更多摘录</button>}</>;
+  return <><h1>年度摘录</h1><p className="journal-muted">优先使用你选的原句，其余取正文开头；点击作品查看完整原文。</p>{entries.slice(0, limit).map((entry) => <Link className="journal-quote" to={href("work", entry.id)} key={entry.id}><small>{journalTitle(entry)} · {journalDate(entry)}</small><p>{journalQuote(entry, edition) ?? excerpt(entry.content, 180)}</p></Link>)}{limit < entries.length && <button onClick={() => setLimit(limit + 20)}>显示更多摘录</button>}</>;
 }
 
 function ReflectionLinks({ entries }: { entries: ReviewEntry[] }) {
   return entries.length ? <details className="journal-reflections"><summary>月度与年度自述 · {entries.length} 篇</summary>{entries.map((entry) => <Link key={entry.id} to={`/entries/${encodeURIComponent(entry.id)}`}>{entry.title} →</Link>)}</details> : null;
 }
 
-function JournalCover({ entry }: { entry: ReviewEntry }) {
+function JournalCover({ entry, year }: { entry: ReviewEntry; year?: number }) {
   const [source, setSource] = useState<string | null>(null);
   useEffect(() => {
     let active = true; setSource(null);
     void journalCover(entry).then((value) => { if (active) setSource(value); }).catch(() => { if (active) setSource(null); });
     return () => { active = false; };
   }, [entry]);
-  return source ? <img className="journal-art" src={source} alt={`${journalTitle(entry)}封面`} loading="lazy" onError={() => setSource(null)} /> : <div className="journal-art journal-placeholder" aria-label={`${journalTitle(entry)}暂无封面`}>{Array.from(journalTitle(entry))[0] || "音"}</div>;
+  return source ? <img className="journal-art" src={source} alt={`${journalTitle(entry)}封面`} loading="lazy" onError={() => setSource(null)} /> : year ? <div className="journal-type-cover"><small>我的音乐年记</small><strong>{year}</strong><span>{journalTitle(entry)}</span></div> : <div className="journal-art journal-placeholder" aria-label={`${journalTitle(entry)}暂无封面`}>{Array.from(journalTitle(entry))[0] || "音"}</div>;
 }

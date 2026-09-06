@@ -94,6 +94,7 @@ try {
   assert.equal(await page.locator('.create-choice-card').count(), 3);
   await page.getByRole('link', { name: '完整 完整乐评：专辑、曲风、情绪、多维度评分', exact: true }).click();
   await page.locator('input[name="title"]').fill('正文为空的草稿');
+  await page.locator('.writing-extras > summary').click();
   await page.locator('input[name="firstListenedAt"]').fill('2020-01-02');
   await page.evaluate(() => {
     window.codexOriginalSetItem = Storage.prototype.setItem;

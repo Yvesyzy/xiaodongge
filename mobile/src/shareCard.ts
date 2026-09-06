@@ -26,7 +26,7 @@ export function buildQuickMemoryCard(entry: ReviewEntry, privacy: MemoryCardPriv
     eyebrow: "刚刚记下",
     title: entry.songName ?? entry.title,
     subtitle: [entry.artistName, entry.albumName].filter(Boolean).join(" · "),
-    dateLine: privacy.hideDate ? null : displayDate(entry.listenedAt),
+    dateLine: privacy.hideDate ? null : displayDate(entry.createdAt),
     ratingLine: privacy.hideRating || entry.rating === null ? null : String(entry.rating) + (entry.ratingModifier ?? "") + " / 10",
     moodLine: entry.moods.length ? entry.moods.join(" · ") : null,
     firstQuote: privacy.hideContent ? null : entry.content,

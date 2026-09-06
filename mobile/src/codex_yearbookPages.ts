@@ -1,7 +1,9 @@
 import type { ReviewEntry } from "./types";
+import type { JournalEdition } from "../../shared/backupAppData";
 import { journalCover, journalDate, journalEntries, journalFuture, journalMonths, journalRating, journalTitle } from "./codex_yearbookModel";
 
 export type JournalExportKind = "cover" | "overview" | "index" | "works";
+export type JournalImageOptions = { hideContent?: boolean; hideRating?: boolean; hideDate?: boolean; edition?: JournalEdition };
 export type JournalImagePage = { kind: JournalExportKind; title: string; lines: string[]; entryIds: string[]; entry?: ReviewEntry; continuation?: boolean };
 export const JOURNAL_WIDTH = 1080;
 export const JOURNAL_HEIGHT = 1680;
@@ -41,7 +43,7 @@ export function wrapJournalText(ctx: CanvasRenderingContext2D, text: string, wid
   return lines;
 }
 
-export async function planJournalPages(year: number, input: ReviewEntry[], kind: JournalExportKind): Promise<JournalImagePage[]> {
+export async function planJournalPages(year: number, input: ReviewEntry[], kind: JournalExportKind, options: JournalImageOptions = {}): Promise<JournalImagePage[]> {
   await document.fonts.ready;
   const entries = journalEntries(input, year);
   if (!entries.length) throw new Error("这一年没有可导出的正式音乐记录");
@@ -52,7 +54,7 @@ export async function planJournalPages(year: number, input: ReviewEntry[], kind:
   if (kind === "index") {
     let page: JournalImagePage = { kind, title: "全部记录索引", lines: [], entryIds: [] };
     entries.forEach((entry, index) => {
-      const lines = wrapJournalText(ctx, `${index + 1}. ${journalTitle(entry)}\n${journalDate(entry)} · ${entry.type === "song" ? "歌曲" : "专辑"} · ${entry.artistName || "未填写音乐人"}\n`);
+      const lines = wrapJournalText(ctx, `${index + 1}. ${journalTitle(entry)}\n${options.hideDate ? "" : journalDate(entry) + " · "}${entry.type === "song" ? "歌曲" : "专辑"} · ${entry.artistName || "未填写音乐人"}\n`);
       if (page.lines.length && lines.length <= 28 && page.lines.length + lines.length > 28) {
         pages.push(page); page = { kind, title: "全部记录索引", lines: [], entryIds: [] };
       }
@@ -65,8 +67,8 @@ export async function planJournalPages(year: number, input: ReviewEntry[], kind:
     if (page.lines.length) pages.push(page);
   } else {
     entries.forEach((entry) => {
-      const metadata = `${journalTitle(entry)}${entry.title !== journalTitle(entry) ? `\n乐评标题：${entry.title}` : ""}\n${entry.artistName || "未填写音乐人"} · ${entry.type === "song" ? "歌曲" : "专辑"}\n记录于 ${journalDate(entry)} · ${journalRating(entry)}${entry.tags.length ? `\n标签：${entry.tags.join("、")}` : ""}\n\n`;
-      const lines = wrapJournalText(ctx, metadata + entry.content);
+      const metadata = `${journalTitle(entry)}${!options.hideContent && entry.title !== journalTitle(entry) ? `\n乐评标题：${entry.title}` : ""}\n${entry.artistName || "未填写音乐人"} · ${entry.type === "song" ? "歌曲" : "专辑"}\n${[!options.hideDate && `记录于 ${journalDate(entry)}`, !options.hideRating && journalRating(entry)].filter(Boolean).join(" · ")}${!options.hideContent && entry.tags.length ? `\n标签：${entry.tags.join("、")}` : ""}\n\n`;
+      const lines = wrapJournalText(ctx, metadata + (options.hideContent ? "正文已隐藏" : entry.content));
       let offset = 0;
       while (offset < lines.length) {
         const continuation = offset > 0;
@@ -80,7 +82,7 @@ export async function planJournalPages(year: number, input: ReviewEntry[], kind:
   return pages;
 }
 
-export async function renderJournalPage(year: number, entries: ReviewEntry[], page: JournalImagePage, index: number, total: number, now = new Date()) {
+export async function renderJournalPage(year: number, entries: ReviewEntry[], page: JournalImagePage, index: number, total: number, now = new Date(), options: JournalImageOptions = {}) {
   const ctx = canvasContext();
   const color = "#245448";
   ctx.fillStyle = "#fafaf7";
@@ -90,17 +92,30 @@ export async function renderJournalPage(year: number, entries: ReviewEntry[], pa
   };
   text(`小懂哥 · ${year}`, 72, 90, 28, color, 600);
   text(page.title, 72, 180, 54, "#202724", 700);
-  text(page.kind === "works" && page.entry ? `记录 ${entries.findIndex((entry) => entry.id === page.entry!.id) + 1} / ${entries.length} · ${journalDate(page.entry)}` : `按首次正式保存时间 · ${entries.length} 篇正式音乐记录`, 72, 235, 26, "#68726d");
+  text(page.kind === "works" && page.entry ? `记录 ${entries.findIndex((entry) => entry.id === page.entry!.id) + 1} / ${entries.length}${options.hideDate ? "" : ` · ${journalDate(page.entry)}`}` : `按首次正式保存时间 · ${entries.length} 篇正式音乐记录`, 72, 235, 26, "#68726d");
   if (page.kind === "cover") {
-    if (page.entry) await drawJournalCover(ctx, page.entry, 270, 300, 540);
+    if (page.entry) {
+      const loaded = await drawJournalCover(ctx, page.entry, 270, 300, 540, false);
+      if (!loaded) {
+        text(String(year), 72, 490, 120, color, 600);
+        text("我的音乐年记", 72, 580, 44, color, 600);
+        ctx.font = `36px ${FONT}`;
+        wrapJournalText(ctx, journalTitle(page.entry)).slice(0, 3).forEach((line, i) => text(line, 72, 675 + i * LINE_HEIGHT, 36));
+      }
+    }
     text(String(year), 72, 955, 72, color, 600);
     text(`${entries.length} 篇记录 · ${journalMonths(entries).filter(Boolean).length} 个记录月份`, 72, 1040, 36);
-    text("作品与感受 / 记录日历 / 年度摘录", 72, 1120, 30, "#68726d");
+    const selected = entries.filter((e) => options.edition?.entryIds.includes(e.id));
+    text(selected.length ? `年度代表作品 · ${selected.length} 篇` : "作品与记录日历 / 年度摘录", 72, 1120, 30, "#68726d");
     ctx.font = `32px ${FONT}`;
-    const title = page.entry ? journalTitle(page.entry) : "";
-    const shown = wrapJournalText(ctx, title).slice(0, 2);
-    shown.forEach((line, i) => text(line, 72, 1230 + i * LINE_HEIGHT));
-    text("封面作品 · 正文见作品页", 72, 1380, 26, "#68726d");
+    const chosenQuote = page.entry && options.edition?.quotes[page.entry.id];
+    const title = options.hideContent ? (page.entry ? journalTitle(page.entry) : "") : options.edition?.message || (chosenQuote && page.entry?.content.includes(chosenQuote) ? chosenQuote : page.entry?.content || "");
+    const shown = wrapJournalText(ctx, title);
+    if (shown.length > 5) shown[4] = shown[4].slice(0, -1) + "…";
+    shown.slice(0, 5).forEach((line, i) => text(line, 72, 1190 + i * LINE_HEIGHT));
+    ctx.font = `26px ${FONT}`;
+    const credits = selected.length ? selected.map(journalTitle).join(" / ") : page.entry ? `封面作品 · ${journalTitle(page.entry)}` : "";
+    wrapJournalText(ctx, credits).slice(0, 2).forEach((line, i) => text(line, 72, 1460 + i * 36, 26, "#68726d"));
   } else if (page.kind === "overview") {
     const counts = journalMonths(entries);
     text(`${entries.length} 篇记录`, 72, 355, 56, color, 600);
@@ -131,19 +146,21 @@ export async function renderJournalPage(year: number, entries: ReviewEntry[], pa
   }
   ctx.strokeStyle = "#d6ddd7"; ctx.beginPath(); ctx.moveTo(72, 1590); ctx.lineTo(1008, 1590); ctx.stroke();
   const date = `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, "0")}.${String(now.getDate()).padStart(2, "0")}`;
-  text(`整理于 ${date}`, 72, 1638, 24, "#68726d");
+  if (!options.hideDate) text(`整理于 ${date}`, 72, 1638, 24, "#68726d");
   ctx.textAlign = "right"; text(`第 ${index + 1} / ${total} 页`, 1008, 1638, 24, "#68726d");
   try {
     return await new Promise<Blob>((resolve, reject) => ctx.canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("图片生成失败")), "image/png"));
   } finally { ctx.canvas.width = 0; }
 }
 
-async function drawJournalCover(ctx: CanvasRenderingContext2D, entry: ReviewEntry, x: number, y: number, size: number) {
-  ctx.fillStyle = "#e6ece7"; ctx.fillRect(x, y, size, size);
+async function drawJournalCover(ctx: CanvasRenderingContext2D, entry: ReviewEntry, x: number, y: number, size: number, placeholder = true) {
+  if (placeholder) {
+    ctx.fillStyle = "#e6ece7"; ctx.fillRect(x, y, size, size);
   ctx.fillStyle = "#245448"; ctx.font = `600 ${Math.round(size / 4)}px ${FONT}`;
   ctx.textAlign = "center"; ctx.fillText(Array.from(journalTitle(entry))[0] || "音", x + size / 2, y + size * .6); ctx.textAlign = "left";
+  }
   const source = await journalCover(entry);
-  if (!source?.startsWith("data:image/")) return;
+  if (!source?.startsWith("data:image/")) return false;
   const image = new Image();
   const loaded = await new Promise<boolean>((resolve) => {
     const timer = window.setTimeout(() => { image.src = ""; resolve(false); }, 4000);
@@ -151,7 +168,8 @@ async function drawJournalCover(ctx: CanvasRenderingContext2D, entry: ReviewEntr
     image.onerror = () => { clearTimeout(timer); resolve(false); };
     image.src = source;
   });
-  if (!loaded) return;
+  if (!loaded) return false;
   const crop = Math.min(image.naturalWidth, image.naturalHeight);
   ctx.drawImage(image, (image.naturalWidth - crop) / 2, (image.naturalHeight - crop) / 2, crop, crop, x, y, size, size);
+  return true;
 }

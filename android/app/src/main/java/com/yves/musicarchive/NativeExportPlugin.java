@@ -5,6 +5,12 @@ import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Intent;
 import android.net.Uri;
+import android.provider.DocumentsContract;
+import com.getcapacitor.JSArray;
+import java.io.FileInputStream;
+import java.util.ArrayList;
+import java.util.UUID;
+import org.json.JSONException;
 import androidx.activity.result.ActivityResult;
 import androidx.core.content.FileProvider;
 import com.getcapacitor.JSObject;
@@ -28,6 +34,109 @@ public class NativeExportPlugin extends Plugin {
     private static final int MAX_BINARY_BYTES = 8 * 1024 * 1024;
     private static final int MAX_BASE64_CHARACTERS = ((MAX_BINARY_BYTES + 2) / 3) * 4;
     private static final byte[] PNG_SIGNATURE = new byte[] {(byte) 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a};
+
+    @PluginMethod
+    public void stageFile(PluginCall call) {
+        try {
+            if (!PNG_MIME_TYPE.equals(call.getString("mimeType")) || !BASE64_ENCODING.equals(call.getString("encoding"))) throw new IOException("批量导出仅支持 PNG 图片");
+            byte[] bytes = exportBytes(call, PNG_MIME_TYPE);
+            String name = call.getString("fileName");
+            if (name == null || !name.matches("[A-Za-z0-9_-]{1,120}\\.png")) throw new IOException("图片文件名无效");
+            File directory = new File(getContext().getCacheDir(), EXPORT_DIRECTORY);
+            if (!directory.isDirectory() && !directory.mkdirs()) throw new IOException("无法创建图片缓存");
+            // Only our staged images expire; keep shared files for 24 hours so receivers can finish reading.
+            File[] oldFiles = directory.listFiles();
+            if (oldFiles != null) for (File old : oldFiles) {
+                if (old.getName().matches("[a-f0-9-]{36}_[A-Za-z0-9_-]{1,120}\\.png") && old.lastModified() < System.currentTimeMillis() - 86400000L) old.delete();
+            }
+            String token = UUID.randomUUID() + "_" + name;
+            try (FileOutputStream output = new FileOutputStream(new File(directory, token))) { output.write(bytes); }
+            JSObject response = new JSObject(); response.put("token", token); call.resolve(response);
+        } catch (IOException | SecurityException error) { call.reject("准备图片失败：" + safeMessage(error), error); }
+    }
+
+    private ArrayList<File> stagedFiles(PluginCall call, int limit) throws IOException {
+        JSArray tokens = call.getArray("tokens");
+        if (tokens == null || tokens.length() == 0 || tokens.length() > limit) throw new IOException("请选择有效数量的图片");
+        File directory = new File(getContext().getCacheDir(), EXPORT_DIRECTORY).getCanonicalFile();
+        ArrayList<File> files = new ArrayList<>();
+        try {
+            for (int i = 0; i < tokens.length(); i++) {
+                String token = tokens.getString(i);
+                if (!token.matches("[a-f0-9-]{36}_[A-Za-z0-9_-]{1,120}\\.png")) throw new IOException("图片编号无效");
+                File file = new File(directory, token).getCanonicalFile();
+                if (!directory.equals(file.getParentFile()) || !file.isFile() || file.length() > MAX_BINARY_BYTES || files.contains(file)) throw new IOException("图片缓存失效，请重新准备");
+                byte[] signature = new byte[PNG_SIGNATURE.length];
+                try (FileInputStream input = new FileInputStream(file)) {
+                    if (input.read(signature) != signature.length || !hasPngSignature(signature)) throw new IOException("图片格式无效");
+                }
+                files.add(file);
+            }
+        } catch (JSONException error) { throw new IOException("图片编号格式无效", error); }
+        return files;
+    }
+
+    @PluginMethod
+    public void shareFiles(PluginCall call) {
+        try {
+            // ponytail: nine pages per share bounds receiver workload; larger selections use successive batches.
+            ArrayList<File> files = stagedFiles(call, 9);
+            ArrayList<Uri> uris = new ArrayList<>();
+            for (File file : files) uris.add(FileProvider.getUriForFile(getContext(), getContext().getPackageName() + ".fileprovider", file));
+            Intent intent = new Intent(Intent.ACTION_SEND_MULTIPLE);
+            intent.setType(PNG_MIME_TYPE); intent.putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris);
+            ClipData clip = ClipData.newRawUri("年度总结", uris.get(0));
+            for (int i = 1; i < uris.size(); i++) clip.addItem(new ClipData.Item(uris.get(i)));
+            intent.setClipData(clip); intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            getActivity().startActivity(Intent.createChooser(intent, "分享年度总结图片"));
+            JSObject response = new JSObject(); response.put("status", "opened"); call.resolve(response);
+        } catch (IOException | RuntimeException error) { call.reject("打开系统分享失败：" + safeMessage(error), error); }
+    }
+
+    @PluginMethod
+    public void saveFiles(PluginCall call) {
+        try {
+            // ponytail: cap a single folder operation at 5000 pages; split larger exports before lifting this bound.
+            stagedFiles(call, 5000);
+            Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
+            startActivityForResult(call, intent, "saveFilesResult");
+        } catch (IOException | RuntimeException error) { call.reject("准备批量保存失败：" + safeMessage(error), error); }
+    }
+
+    @ActivityCallback
+    private void saveFilesResult(PluginCall call, ActivityResult result) {
+        if (call == null) return;
+        JSObject response = new JSObject(); JSArray saved = new JSArray(); response.put("saved", saved);
+        if (result.getResultCode() == Activity.RESULT_CANCELED) { response.put("status", "cancelled"); call.resolve(response); return; }
+        // Stream one cached PNG at a time on the bridge worker, never hold the entire year in memory.
+        bridge.execute(() -> {
+            Uri destination = null;
+            try {
+                Uri tree = result.getData() == null ? null : result.getData().getData();
+                if (result.getResultCode() != Activity.RESULT_OK || tree == null) throw new IOException("未获得保存文件夹");
+                Uri parent = DocumentsContract.buildDocumentUriUsingTree(tree, DocumentsContract.getTreeDocumentId(tree));
+                byte[] buffer = new byte[32768];
+                for (File file : stagedFiles(call, 5000)) {
+                    destination = DocumentsContract.createDocument(getContext().getContentResolver(), parent, PNG_MIME_TYPE, file.getName().substring(37));
+                    if (destination == null) throw new IOException("无法创建图片");
+                    try (FileInputStream input = new FileInputStream(file); OutputStream output = getContext().getContentResolver().openOutputStream(destination, "w")) {
+                        if (output == null) throw new IOException("无法写入图片");
+                        int read; while ((read = input.read(buffer)) != -1) output.write(buffer, 0, read);
+                        output.flush();
+                    }
+                    saved.put(file.getName()); destination = null;
+                    file.delete(); // Saved copy is closed; this temporary staging file is no longer needed.
+                }
+                response.put("status", "saved");
+            } catch (IOException | RuntimeException error) {
+                // Only remove the new incomplete document created by this operation.
+                if (destination != null) try { DocumentsContract.deleteDocument(getContext().getContentResolver(), destination); } catch (Exception ignored) { }
+                response.put("status", "partial"); response.put("error", safeMessage(error));
+            }
+            call.resolve(response);
+        });
+    }
 
     @PluginMethod
     public void saveFile(PluginCall call) {

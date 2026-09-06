@@ -5,10 +5,23 @@ import {
   DAILY_RESURFACING_KEY,
   parseDailyResurfacingState,
   readBackupAppData,
+  readJournalEdition,
   readSemanticOverride,
   SEMANTIC_OVERRIDES_KEY,
   WEATHER_LOCATION_KEY,
 } from "./backupAppData.ts";
+
+test("年度精选随备份保留；拒绝超过三篇、重复编号及过长寄语", () => {
+  const edition = { coverId: "a1", entryIds: ["a1", "a2"], quotes: { a1: "保留原话" }, message: "今年的记录" };
+  const raw = JSON.stringify(edition);
+  assert.equal(readBackupAppData({ "journal-edition:2026": raw })["journal-edition:2026"], raw);
+  assert.deepEqual(readJournalEdition(edition), edition);
+  assert.throws(() => readJournalEdition({ ...edition, entryIds: ["a", "b", "c", "d"] }), /年度精选格式无效/);
+  assert.throws(() => readJournalEdition({ ...edition, entryIds: ["a", "a"] }), /年度精选格式无效/);
+  assert.throws(() => readJournalEdition({ ...edition, message: "字".repeat(121) }), /年度精选格式无效/);
+  assert.throws(() => readJournalEdition({ ...edition, quotes: { a1: 1 } }), /年度精选格式无效/);
+  assert.throws(() => readBackupAppData({ "journal-edition:0": raw }), /不支持的键/);
+});
 
 test("白名单接受备份健康键(回归锁:A1)", () => {
   const result = readBackupAppData({ [BACKUP_HEALTH_KEY]: "{\"version\":1}" });

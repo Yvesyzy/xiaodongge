@@ -11,6 +11,7 @@ import { findSimilarEntry } from "./entryDuplicate";
 import { excerpt, formatDate, formatDateOnly, monthLabel } from "./format";
 import { buildInsights, type Insight } from "./insights";
 import { DailyListeningNote, MonthlyListeningPage, YearlyListeningPage } from "./ListeningYearbookView";
+import { journalRating } from "./codex_yearbookModel";
 import SimpleYearbookPage from "./codex_YearbookPage";
 import { mergeMusicMetadata } from "./musicMetadata";
 import { sameMusicIdentity } from "./musicIdentity";
@@ -28,7 +29,7 @@ import { parseList, store } from "./store";
 import { clearStorageCorruption, readStorageCorruption, type StorageCorruption } from "./storageSafety";
 import { ENTRY_TYPE_LABELS, ENTRY_TYPES, type AlbumAggregate, type EntryInput, type ListeningMoment, type ListeningMomentInput, type MusicMetadata, type RatingModifier, type ReviewEntry, type SongAggregate, type YearStats } from "./types";
 
-const APP_VERSION = "2.5";
+const APP_VERSION = "2.6";
 
 const nav = [
   ["/", "首页"],
@@ -169,7 +170,10 @@ export default function App() {
 }
 
 function HomePage() {
-  const [draftCount, setDraftCount] = useState(() => listEntryDrafts(localStorage).length);
+  const [homeDrafts, setHomeDrafts] = useState(() => listEntryDrafts(localStorage));
+  const draftCount = homeDrafts.length;
+  const latestDraft = homeDrafts[0];
+  const latestDraftResult = latestDraft ? readEntryDraft(localStorage, latestDraft.mode, latestDraft.entryId, latestDraft.draftId) : null;
   const [entries, setEntries] = useState<HomeEntry[]>([]);
   const [stats, setStats] = useState<YearStats | null>(null);
   const [resurfacingEntry, setResurfacingEntry] = useState<HomeEntry | null>(null);
@@ -178,7 +182,7 @@ function HomePage() {
   const currentYear = new Date().getFullYear();
 
   useEffect(() => {
-    const refresh = () => setDraftCount(listEntryDrafts(localStorage).length);
+    const refresh = () => setHomeDrafts(listEntryDrafts(localStorage));
     window.addEventListener("storage", refresh);
     window.addEventListener("focus", refresh);
     return () => { window.removeEventListener("storage", refresh); window.removeEventListener("focus", refresh); };
@@ -187,7 +191,7 @@ function HomePage() {
   useEffect(() => {
     let active = true;
     void Promise.all([
-      store.recentEntries(5),
+      store.recentEntries(3),
       store.getYearStats(currentYear),
       store.listEntries(),
       store.listListeningMoments(),
@@ -245,7 +249,6 @@ function HomePage() {
         <div className="home-hero-copy">
           <h1>私人音乐档案</h1>
           <p>记录每一次听歌的心情与感受</p>
-          <Link to="/drafts" className="home-draft-link"><strong>草稿箱 · {draftCount} 条待完成</strong><span>{draftCount ? "接着写上次的感受" : "未完成的感受，随时回来续写"} <span aria-hidden="true">→</span></span></Link>
         </div>
         <div className="hero-record" aria-hidden="true"><span>FOR ME<br />NOT FOR ALL</span></div>
       </section>
@@ -254,6 +257,13 @@ function HomePage() {
         <Stat label="今年专辑" value={`${stats?.albumCount ?? 0} 张`} />
         <Stat label="今年歌曲" value={`${stats?.songCount ?? 0} 首`} />
       </div>
+      <div className="home-section-title">
+        <h2>最近记录</h2>
+        <Link to="/timeline">查看全部</Link>
+      </div>
+      <HomeEntryList entries={entries} />
+      <Link to="/drafts" className="home-draft-link"><strong>草稿箱 · {draftCount} 条待完成</strong>{latestDraft ? <><span>{latestDraft.title || "未命名草稿"} →</span><span>{latestDraftResult?.status === "valid" ? excerpt(latestDraftResult.draft.fields.content, 70) || "正文还没写，随时继续。" : "打开草稿箱继续"}</span></> : <span>暂时没有待续写的记录</span>}</Link>
+      <Link to={`/summary?year=${currentYear}`} className="home-annual-link"><div><strong>{currentYear} · 我的音乐年记</strong><p>{stats?.createdThisYear ?? 0} 条今年记录，回顾作品与感受</p></div><span aria-hidden="true">→</span></Link>
       {resurfacingEntry ? (
         <section className="daily-resurfacing-card">
           <div className="daily-resurfacing-cover">
@@ -288,11 +298,7 @@ function HomePage() {
           <p>下雨天最爱听的情绪、冬天比夏天高几分。</p>
         </Link>
       </div>
-      <div className="home-section-title">
-        <h2>最近记录</h2>
-        <Link to="/timeline">查看全部</Link>
-      </div>
-      <HomeEntryList entries={entries} />
+
     </section>
   );
 }
@@ -320,12 +326,12 @@ function HomeEntryList({ entries }: { entries: HomeEntry[] }) {
             <div className="home-entry-copy">
               <div className="home-entry-heading">
                 <h2>{entry.title}</h2>
-                <time>{shortDate(entry.listenedAt ?? entry.createdAt)}</time>
+                <time aria-label={`记录于 ${formatDateOnly(entry.createdAt)}`}>{shortDate(entry.createdAt)}</time>
               </div>
               <p>{musicLine}</p>
               <div className="home-entry-meta">
                 <span>{ENTRY_TYPE_LABELS[entry.type]}</span>
-                {entry.rating ? <strong>{ratingStars(entry.rating)} <em>{(entry.rating / 2).toFixed(1)}</em></strong> : null}
+                <strong>{journalRating(entry)}</strong>
               </div>
               <p>{excerpt(entry.content)}</p>
             </div>
@@ -335,11 +341,6 @@ function HomeEntryList({ entries }: { entries: HomeEntry[] }) {
       })}
     </div>
   );
-}
-
-function ratingStars(rating: number) {
-  const filled = Math.max(0, Math.min(5, Math.round(rating / 2)));
-  return "★★★★★".slice(0, filled) + "☆☆☆☆☆".slice(filled);
 }
 
 function shortDate(value: string) {
@@ -954,7 +955,22 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
       title={mode === "create" ? (inspirationRef.current ? "灵感速记" : "新建记录") : "编辑记录"}
       text={mode === "create" && inspirationRef.current ? "只需填标题、歌手和一句话感受，随时可以回来补全。" : "未填写的信息会保持为空，不会自动补全。"}
     >
-      <form ref={formRef} onSubmit={submit} onChange={handleFormMutation} className="form-card">
+      <form ref={formRef} onSubmit={submit} onChange={handleFormMutation} className="form-card writing-form">
+        <label>记录类型<select name="type" defaultValue={source?.type ?? "album"}>{ENTRY_TYPES.map((type) => <option key={type} value={type}>{ENTRY_TYPE_LABELS[type]}</option>)}</select></label>
+        <label>标题<input name="title" defaultValue={source?.title ?? ""} required /></label>
+        <label>艺术家<input name="artistName" defaultValue={source?.artistName ?? ""} /></label>
+        <section className="cover-picker">
+          <CoverArt src={coverDataUrl} label={source?.albumName ?? source?.songName ?? "封面"} />
+          <div>
+            <strong>封面照片</strong>
+            <label className="secondary-button file-button">
+              从相册选择
+              <input type="file" accept="image/*" onChange={chooseCover} />
+            </label>
+          </div>
+        </section>
+        <label>正文<textarea className="note-editor" name="content" rows={10} defaultValue={source?.content ?? ""} placeholder="像写备忘录一样，记录此刻的感受……" required /></label>
+        <details className="writing-extras"><summary>补充作品信息、评分与日期（选填）</summary>
         {Capacitor.isNativePlatform() ? (
           <section className="assist-panel">
             <div className="assist-panel-head">
@@ -993,7 +1009,7 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
               </div>
               <label>记录类型<select value={recognizedFields.type ?? ""} onChange={(event) => updateRecognizedField("type", event.target.value)}>
                 <option value="">保持当前</option>
-                {ENTRY_TYPES.map((type) => <option key={type} value={type}>{ENTRY_TYPE_LABELS[type]} / {type}</option>)}
+                {ENTRY_TYPES.map((type) => <option key={type} value={type}>{ENTRY_TYPE_LABELS[type]}</option>)}
               </select></label>
               <div className="form-grid">
                 <label>标题<input value={recognizedFields.title ?? ""} onChange={(event) => updateRecognizedField("title", event.target.value)} /></label>
@@ -1014,8 +1030,8 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
             </section>
           ) : null}
         </section>
-        <label>记录类型<select name="type" defaultValue={source?.type ?? "album"}>{ENTRY_TYPES.map((type) => <option key={type} value={type}>{ENTRY_TYPE_LABELS[type]} / {type}</option>)}</select></label>
-        <label>标题<input name="title" defaultValue={source?.title ?? ""} required /></label>
+
+
         <div className="form-grid">
           <label>归档年份<input name="year" type="number" min="1" max="9999" defaultValue={source?.year ?? new Date().getFullYear()} required /></label>
           <label>归档月份<input name="month" type="number" min="1" max="12" defaultValue={source?.month ?? ""} /></label>
@@ -1023,18 +1039,9 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
         <p className="hint">月报、年报按乐评首次正式保存的时间统计；归档年月和收听日期用于整理作品。</p>
         <label>专辑<input name="albumName" defaultValue={source?.albumName ?? ""} /></label>
         <label>歌曲<input name="songName" defaultValue={source?.songName ?? ""} /></label>
-        <label>艺术家<input name="artistName" defaultValue={source?.artistName ?? ""} /></label>
+
         {musicMetadata ? <MusicMetadataDetails metadata={musicMetadata} title="更多音乐信息" /> : null}
-        <section className="cover-picker">
-          <CoverArt src={coverDataUrl} label={source?.albumName ?? source?.songName ?? "封面"} />
-          <div>
-            <strong>封面照片</strong>
-            <label className="secondary-button file-button">
-              从相册选择
-              <input type="file" accept="image/*" onChange={chooseCover} />
-            </label>
-          </div>
-        </section>
+
         <label>收听日期<input name="listenedAt" type="date" defaultValue={source?.listenedAt ? new Date(source.listenedAt).toLocaleDateString("en-CA") : ""} /></label>
         <GenrePicker
           selectedTags={selectedGenreTags}
@@ -1069,7 +1076,8 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
           </div>
         ) : null}
         <label>首次收听时间<input name="firstListenedAt" type="date" defaultValue={source?.firstListenedAt ? new Date(source.firstListenedAt).toLocaleDateString("en-CA") : ""} /></label>
-        <label>正文<textarea className="note-editor" name="content" rows={16} defaultValue={source?.content ?? ""} placeholder="像写备忘录一样，记录此刻的感受……" required /></label>
+
+        </details>
         <div className={`draft-status${draftError ? " error-state" : ""}`}>
           <span role="status" aria-live="polite">{draftStatus}</span>
           {hasDraft ? <button className="secondary-button" type="button" onClick={discardDraft}>放弃草稿</button> : null}
@@ -1411,7 +1419,7 @@ function EntryDetailPage() {
         <div className="detail-hero-copy">
           <span>{musicLine || entry.title}</span>
           {entry.rating !== null ? <strong>{entry.rating}{entry.ratingModifier ?? ""}/10</strong> : null}
-          <small>{formatDateOnly(entry.listenedAt)}</small>
+          <small>记录于 {formatDateOnly(entry.createdAt)}</small>
         </div>
       </div>
       <div className="action-row">
@@ -1440,8 +1448,8 @@ function EntryDetailPage() {
           </>
         ) : null}
         <Meta label="首次收听" value={formatDateOnly(entry.firstListenedAt)} />
-        <Meta label="听歌或感受日期" value={formatDateOnly(entry.listenedAt)} />
-        <Meta label="创建时间" value={formatDate(entry.createdAt)} />
+        <Meta label="收听日期" value={formatDateOnly(entry.listenedAt)} />
+        <Meta label="首次正式保存" value={formatDate(entry.createdAt)} />
         <Meta label="更新时间" value={formatDate(entry.updatedAt)} />
       </div>
       {entry.musicMetadata ? <MusicMetadataDetails metadata={entry.musicMetadata} title="完整音乐元数据" open /> : null}

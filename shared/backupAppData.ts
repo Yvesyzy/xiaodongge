@@ -7,6 +7,13 @@ export const WEATHER_LOCATION_KEY = "listening-weather-location";
 export const SEMANTIC_OVERRIDES_KEY = "listening-semantic-overrides";
 export const DAILY_RESURFACING_KEY = "daily-resurfacing";
 export const BACKUP_HEALTH_KEY = "backup-health:v1";
+export const JOURNAL_EDITION_PREFIX = "journal-edition:";
+export type JournalEdition = { coverId: string | null; entryIds: string[]; quotes: Record<string, string>; message: string };
+
+export function readJournalEdition(value: unknown): JournalEdition {
+  if (!isRecord(value) || (value.coverId !== null && typeof value.coverId !== "string") || !Array.isArray(value.entryIds) || value.entryIds.length > 3 || value.entryIds.some((id) => typeof id !== "string" || !id.trim()) || new Set(value.entryIds).size !== value.entryIds.length || typeof value.message !== "string" || value.message.length > 120 || !isRecord(value.quotes) || Object.entries(value.quotes).some(([id, quote]) => !id || typeof quote !== "string" || !quote.trim() || quote.length > 180)) throw new Error("年度精选格式无效");
+  return { coverId: value.coverId as string | null, entryIds: value.entryIds as string[], quotes: value.quotes as Record<string, string>, message: value.message };
+}
 
 export type DailyResurfacingState = {
   date: string;
@@ -22,6 +29,7 @@ export function readBackupAppData(value: unknown) {
     if (key === WEATHER_LOCATION_KEY) parseWeatherLocation(JSON.parse(raw));
     else if (key.startsWith("listening-weather:")) parseWeatherRecord(JSON.parse(raw));
     else if (key.startsWith("listening-quote:")) readPreferredQuote(JSON.parse(raw));
+    else if (/^journal-edition:[1-9]\d{0,3}$/.test(key)) readJournalEdition(JSON.parse(raw));
     else if (key === DAILY_RESURFACING_KEY) {
       if (!parseDailyResurfacingState(raw)) throw new Error("今日重逢状态格式无效");
     } else if (key === SEMANTIC_OVERRIDES_KEY) {
