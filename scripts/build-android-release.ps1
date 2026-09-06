@@ -7,6 +7,11 @@ $requiredSigningVariables = @(
   "XIAODONGGE_KEY_ALIAS",
   "XIAODONGGE_KEY_PASSWORD"
 )
+foreach ($name in $requiredSigningVariables) {
+  if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) {
+    [Environment]::SetEnvironmentVariable($name, [Environment]::GetEnvironmentVariable($name, 'User'), 'Process')
+  }
+}
 $missingSigningVariables = $requiredSigningVariables | Where-Object {
   [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($_))
 }
@@ -71,8 +76,8 @@ try {
   $signature = & $apkSigner verify --verbose --print-certs $apk
   if ($LASTEXITCODE -ne 0) { throw "APK signature verification failed with exit code $LASTEXITCODE" }
   $signature | Write-Output
-  if (($signature -join "`n") -notmatch 'Signer #1 certificate SHA-256 digest: 71bd27895f232e546509adb7f82a7f42e4a4f8a53dfd34de4d305a56aed29d20') {
-    throw "APK signer does not match the existing production certificate"
+  if (($signature -join "`n") -notmatch 'Signer #1 certificate SHA-256 digest: 6386734ef9b4a3fe106d690a8d31ae952697c2ea652ea1ee82f3f7ab488f1022') {
+    throw "APK signer does not match the v2.5 production certificate"
   }
   $badging = & $aapt2 dump badging $apk
   if ($LASTEXITCODE -ne 0) { throw "APK metadata inspection failed with exit code $LASTEXITCODE" }

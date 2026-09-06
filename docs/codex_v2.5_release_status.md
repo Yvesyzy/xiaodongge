@@ -2,6 +2,18 @@
 
 日期：2026-09-06。Yves 要求构建安装包、升级 v2.5 并同步 Git / GitHub。
 
+## 最新状态：新签名安装包已验证
+
+Yves 在恢复检查之后明确回复“按新签名做”。已生成新长期密钥并签署此前通过验证的 v2.5 未签名构建，APK Signature Scheme v2/v3、包名与版本检查全部通过。GitHub 发布正在完成，安装步骤见 `docs/releases/v2.5.md`。以下“未签名产物”和“原签名恢复历史”保留为过程证据，不再表示当前阻塞。
+
+- 安装包：`release/xiaodongge-v2.5.apk`，67,982,592 字节。
+- APK SHA-256：`19955f8b1611fb98a514e89f47f2e6f8e88b533a66177e2702434380120a9030`。
+- 新证书：`6386734ef9b4a3fe106d690a8d31ae952697c2ea652ea1ee82f3f7ab488f1022`。
+- 主密钥目录：`D:\codex\keys\xiaodongge`；备用：`C:\Users\lenovo\.xiaodongge-signing-backup`。
+- 两处密钥、密码恢复文件、证书和恢复脚本逐文件哈希一致；备用 keystore 可打开；恢复脚本已执行验证；目录仅允许当前用户和 SYSTEM。旧用户变量先通过 DPAPI 加密存档，再切换至新密钥。
+- 恢复说明：以上两个目录内的 `codex_SIGNING_RECOVERY.md`。这些文件不在 Git 仓库或 GitHub 资产中。
+- 新签名无法覆盖旧版；旧版先导出并核对 JSON，再卸载、安装 v2.5、导入。未做手机安装或迁移操作。
+
 ## 已完成
 
 - 应用标题、package.json、锁文件根版本和 Android versionName 统一为 2.5；versionCode 从 14 增至 15。
@@ -19,7 +31,7 @@ SHA-256：`0ad3a8ee220b9001b43e1c9e06cb8fe890dfc1f23e676f1402d0541604fd1f56`。
 
 此文件不可安装，不是已发布的正式升级包，不应上传到正式下载入口。
 
-## 待恢复签名
+## 原签名恢复历史
 
 2026-09-06 归档核查纠正：沙箱检查误报用户变量缺失。在真实 `YVES\lenovo` 权限下，四项 `XIAODONGGE_KEYSTORE_FILE`、`XIAODONGGE_KEYSTORE_PASSWORD`、`XIAODONGGE_KEY_ALIAS`、`XIAODONGGE_KEY_PASSWORD` 仍存在于 Windows 用户作用域，当前进程未继承它们。密码未输出，无需 Yves 重新提供密码。
 

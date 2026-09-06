@@ -1,3 +1,5 @@
+2026-09-06 v2.5 新签名：Yves已明确授权换签名。release/xiaodongge-v2.5.apk已签署并通过v2/v3、包名与2.5(15)核验；SHA256=19955f8b1611fb98a514e89f47f2e6f8e88b533a66177e2702434380120a9030。新密钥保存在D:\codex\keys\xiaodongge，备份在C:\Users\lenovo\.xiaodongge-signing-backup，恢复说明/脚本已保存且校验通过；不进入Git。GitHub发布进行中。迁移须旧版先导出核对JSON，再重装导入；未执行手机卸载/安装。完整交接docs/codex_v2.5_release_status.md。
+
 2026-09-06 v2.5 构建：版本 2.5 (15)，typecheck、30项单测、Web构建、Capacitor copy、Gradle assembleRelease/lintVitalRelease通过。APK包名/版本和资源已核对；release/xiaodongge-v2.5-unsigned.apk未签名，不可安装。归档核查纠正：真实Windows用户作用域四项签名变量仍在，密码未丢；缺失的是D:\xiaodongge-signing\xiaodongge-release.jks文件，等待找回后构建正式覆盖包并发布标签/Release。功能提交a1b5941已推送origin/main并核对远端一致；交接 docs/codex_v2.5_release_status.md。
 
 2026-09-06 最新定稿：Yves 确认简约年度总结。封面→总览→作品→原文已实际实现，零/大量记录、筛选折叠和1080×1680分页PNG可用。原型 http://127.0.0.1:5174/codex-prototype.html。全部使用获准模拟数据验收：0/1/6/128、单月45、长Unicode正文；128条进入15页索引。typecheck、30项单测、新旧浏览器回归和mobile:build通过，cap copy android完成。未生成新APK、未安装或发布。完整交接 docs/session_summary_2026-09-06_codex.md；交付说明 docs/designs/codex_yearbook_delivery_2026-09-06.md。用户要求就此定稿，不再扩展功能。

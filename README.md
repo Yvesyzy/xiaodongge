@@ -41,21 +41,21 @@
 
 最新安装包下载：
 
-当前公开正式包为 v2.3。v2.5 源码版本为 `2.5 (15)`，安装包发布等待原长期签名文件找回（用户签名变量仍在）；未签名构建不可安装，不能用于覆盖升级。
+v2.5 为 `2.5 (15)`，使用新的长期发布签名。**从旧版迁移必须先导出并核对 JSON 备份，再卸载旧版、安装 v2.5 并导入；不能直接覆盖安装。未备份时不要卸载。**
 
 ```text
-https://github.com/Yvesyzy/xiaodongge/releases/download/v2.3/xiaodongge-v2.3.apk
+https://github.com/Yvesyzy/xiaodongge/releases/download/v2.5/xiaodongge-v2.5.apk
 ```
 
 发布页：
 
 ```text
-https://github.com/Yvesyzy/xiaodongge/releases/tag/v2.3
+https://github.com/Yvesyzy/xiaodongge/releases/tag/v2.5
 ```
 
-公开下载文件 `xiaodongge-v2.3.apk` 已使用长期发布密钥正式签名。证书 SHA-256 指纹为 `71:BD:27:89:5F:23:2E:54:65:09:AD:B7:F8:2A:7F:42:E4:A4:F8:A5:3D:FD:34:DE:4D:30:5A:56:AE:D2:9D:20`；后续 Android 版本必须继续使用同一份密钥，才能覆盖安装升级。
+安装包 `xiaodongge-v2.5.apk` 已使用新长期发布密钥签名。新证书 SHA-256 为 `6386734ef9b4a3fe106d690a8d31ae952697c2ea652ea1ee82f3f7ab488f1022`；后续版本必须继续使用这份密钥，才能覆盖升级 v2.5。
 
-如果手机已安装旧的 debug 签名版本，正式 APK 不能直接覆盖安装。请先在应用的备份页导出 JSON，再卸载旧版、安装正式 APK并导入备份；从本次正式版开始，后续版本可以正常覆盖升级。
+APK SHA-256：`19955f8b1611fb98a514e89f47f2e6f8e88b533a66177e2702434380120a9030`。此版本与 v2.3 及更早正式版的证书不同，旧 debug 版也需要上述备份迁移步骤。
 
 ## 构建 APK
 
@@ -110,7 +110,7 @@ XIAODONGGE_KEY_PASSWORD
 npm.cmd run android:build:release
 ```
 
-脚本会重新构建 Web 资源并同步 Android，随后执行 `assembleRelease`。只有原发布证书、包名 `com.yves.musicarchive`、版本 `2.5 (15)` 全部验证通过，才会输出 `release/xiaodongge-v2.5.apk` 和 SHA-256；缺少任一签名变量时会在构建前失败。
+脚本会在当前进程变量缺失时加载 Windows 用户签名变量，重新构建 Web 资源并同步 Android，随后执行 `assembleRelease`。只有 v2.5 新发布证书、包名 `com.yves.musicarchive`、版本 `2.5 (15)` 全部验证通过，才会输出 `release/xiaodongge-v2.5.apk` 和 SHA-256；缺少任一签名变量时会在构建前失败。
 
 ## 本地数据
 
