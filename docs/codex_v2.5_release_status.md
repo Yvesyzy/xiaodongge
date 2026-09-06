@@ -30,3 +30,5 @@ SHA-256：`0ad3a8ee220b9001b43e1c9e06cb8fe890dfc1f23e676f1402d0541604fd1f56`。
 ## Git 范围
 
 同步功能源码、模拟原型、回归脚本、设计稿与交接文档。APK 与旧生成资源受 `release/` 忽略规则保护；`.claude/` 和 `claude_status.txt` 不修改、不暂存。两个 Capacitor Gradle 文件只有换行状态差异，不作为功能修改提交。
+
+功能提交 `a1b5941a4e02ef145f37c5b46ab9922cbbce5a56` 已推送至 `origin/main`（https://github.com/Yvesyzy/xiaodongge）。首次上传遇到 HTTP 408；使用仅本次命令生效的 HTTP/1.1 和 32 MiB 请求缓冲重试成功，没有修改全局 Git 配置。
