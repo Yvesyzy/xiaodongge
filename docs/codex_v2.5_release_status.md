@@ -4,7 +4,7 @@
 
 ## 最新状态：新签名安装包已验证
 
-Yves 在恢复检查之后明确回复“按新签名做”。已生成新长期密钥并签署此前通过验证的 v2.5 未签名构建，APK Signature Scheme v2/v3、包名与版本检查全部通过。GitHub 发布正在完成，安装步骤见 `docs/releases/v2.5.md`。以下“未签名产物”和“原签名恢复历史”保留为过程证据，不再表示当前阻塞。
+Yves 在恢复检查之后明确回复“按新签名做”。已生成新长期密钥并签署此前通过验证的 v2.5 未签名构建，APK Signature Scheme v2/v3、包名与版本检查全部通过。GitHub v2.5 已于 2026-09-06 正式公开发布（非草稿、非预发布），远端 APK 的大小与 SHA-256 已逐项核对一致。发布页：https://github.com/Yvesyzy/xiaodongge/releases/tag/v2.5 。发布标签指向 a2d7a52；安装步骤见 `docs/releases/v2.5.md`。以下“未签名产物”和“原签名恢复历史”保留为过程证据，不再表示当前阻塞。
 
 - 安装包：`release/xiaodongge-v2.5.apk`，67,982,592 字节。
 - APK SHA-256：`19955f8b1611fb98a514e89f47f2e6f8e88b533a66177e2702434380120a9030`。
