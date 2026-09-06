@@ -1,3 +1,9 @@
+2026-09-06 v2.6已正式发布：版本2.6(16)，沿用v2.5签名，可覆盖该正式包。release/xiaodongge-v2.6.apk大小67,935,885字节，SHA256=d9b0e78934c2e566f9acdebaeb917d81b50fb8d85445b7b362938a80cf84e8e3。typecheck、31单测、Web构建、Capacitor同步、assembleRelease/lintVitalRelease、签名与版本、APK资源哈希核验通过。源码和v2.6标签已推送a60f893；GitHub Release已公开，远端APK/校验文件大小和哈希一致：https://github.com/Yvesyzy/xiaodongge/releases/tag/v2.6 。完整交接docs/codex_v2.6_release_status.md。尚未操作手机安装或验证微信接收。
+
+2026-09-06 五项体验改进：Yves已批准全部实施。统一十分制和记录日期，首页最近记录/草稿摘要前置，正文首屏可写、补充字段折叠，年度封面/三篇代表作/原句/寄语持久化并随备份保存，导出缩略勾选/隐私/文件夹批量保存/九图分批分享已完成。typecheck、31单测、四套浏览器回归、Web生产构建、Android Java编译通过；仅获准模拟数据，真机文件夹/微信接收未验收。已随v2.6发布，未覆盖v2.5发布包。完整交接docs/codex_2026-09-06_ux_delivery.md，截图release/codex_ux_qa。
+
+2026-09-06 v2.5体验审查：本轮用390×844独立浏览器和6条模拟记录核对首页→完整乐评→年记封面→总览→导出，未改产品代码/真实数据。建议优先：正文前置、首页近期记录前置、多页导出操作优化；其后统一日期/评分展示及年度原句精选。截图与证据release/codex_v25_audit/codex_findings.md；后续已获准实施，见上条。
+
 2026-09-06 v2.5 新签名：Yves已明确授权换签名。release/xiaodongge-v2.5.apk已签署并通过v2/v3、包名与2.5(15)核验；SHA256=19955f8b1611fb98a514e89f47f2e6f8e88b533a66177e2702434380120a9030。新密钥保存在D:\codex\keys\xiaodongge，备份在C:\Users\lenovo\.xiaodongge-signing-backup，恢复说明/脚本已保存且校验通过；不进入Git。GitHub v2.5已正式公开发布，远端APK大小/哈希一致；标签v2.5指向a2d7a52。迁移须旧版先导出核对JSON，再重装导入；未执行手机卸载/安装。完整交接docs/codex_v2.5_release_status.md。
 
 2026-09-06 v2.5 构建：版本 2.5 (15)，typecheck、30项单测、Web构建、Capacitor copy、Gradle assembleRelease/lintVitalRelease通过。APK包名/版本和资源已核对；release/xiaodongge-v2.5-unsigned.apk未签名，不可安装。归档核查纠正：真实Windows用户作用域四项签名变量仍在，密码未丢；缺失的是D:\xiaodongge-signing\xiaodongge-release.jks文件，等待找回后构建正式覆盖包并发布标签/Release。功能提交a1b5941已推送origin/main并核对远端一致；交接 docs/codex_v2.5_release_status.md。

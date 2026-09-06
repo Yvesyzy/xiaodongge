@@ -16,4 +16,6 @@ Yves 已授权构建新版签名安装包并提交推送，版本 v2.6。
 
 正式包、构建记录和旧生成资源在忽略的 release/ 下；保留旧生成资源以避免破坏已有产物。新版本发布脚本指向v2.6且校验16/2.6，证书保持v2.5。
 
-源码、测试和发布文档待本轮提交推送；发布说明 docs/releases/v2.6.md。APK通过 GitHub Release分发，不进入Git文件历史。已发布的v2.5包和标签未覆盖。未修改或暂存 .claude/、claude_status.txt。
+源码、测试和发布文档已提交推送，发布提交与标签 v2.6 均指向 a60f89330f9df931d636b789e7f7f530f753d538。GitHub Release 已公开发布，非草稿、非预发布：https://github.com/Yvesyzy/xiaodongge/releases/tag/v2.6 。
+
+远端 APK 状态 uploaded，大小67,935,885字节、SHA-256与本地一致；附带校验文件也已上传并核对。发布说明 docs/releases/v2.6.md。APK通过 GitHub Release分发，不进入Git文件历史。已发布的v2.5包和标签未覆盖。未修改或暂存 .claude/、claude_status.txt。
