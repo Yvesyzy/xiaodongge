@@ -21,11 +21,15 @@ SHA-256：`0ad3a8ee220b9001b43e1c9e06cb8fe890dfc1f23e676f1402d0541604fd1f56`。
 
 ## 待恢复签名
 
-四项 `XIAODONGGE_KEYSTORE_FILE`、`XIAODONGGE_KEYSTORE_PASSWORD`、`XIAODONGGE_KEY_ALIAS`、`XIAODONGGE_KEY_PASSWORD` 在当前进程、用户和机器作用域均缺失，旧路径 `D:\xiaodongge-signing` 不存在。已向 Yves 请求原 keystore / 签名配置脚本路径，不在聊天或仓库中收集密码。
+2026-09-06 归档核查纠正：沙箱检查误报用户变量缺失。在真实 `YVES\lenovo` 权限下，四项 `XIAODONGGE_KEYSTORE_FILE`、`XIAODONGGE_KEYSTORE_PASSWORD`、`XIAODONGGE_KEY_ALIAS`、`XIAODONGGE_KEY_PASSWORD` 仍存在于 Windows 用户作用域，当前进程未继承它们。密码未输出，无需 Yves 重新提供密码。
+
+归档任务「v2.1.8」（019fbb89-9990-76d3-9f80-992811083a26）确认当时创建并保存了 `D:\xiaodongge-signing\xiaodongge-release.jks`，密码保存为用户环境变量；一次性创建脚本随后清理，聊天建议另行备份，但未找到已执行额外备份的证据。归档任务「release-v2-2-merge」确认后续正式发布曾复用这些变量。
+
+目前变量仍指向上述路径，但真实用户权限下 Get-Item 确认目录及文件不存在。C/D 盘可读取目录中检索隐藏及被忽略的 `.jks` / `.keystore` 未找到原文件，回收站也无匹配项目；其他应用密钥不用于替代。当前阻塞是原密钥文件未找到，不是密码或配置丢失。
 
 已实际核对 v2.3 APK 的原证书 SHA-256：`71bd27895f232e546509adb7f82a7f42e4a4f8a53dfd34de4d305a56aed29d20`。
 
-恢复配置后运行 `npm.cmd run android:build:release`，通过原证书校验，再发布 v2.5 标签与 GitHub Release 安装包。当前不创建正式发布标签，不以新签名或调试签名替代。未进行手机安装和微信接收验收。
+找回原文件后，将四项用户变量加载到构建进程，再运行 `npm.cmd run android:build:release`，通过原证书校验后发布 v2.5 标签与 GitHub Release 安装包。当前不创建正式发布标签，不以新签名或调试签名替代。未进行手机安装和微信接收验收。
 
 ## Git 范围
 
