@@ -54,6 +54,7 @@ export type ContextOverview = {
 
 export type MonthlyListeningSnapshot = {
   version: number;
+  dateBasis?: "createdAt";
   scope: "month";
   year: number;
   month: number;
@@ -75,6 +76,7 @@ export type AestheticMigration = {
 
 export type YearlyListeningSnapshot = {
   version: number;
+  dateBasis?: "createdAt";
   scope: "year";
   year: number;
   title: string;
@@ -108,7 +110,7 @@ export function buildDayListeningSnapshot(date: string, entries: ReviewEntry[], 
 
 export function buildMonthlyListeningSnapshot(year: number, month: number, entries: ReviewEntry[], weather: WeatherRecord[] = [], overrides: SemanticOverride[] = []): MonthlyListeningSnapshot {
   if (!Number.isInteger(month) || month < 1 || month > 12) throw new Error("月份范围必须是 1-12");
-  const monthEntries = entries.filter((entry) => entry.year === year && entry.month === month);
+  const monthEntries = entries.filter((entry) => inRecordingPeriod(entry, year, month));
   const sourceEntries = automaticEntries(monthEntries);
   if (!sourceEntries.length) throw new Error("该月份没有歌曲或专辑乐评，无法生成月度总结");
   const weatherByDate = new Map(weather.map((item) => [item.date, item]));
@@ -117,6 +119,7 @@ export function buildMonthlyListeningSnapshot(year: number, month: number, entri
   const analysis = applySemanticOverrides(analyzeListeningEntries(sourceEntries), overrides);
   return {
     version: LISTENING_YEARBOOK_VERSION,
+    dateBasis: "createdAt",
     scope: "month",
     year,
     month,
@@ -139,6 +142,7 @@ export function buildYearlyListeningSnapshot(year: number, months: MonthlyListen
   const days = orderedMonths.flatMap((month) => month.days);
   return {
     version: LISTENING_YEARBOOK_VERSION,
+    dateBasis: "createdAt",
     scope: "year",
     year,
     title: listeningTitle(`${year}`, analysis),
@@ -219,11 +223,13 @@ export function parseYearlyListeningSnapshot(value: string): YearlyListeningSnap
 }
 
 function isMonthlySnapshot(value: unknown): value is MonthlyListeningSnapshot {
+  if (isRecord(value) && value.dateBasis !== undefined && value.dateBasis !== "createdAt") return false;
   if (!isRecord(value) || value.version !== LISTENING_YEARBOOK_VERSION || value.scope !== "month" || !Number.isInteger(value.year) || !isMonth(value.month) || typeof value.title !== "string" || (value.mode !== "memory" && value.mode !== "full") || !isTheme(value.theme, value.month) || !isListeningAnalysis(value.analysis) || !Array.isArray(value.days) || !value.days.every(isDaySnapshot) || !isContextOverview(value.context) || !isStringArray(value.reflectionEntryIds)) return false;
   return value.days.every((day) => day.date.startsWith(`${value.year}-${String(value.month).padStart(2, "0")}-`));
 }
 
 function isYearlySnapshot(value: unknown): value is YearlyListeningSnapshot {
+  if (isRecord(value) && value.dateBasis !== undefined && value.dateBasis !== "createdAt") return false;
   if (!isRecord(value) || value.version !== LISTENING_YEARBOOK_VERSION || value.scope !== "year" || !Number.isInteger(value.year) || typeof value.title !== "string" || (value.mode !== "memory" && value.mode !== "compact" && value.mode !== "full") || !isListeningAnalysis(value.analysis) || !Array.isArray(value.months) || !isNonNegativeInt(value.undatedEntryCount) || !isContextOverview(value.context) || !Array.isArray(value.migrations)) return false;
   if (!value.months.every((month) => isRecord(month) && isMonth(month.month) && typeof month.title === "string" && (month.mode === "memory" || month.mode === "full") && isTheme(month.theme, month.month) && isNonNegativeInt(month.entryCount) && isNullableString(month.topFeeling) && isNullableString(month.topSubject))) return false;
   return value.migrations.every((item) => isRecord(item) && (item.kind === "new" || item.kind === "persistent" || item.kind === "fading") && typeof item.term === "string" && Array.isArray(item.months) && item.months.every(isMonth) && typeof item.text === "string");
@@ -369,7 +375,13 @@ function automaticEntries(entries: ReviewEntry[]): ReviewEntry[] {
 }
 
 function exactDate(entry: ReviewEntry) {
-  return localDateOf(entry.listenedAt);
+  return localDateOf(entry.createdAt);
+}
+
+// Reports use the first formal save; editing or changing listening metadata never moves a review.
+export function inRecordingPeriod(entry: ReviewEntry, year: number, month?: number) {
+  const date = new Date(entry.createdAt);
+  return date.getFullYear() === year && (month === undefined || date.getMonth() + 1 === month);
 }
 
 function listeningTitle(prefix: string, analysis: ListeningAnalysis) {

@@ -5,7 +5,7 @@ import { fetchHistoricalWeather, fetchHistoricalWeatherRange, parseWeatherLocati
 import type { ListeningLayer, SemanticOverride } from "../../shared/listeningAnalysis";
 import { excerpt, localDateOf } from "./format";
 import { formatEntriesCsv, formatEntriesTxt } from "./exportFormats";
-import { buildDayListeningSnapshot, buildMonthlyListeningSnapshot, buildYearlyListeningSnapshot, monthlySnapshotToMarkdown, parseMonthlyListeningSnapshot, parseYearlyListeningSnapshot, yearlySnapshotToMarkdown, type ListeningDaySnapshot, type MonthlyListeningSnapshot, type YearlyListeningSnapshot } from "./listeningYearbook";
+import { buildDayListeningSnapshot, buildMonthlyListeningSnapshot, buildYearlyListeningSnapshot, inRecordingPeriod, monthlySnapshotToMarkdown, parseMonthlyListeningSnapshot, parseYearlyListeningSnapshot, yearlySnapshotToMarkdown, type ListeningDaySnapshot, type MonthlyListeningSnapshot, type YearlyListeningSnapshot } from "./listeningYearbook";
 import { readMusicMetadata } from "./musicMetadata";
 import { BACKUP_HEALTH_KEY, readBackupAppData, readPreferredQuote, readSemanticOverride, SEMANTIC_OVERRIDES_KEY, WEATHER_LOCATION_KEY } from "../../shared/backupAppData";
 import type { BackupPreview } from "./backupHealth";
@@ -246,8 +246,8 @@ class Store {
   }
 
   private async markGeneratedSummariesStale(entries: ReviewEntry[]) {
-    const years = unique(entries.filter(isAutomaticEntry).map((entry) => entry.year));
-    const months = unique(entries.filter((entry) => entry.month !== null && (isAutomaticEntry(entry) || entry.type === "month")).map((entry) => `${entry.year}-${entry.month}`));
+    const years = unique(entries.map((entry) => new Date(entry.createdAt).getFullYear()));
+    const months = unique(entries.map((entry) => `${new Date(entry.createdAt).getFullYear()}-${new Date(entry.createdAt).getMonth() + 1}`));
     if (!years.length && !months.length) return;
     await this.init();
     if (!Capacitor.isNativePlatform()) {
@@ -356,7 +356,8 @@ class Store {
   }
 
   async getYearStats(year: number) {
-    return calculateYearStats(year, (await this.listEntries()).filter((entry) => entry.year === year));
+    const entries = (await this.listEntries()).filter((entry) => inRecordingPeriod(entry, year));
+    return calculateYearStats(year, entries.map((entry) => ({ ...entry, month: new Date(entry.createdAt).getMonth() + 1 })));
   }
 
   async getSummary(year: number) {
@@ -383,11 +384,12 @@ class Store {
   }
 
   async generateMonthlySummary(year: number, month: number) {
-    const entries = (await this.listEntries()).filter((entry) => entry.year === year && entry.month === month);
+    const entries = (await this.listEntries()).filter((entry) => inRecordingPeriod(entry, year, month));
     const sourceEntries = entries.filter(isAutomaticEntry);
     if (!sourceEntries.length) throw new Error("该月份没有歌曲或专辑乐评，无法生成月度总结");
     const weather = await this.cachedWeatherForEntries(sourceEntries);
     const snapshot = buildMonthlyListeningSnapshot(year, month, entries, weather, await this.getSemanticOverrides());
+    parseMonthlyListeningSnapshot(JSON.stringify(snapshot));
     const existing = await this.getMonthlySummary(year, month);
     const now = new Date().toISOString();
     const reflections = entries.filter((entry) => entry.type === "month");
@@ -419,19 +421,24 @@ class Store {
   }
 
   async generateSummary(year: number) {
-    const entries = (await this.listEntries()).filter((entry) => entry.year === year).sort((a, b) => (a.month ?? 0) - (b.month ?? 0) || a.createdAt.localeCompare(b.createdAt));
+    const entries = (await this.listEntries()).filter((entry) => inRecordingPeriod(entry, year)).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
     const sourceEntries = entries.filter(isAutomaticEntry);
     if (!sourceEntries.length) throw new Error("该年份没有歌曲或专辑乐评，无法生成年度总结");
-    const months = unique(sourceEntries.map((entry) => entry.month).filter((month): month is number => month !== null)).sort((a, b) => a - b);
+    const months = unique(sourceEntries.map((entry) => new Date(entry.createdAt).getMonth() + 1)).sort((a, b) => a - b);
     const monthSnapshots: MonthlyListeningSnapshot[] = [];
     for (const month of months) {
       try {
         monthSnapshots.push(parseMonthlyListeningSnapshot((await this.generateMonthlySummary(year, month)).analysisJson));
-      } catch {
-        // 单个月份生成失败不阻塞整年总结，跳过该月
+      } catch (error) {
+        throw new Error(`${month} 月生成失败，年度标本册未更新：${error instanceof Error ? error.message : "请重试"}`);
       }
     }
-    const snapshot = buildYearlyListeningSnapshot(year, monthSnapshots, sourceEntries.filter((entry) => entry.month === null), await this.getSemanticOverrides());
+    const snapshot = buildYearlyListeningSnapshot(year, monthSnapshots, [], await this.getSemanticOverrides());
+    parseYearlyListeningSnapshot(JSON.stringify(snapshot));
+    const includedIds = new Set(snapshot.analysis.sourceEntryIds);
+    if (includedIds.size !== sourceEntries.length || sourceEntries.some((entry) => !includedIds.has(entry.id))) {
+      throw new Error("年度乐评数量校验失败，旧标本册已保留，请重新生成");
+    }
     const existing = await this.getSummary(year);
     const now = new Date().toISOString();
     const summary: YearlySummary = {
@@ -849,7 +856,7 @@ export function parseList(value: string) {
 
 export function calculateYearStats(year: number, entries: ReviewEntry[]): YearStats {
   const ratings = entries.map((entry) => entry.rating).filter((rating): rating is number => rating !== null);
-  const createdThisYear = entries.filter((entry) => entry.createdAt.slice(0, 4) === String(year)).length;
+  const createdThisYear = entries.filter((entry) => inRecordingPeriod(entry, year)).length;
   return {
     year,
     totalEntries: entries.length,
@@ -1018,7 +1025,7 @@ function parseBackup(raw: string): BackupData {
 
   const entries = readArray(parsed.entries, "entries").map((entry) => readEntry(entry, version >= 2));
   const summaries = readArray(parsed.summaries, "summaries").map((summary) => readSummary(summary, version >= 3));
-  const monthlySummaries = version >= 3 ? readArray(parsed.monthlySummaries, "monthlySummaries").map(readMonthlySummary) : [];
+  const monthlySummaries = version >= 3 ? readArray(parsed.monthlySummaries, "monthlySummaries").map((summary) => readMonthlySummary(summary)) : [];
   const covers = readArray(parsed.covers, "covers").map(readCover);
   const listeningMoments = version >= 4 ? readArray(parsed.listeningMoments, "listeningMoments").map(readListeningMoment) : [];
   const appData = version >= 3 ? readBackupAppData(parsed.appData) : {};
@@ -1089,10 +1096,12 @@ function readSummary(value: unknown, structuredRequired = false): YearlySummary 
   };
 }
 
-function readMonthlySummary(value: unknown): MonthlySummary {
+function readMonthlySummary(value: unknown, validateSnapshot = true): MonthlySummary {
   if (!isRecord(value)) throw new Error("monthlySummaries 必须是总结对象数组");
   const analysisJson = readString(value.analysisJson, "monthlySummaries.analysisJson");
-  const snapshot = parseMonthlyListeningSnapshot(analysisJson);
+  // Keep locally saved text visible when an old generated snapshot is unreadable.
+  // Backup imports still require full snapshot validation.
+  const snapshot = validateSnapshot ? parseMonthlyListeningSnapshot(analysisJson) : null;
   const summary: MonthlySummary = {
     id: readString(value.id, "monthlySummaries.id"),
     year: readInt(value.year, "monthlySummaries.year"),
@@ -1108,7 +1117,7 @@ function readMonthlySummary(value: unknown): MonthlySummary {
     createdAt: readDate(value.createdAt, "monthlySummaries.createdAt"),
     updatedAt: readDate(value.updatedAt, "monthlySummaries.updatedAt"),
   };
-  if (summary.year !== snapshot.year || summary.month !== snapshot.month || summary.themeId !== snapshot.theme.id) throw new Error("月度总结与分析快照不匹配");
+  if (snapshot && (summary.year !== snapshot.year || summary.month !== snapshot.month || summary.themeId !== snapshot.theme.id)) throw new Error("月度总结与分析快照不匹配");
   return summary;
 }
 
@@ -1228,7 +1237,7 @@ function writeSummaries(summaries: YearlySummary[]) {
 
 function readMonthlySummaries() {
   const values = readJson<unknown[]>(MONTHLY_SUMMARIES_KEY, []);
-  return Array.isArray(values) ? tolerantMap(values, readMonthlySummary) : [];
+  return Array.isArray(values) ? tolerantMap(values, (summary) => readMonthlySummary(summary, false)) : [];
 }
 
 function writeMonthlySummaries(summaries: MonthlySummary[]) {
@@ -1361,7 +1370,7 @@ function isAutomaticEntry(entry: ReviewEntry) {
 }
 
 function exactEntryDate(entry: ReviewEntry) {
-  return localDateOf(entry.listenedAt);
+  return localDateOf(entry.createdAt);
 }
 
 function weatherKey(location: WeatherLocation, date: string) {

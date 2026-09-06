@@ -68,17 +68,21 @@ try {
   if (-not (Test-Path -LiteralPath $apk)) {
     throw "Signed release APK not found: $apk"
   }
-  & $apkSigner verify --verbose --print-certs $apk
+  $signature = & $apkSigner verify --verbose --print-certs $apk
   if ($LASTEXITCODE -ne 0) { throw "APK signature verification failed with exit code $LASTEXITCODE" }
+  $signature | Write-Output
+  if (($signature -join "`n") -notmatch 'Signer #1 certificate SHA-256 digest: 71bd27895f232e546509adb7f82a7f42e4a4f8a53dfd34de4d305a56aed29d20') {
+    throw "APK signer does not match the existing production certificate"
+  }
   $badging = & $aapt2 dump badging $apk
   if ($LASTEXITCODE -ne 0) { throw "APK metadata inspection failed with exit code $LASTEXITCODE" }
   $packageLine = $badging | Where-Object { $_ -like "package:*" } | Select-Object -First 1
   if ($packageLine -notmatch "name='com\.yves\.musicarchive'") { throw "Unexpected APK package metadata: $packageLine" }
-  if ($packageLine -notmatch "versionCode='14'") { throw "Unexpected APK versionCode metadata: $packageLine" }
-  if ($packageLine -notmatch "versionName='2\.3'") { throw "Unexpected APK versionName metadata: $packageLine" }
+  if ($packageLine -notmatch "versionCode='15'") { throw "Unexpected APK versionCode metadata: $packageLine" }
+  if ($packageLine -notmatch "versionName='2\.5'") { throw "Unexpected APK versionName metadata: $packageLine" }
   $releaseDirectory = Join-Path $root "release"
   New-Item -ItemType Directory -Path $releaseDirectory -Force | Out-Null
-  $publishedApk = Join-Path $releaseDirectory "xiaodongge-v2.3.apk"
+  $publishedApk = Join-Path $releaseDirectory "xiaodongge-v2.5.apk"
   Copy-Item -LiteralPath $apk -Destination $publishedApk -Force
   $hash = (Get-FileHash -LiteralPath $publishedApk -Algorithm SHA256).Hash.ToLowerInvariant()
   Write-Host "Signed release APK verified: $publishedApk"

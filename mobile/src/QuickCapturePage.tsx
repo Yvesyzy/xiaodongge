@@ -372,6 +372,12 @@ export default function QuickCapturePage() {
         {message ? <p className="hint" role="status">{message}</p> : null}
         {error ? <p className="error">{error}</p> : null}
         <button className="primary-button full" type="submit" disabled={busy}>{busy ? "保存中" : `保存${entryType === "album" ? "专辑" : "歌曲"}听感`}</button>
+        <button className="secondary-button full" type="button" disabled={busy || !ready} onClick={() => {
+          try {
+            writeDraft("quick");
+            navigate("/drafts");
+          } catch (err) { setError(err instanceof Error ? err.message : "草稿保存失败"); }
+        }}>保存草稿</button>
 
         <details className="quick-extras">
           <summary>补充评分、情绪和音乐信息</summary>

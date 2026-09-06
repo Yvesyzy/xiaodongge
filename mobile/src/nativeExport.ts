@@ -4,6 +4,7 @@ export type ExportFileOptions = {
   fileName: string;
   mimeType: string;
   content: string;
+  encoding?: "base64";
 };
 
 export type CopyTextOptions = {

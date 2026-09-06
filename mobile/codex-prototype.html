@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>小懂哥 · 简约年度总结原型</title>
+<style>body{margin:0;background:#eef1ed;color:#202724;font:14px system-ui,sans-serif}header{padding:14px 20px;display:flex;flex-wrap:wrap;gap:12px;align-items:center}button,select{font:inherit;padding:8px;border:1px solid #9bab9f;border-radius:5px;background:white;color:#245448}iframe{display:block;width:min(100%,430px);height:calc(100dvh - 115px);min-height:480px;margin:auto;border:1px solid #c9d3ca;background:white}p{margin:0;padding:0 20px 10px}strong{color:#245448}</style></head>
+<body><header><strong>可点击原型 · 全部为模拟数据</strong><label>场景 <select id="scenario"><option value="6">6 篇记录</option><option value="0">零记录</option><option value="1">1 篇记录</option><option value="128">128 篇记录</option><option value="45">单月45篇</option><option value="long">超长标题与正文</option></select></label><button id="overview">年度总览</button><button id="cover">年度封面</button></header><p id="message">正在准备隔离的模拟记录…</p><iframe title="小懂哥手机原型" id="app"></iframe>
+<script type="module">
+import { makeJournalFixtures, demoCover } from './codex_journal_fixtures.mjs';
+const message=document.querySelector('#message'), frame=document.querySelector('#app');
+// This demo is served only on its dedicated origin. Refuse existing unmarked data instead of overwriting it.
+if(location.hostname!=='127.0.0.1'||location.port!=='5174') {message.textContent='请使用专用原型地址 http://127.0.0.1:5174/codex-prototype.html，避免与日常数据混用。';}
+else if(localStorage.getItem('music-feelings-mobile-entries')!==null&&localStorage.getItem('codex-journal-demo')!==localStorage.getItem('music-feelings-mobile-entries')) {message.textContent='此预览地址已存在非演示数据，未覆盖。请使用独立浏览器环境。';}
+else {
+  const {store}=await import('/src/store.ts');
+  async function seed(){
+    const current=localStorage.getItem('music-feelings-mobile-entries');
+    if(current!==null&&localStorage.getItem('codex-journal-demo')!==current) {message.textContent='模拟记录已被修改或替换，未覆盖。请使用新的独立浏览器环境预览。';return;}
+    frame.src='about:blank';
+    const entries=makeJournalFixtures(document.querySelector('#scenario').value);
+    const data=JSON.stringify(entries);
+    localStorage.setItem('codex-journal-demo',data);
+    localStorage.setItem('music-feelings-mobile-entries',data);
+    for(const key of ['music-feelings-mobile-summaries','music-feelings-mobile-monthly-summaries','music-feelings-mobile-covers']) localStorage.removeItem(key);
+    for(const entry of entries.slice(0,6)) await store.setCover(entry.type==='song'?'song':'album',{albumName:entry.albumName,songName:entry.songName,artistName:entry.artistName},demoCover());
+    frame.src='/?codexDemo='+Date.now()+'#/summary?year=2026';
+    message.textContent='全部为演示记录，可阅读、筛选、切换年份并预览和下载分页图片。';
+  }
+  document.querySelector('#scenario').onchange=()=>seed().catch(e=>message.textContent=e.message);
+  document.querySelector('#overview').onclick=()=>frame.src='/#/summary?year=2026&view=overview';
+  document.querySelector('#cover').onclick=()=>frame.src='/#/summary?year=2026';
+  await seed();
+}
+</script></body></html>

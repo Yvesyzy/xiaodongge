@@ -13,6 +13,7 @@ import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.ActivityCallback;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import android.util.Base64;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -22,6 +23,11 @@ import java.nio.charset.StandardCharsets;
 @CapacitorPlugin(name = "NativeExport")
 public class NativeExportPlugin extends Plugin {
     private static final String EXPORT_DIRECTORY = "exports";
+    private static final String BASE64_ENCODING = "base64";
+    private static final String PNG_MIME_TYPE = "image/png";
+    private static final int MAX_BINARY_BYTES = 8 * 1024 * 1024;
+    private static final int MAX_BASE64_CHARACTERS = ((MAX_BINARY_BYTES + 2) / 3) * 4;
+    private static final byte[] PNG_SIGNATURE = new byte[] {(byte) 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a};
 
     @PluginMethod
     public void saveFile(PluginCall call) {
@@ -51,14 +57,21 @@ public class NativeExportPlugin extends Plugin {
             return;
         }
 
-        String content = call.getString("content");
-        if (content == null) {
-            call.reject("缺少导出内容");
+        String mimeType = call.getString("mimeType");
+        if (mimeType == null || mimeType.trim().isEmpty()) {
+            call.reject("缺少导出文件类型");
+            return;
+        }
+        byte[] payload;
+        try {
+            payload = exportBytes(call, mimeType);
+        } catch (IOException error) {
+            call.reject("读取导出内容失败：" + safeMessage(error), error);
             return;
         }
         try (OutputStream output = getContext().getContentResolver().openOutputStream(uri, "w")) {
             if (output == null) throw new IOException("系统无法打开文件输出流");
-            output.write(content.getBytes(StandardCharsets.UTF_8));
+            output.write(payload);
             output.flush();
             JSObject response = new JSObject();
             response.put("status", "saved");
@@ -74,7 +87,13 @@ public class NativeExportPlugin extends Plugin {
         String fileName = requiredString(call, "fileName", "缺少导出文件名");
         String mimeType = requiredString(call, "mimeType", "缺少导出文件类型");
         if (fileName == null || mimeType == null || !hasContent(call)) return;
-        String content = call.getString("content");
+        byte[] payload;
+        try {
+            payload = exportBytes(call, mimeType);
+        } catch (IOException error) {
+            call.reject("准备分享文件失败：" + safeMessage(error), error);
+            return;
+        }
 
         File exportDirectory = new File(getContext().getCacheDir(), EXPORT_DIRECTORY);
         if (!exportDirectory.exists() && !exportDirectory.mkdirs()) {
@@ -88,7 +107,7 @@ public class NativeExportPlugin extends Plugin {
         }
         File exportFile = new File(exportDirectory, safeFileName);
         try (FileOutputStream output = new FileOutputStream(exportFile, false)) {
-            output.write(content.getBytes(StandardCharsets.UTF_8));
+            output.write(payload);
             output.flush();
         } catch (IOException | SecurityException error) {
             call.reject("准备分享文件失败：" + safeMessage(error), error);
@@ -136,6 +155,59 @@ public class NativeExportPlugin extends Plugin {
         if (call.getString("content") != null) return true;
         call.reject("缺少导出内容");
         return false;
+    }
+
+    private byte[] exportBytes(PluginCall call, String mimeType) throws IOException {
+        String content = call.getString("content");
+        if (content == null) throw new IOException("缺少导出内容");
+        String encoding = call.getString("encoding");
+        if (encoding == null || encoding.trim().isEmpty()) return content.getBytes(StandardCharsets.UTF_8);
+        if (!BASE64_ENCODING.equals(encoding)) throw new IOException("不支持的导出编码");
+        if (!PNG_MIME_TYPE.equals(mimeType)) throw new IOException("Base64 导出仅支持 image/png");
+        if (content.isEmpty() || content.length() > MAX_BASE64_CHARACTERS || content.length() % 4 != 0 || !isStrictBase64(content)) {
+            throw new IOException("PNG Base64 内容无效");
+        }
+        final byte[] decoded;
+        try {
+            decoded = Base64.decode(content, Base64.NO_WRAP);
+        } catch (IllegalArgumentException error) {
+            throw new IOException("PNG Base64 内容无效", error);
+        }
+        if (decoded.length == 0 || decoded.length > MAX_BINARY_BYTES || !hasPngSignature(decoded)) {
+            throw new IOException("PNG 图片大小或格式无效");
+        }
+        return decoded;
+    }
+
+    private boolean isStrictBase64(String value) {
+        for (int index = 0; index < value.length(); index += 4) {
+            char first = value.charAt(index);
+            char second = value.charAt(index + 1);
+            char third = value.charAt(index + 2);
+            char fourth = value.charAt(index + 3);
+            if (!isBase64Letter(first) || !isBase64Letter(second)) return false;
+            if (third == '=') return index + 4 == value.length() && fourth == '=';
+            if (!isBase64Letter(third)) return false;
+            if (fourth == '=') return index + 4 == value.length();
+            if (!isBase64Letter(fourth)) return false;
+        }
+        return true;
+    }
+
+    private boolean isBase64Letter(char value) {
+        return value >= 'A' && value <= 'Z'
+            || value >= 'a' && value <= 'z'
+            || value >= '0' && value <= '9'
+            || value == '+'
+            || value == '/';
+    }
+
+    private boolean hasPngSignature(byte[] value) {
+        if (value.length < PNG_SIGNATURE.length) return false;
+        for (int index = 0; index < PNG_SIGNATURE.length; index++) {
+            if (value[index] != PNG_SIGNATURE[index]) return false;
+        }
+        return true;
     }
 
     private String requiredString(PluginCall call, String key, String errorMessage) {

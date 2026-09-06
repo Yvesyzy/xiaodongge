@@ -14,6 +14,7 @@ export type EntryDraftFields = {
   songName: string;
   artistName: string;
   listenedAt: string;
+  firstListenedAt?: string;
   tags: string;
   rating: string;
   ratingModifier: string;
@@ -211,6 +212,7 @@ function parseFields(value: unknown): EntryDraftFields | null {
     songName: value.songName as string,
     artistName: value.artistName as string,
     listenedAt: value.listenedAt as string,
+    ...(typeof value.firstListenedAt === "string" ? { firstListenedAt: value.firstListenedAt } : {}),
     tags: value.tags as string,
     rating: value.rating as string,
     ratingModifier,

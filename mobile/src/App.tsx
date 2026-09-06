@@ -11,6 +11,7 @@ import { findSimilarEntry } from "./entryDuplicate";
 import { excerpt, formatDate, formatDateOnly, monthLabel } from "./format";
 import { buildInsights, type Insight } from "./insights";
 import { DailyListeningNote, MonthlyListeningPage, YearlyListeningPage } from "./ListeningYearbookView";
+import SimpleYearbookPage from "./codex_YearbookPage";
 import { mergeMusicMetadata } from "./musicMetadata";
 import { sameMusicIdentity } from "./musicIdentity";
 import { NowPlaying } from "./nativeNowPlaying";
@@ -27,7 +28,7 @@ import { parseList, store } from "./store";
 import { clearStorageCorruption, readStorageCorruption, type StorageCorruption } from "./storageSafety";
 import { ENTRY_TYPE_LABELS, ENTRY_TYPES, type AlbumAggregate, type EntryInput, type ListeningMoment, type ListeningMomentInput, type MusicMetadata, type RatingModifier, type ReviewEntry, type SongAggregate, type YearStats } from "./types";
 
-const APP_VERSION = "2.3";
+const APP_VERSION = "2.5";
 
 const nav = [
   ["/", "首页"],
@@ -120,7 +121,8 @@ export default function App() {
           <Route path="/songs" element={<SongsPage />} />
           <Route path="/songs/detail" element={<AggregateDetail kind="song" />} />
           <Route path="/search" element={<SearchPage />} />
-          <Route path="/summary" element={<YearlyListeningPage />} />
+          <Route path="/summary" element={<SimpleYearbookPage />} />
+          <Route path="/summary/analysis" element={<YearlyListeningPage />} />
           <Route path="/summary/:year/:month" element={<MonthlyListeningPage />} />
           <Route path="/abstract-map" element={<AbstractMusicMapPage />} />
           <Route path="/insights" element={<InsightsPage />} />
@@ -136,7 +138,7 @@ export default function App() {
             {label}
           </NavLink>
         ))}
-        {/* 中间 + 号：点击弹出「速记 / 正式记录」选择，而不是直接进完整表单 */}
+        {/* 统一的新建和续写入口 */}
         <button ref={createButtonRef} type="button" aria-label="新建记录" onClick={() => setCreateSheetOpen(true)}>新建</button>
         {nav.slice(3).map(([to, label]) => (
           <NavLink key={to} to={to} className={({ isActive }) => (isActive ? "active" : "")} end={to === "/"}>
@@ -152,8 +154,12 @@ export default function App() {
               <span>60 秒听感，先留一句真实感受，之后随时展开成完整乐评</span>
             </Link>
             <Link to="/new" className="create-choice-card" onClick={() => setCreateSheetOpen(false)}>
-              <strong>正式记录</strong>
+              <strong>完整</strong>
               <span>完整乐评：专辑、曲风、情绪、多维度评分</span>
+            </Link>
+            <Link to="/drafts" className="create-choice-card" onClick={() => setCreateSheetOpen(false)}>
+              <strong>草稿</strong>
+              <span>读取未完成的记录，接着写上次的感受</span>
             </Link>
           </div>
         </BottomSheet>
@@ -163,12 +169,20 @@ export default function App() {
 }
 
 function HomePage() {
+  const [draftCount, setDraftCount] = useState(() => listEntryDrafts(localStorage).length);
   const [entries, setEntries] = useState<HomeEntry[]>([]);
   const [stats, setStats] = useState<YearStats | null>(null);
   const [resurfacingEntry, setResurfacingEntry] = useState<HomeEntry | null>(null);
   const [resurfacingState, setResurfacingState] = useState<DailyResurfacingState | null>(null);
   const [nowPlayingMatch, setNowPlayingMatch] = useState(false);
   const currentYear = new Date().getFullYear();
+
+  useEffect(() => {
+    const refresh = () => setDraftCount(listEntryDrafts(localStorage).length);
+    window.addEventListener("storage", refresh);
+    window.addEventListener("focus", refresh);
+    return () => { window.removeEventListener("storage", refresh); window.removeEventListener("focus", refresh); };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -231,10 +245,7 @@ function HomePage() {
         <div className="home-hero-copy">
           <h1>私人音乐档案</h1>
           <p>记录每一次听歌的心情与感受</p>
-          <div className="home-capture-actions">
-            <Link to="/capture" className="home-new-button"><span aria-hidden="true">+</span>快速记下</Link>
-            <Link to="/new" className="home-full-entry-link">写完整乐评</Link>
-          </div>
+          <Link to="/drafts" className="home-draft-link"><strong>草稿箱 · {draftCount} 条待完成</strong><span>{draftCount ? "接着写上次的感受" : "未完成的感受，随时回来续写"} <span aria-hidden="true">→</span></span></Link>
         </div>
         <div className="hero-record" aria-hidden="true"><span>FOR ME<br />NOT FOR ALL</span></div>
       </section>
@@ -383,9 +394,6 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
       // 直接进入 /new（无 draft 参数）：仅当未达上限时生成新 draftId
       if (countNewDrafts(localStorage) < MAX_NEW_DRAFTS) {
         draftIdRef.current = createNewDraftId();
-        const next = new URLSearchParams(searchParams);
-        next.set("draft", draftIdRef.current);
-        setSearchParams(next, { replace: true });
       } else {
         draftLimitErrorRef.current = true;
       }
@@ -394,6 +402,12 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
     inspirationRef.current = searchParams.get("inspiration") === "1";
   }
   const draftId = mode === "create" ? draftIdRef.current : null;
+  useEffect(() => {
+    if (mode !== "create" || !draftId || searchParams.get("draft") === draftId) return;
+    const next = new URLSearchParams(searchParams);
+    next.set("draft", draftId);
+    setSearchParams(next, { replace: true });
+  }, [draftId, mode, searchParams, setSearchParams]);
   const formRef = useRef<HTMLFormElement | null>(null);
   const draftTimerRef = useRef<number | null>(null);
   const pendingDraftRef = useRef<EntryDraft | null>(null);
@@ -662,6 +676,13 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
       }
       return false;
     }
+  }
+
+  function saveDraftAndExit() {
+    const draft = createDraftSnapshot();
+    if (!draft || saving) return;
+    pendingDraftRef.current = draft;
+    if (persistPendingDraft()) navigate("/drafts");
   }
 
   async function discardDraft() {
@@ -996,9 +1017,10 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
         <label>记录类型<select name="type" defaultValue={source?.type ?? "album"}>{ENTRY_TYPES.map((type) => <option key={type} value={type}>{ENTRY_TYPE_LABELS[type]} / {type}</option>)}</select></label>
         <label>标题<input name="title" defaultValue={source?.title ?? ""} required /></label>
         <div className="form-grid">
-          <label>年份<input name="year" type="number" min="1" max="9999" defaultValue={source?.year ?? new Date().getFullYear()} required /></label>
-          <label>月份<input name="month" type="number" min="1" max="12" defaultValue={source?.month ?? ""} /></label>
+          <label>归档年份<input name="year" type="number" min="1" max="9999" defaultValue={source?.year ?? new Date().getFullYear()} required /></label>
+          <label>归档月份<input name="month" type="number" min="1" max="12" defaultValue={source?.month ?? ""} /></label>
         </div>
+        <p className="hint">月报、年报按乐评首次正式保存的时间统计；归档年月和收听日期用于整理作品。</p>
         <label>专辑<input name="albumName" defaultValue={source?.albumName ?? ""} /></label>
         <label>歌曲<input name="songName" defaultValue={source?.songName ?? ""} /></label>
         <label>艺术家<input name="artistName" defaultValue={source?.artistName ?? ""} /></label>
@@ -1013,7 +1035,7 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
             </label>
           </div>
         </section>
-        <label>听歌或感受日期<input name="listenedAt" type="date" defaultValue={source?.listenedAt ? new Date(source.listenedAt).toLocaleDateString("en-CA") : ""} /></label>
+        <label>收听日期<input name="listenedAt" type="date" defaultValue={source?.listenedAt ? new Date(source.listenedAt).toLocaleDateString("en-CA") : ""} /></label>
         <GenrePicker
           selectedTags={selectedGenreTags}
           onToggleTag={toggleGenre}
@@ -1054,7 +1076,10 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
         </div>
         {notice ? <p className="hint">{notice}</p> : null}
         {error ? <p className="error">{error}</p> : null}
-        <button className="primary-button" type="submit" disabled={saving}>{saving ? "保存中" : "保存"}</button>
+        <div className="entry-save-actions">
+          <button className="secondary-button" type="button" disabled={saving || !draftReady} onClick={saveDraftAndExit}>保存草稿</button>
+          <button className="primary-button" type="submit" disabled={saving}>{saving ? "保存中" : "保存正式乐评"}</button>
+        </div>
       </form>
     </Page>
   );
@@ -1731,7 +1756,7 @@ function DraftsPage() {
   function continueDraft(draft: EntryDraftMeta) {
     if (draft.mode === "create") {
       if (draft.draftId) {
-        navigate(`/new?draft=${encodeURIComponent(draft.draftId)}`);
+        navigate(`${draft.captureMode === "quick" ? "/capture" : "/new"}?draft=${encodeURIComponent(draft.draftId)}`);
       } else {
         // legacy 草稿（v1:new 无 draftId）：迁移到新 key 后跳转
         const result = readEntryDraft(localStorage, "create", null, null);
@@ -2678,6 +2703,7 @@ function readDraftFields(form: HTMLFormElement): EntryDraftFields {
     songName: value("songName"),
     artistName: value("artistName"),
     listenedAt: value("listenedAt"),
+    firstListenedAt: value("firstListenedAt"),
     tags: value("tags"),
     rating: value("rating"),
     ratingModifier: value("ratingModifier"),

@@ -1,3 +1,29 @@
+2026-09-06 v2.5 构建：版本 2.5 (15)，typecheck、30项单测、Web构建、Capacitor copy、Gradle assembleRelease/lintVitalRelease通过。APK包名/版本和资源已核对；release/xiaodongge-v2.5-unsigned.apk未签名，不可安装。原长期签名配置缺失，等待Yves提供路径后构建正式覆盖包并发布标签/Release。Git代码同步另见本次提交；交接 docs/codex_v2.5_release_status.md。
+
+2026-09-06 最新定稿：Yves 确认简约年度总结。封面→总览→作品→原文已实际实现，零/大量记录、筛选折叠和1080×1680分页PNG可用。原型 http://127.0.0.1:5174/codex-prototype.html。全部使用获准模拟数据验收：0/1/6/128、单月45、长Unicode正文；128条进入15页索引。typecheck、30项单测、新旧浏览器回归和mobile:build通过，cap copy android完成。未生成新APK、未安装或发布。完整交接 docs/session_summary_2026-09-06_codex.md；交付说明 docs/designs/codex_yearbook_delivery_2026-09-06.md。用户要求就此定稿，不再扩展功能。
+
+最新交付：补充零记录和大量记录两张简约 V2 静态布局，见 docs/designs/codex_yearbook_empty_simple_v2.png、codex_yearbook_many_simple_v2.png；完整说明及提示词见 codex_yearbook_boundary_layouts_v2.md。零记录提供新建/草稿入口；大量记录按月折叠、搜索筛选、继续显示早期月份，显示展开数/全年数，概览和记录页分开保存。已视觉检查与原图复制校验，均为示例内容。本轮未修改应用代码。
+
+最新交付：按 Yves 选择补充简约年度总览静态效果图，见 docs/designs/codex_yearbook_overview_simple_v2.png；说明及提示词为同名 .md。十二月分布与六条示例记录逐项核对一致；近白、深灰、墨绿，与 V2 封面和作品页统一。已保存原图并验证复制一致性。未改应用代码；下一步可制作封面→总览→作品页手机原型。
+
+当前设计方向：Yves 要求更简约、减少文艺装饰，优先封面与作品页，重听对照少投入。已用内置 imagegen 精修两张简约 V2：docs/designs/codex_yearbook_cover_simple_v2.png、codex_yearbook_work_simple_v2.png。说明与完整提示词：docs/designs/codex_yearbook_simple_v2.md。逐张视觉检查、原图复制一致性验证完成；均为示例内容。此轮只更新静态设计稿，未改应用代码。下一步可按 V2 做手机可点击原型，并验证真实长短记录和导出。
+
+上一版：2026-09-05 制作私人音乐杂志封面、作品页、重听对照页，以及年度故事放映厅三幕总览。原图和完整提示词保存在 docs/designs/codex_yearbook_*，保留供对照。
+
+上轮方案研究：已核查 Spotify Wrapped、Apple Music Replay、YouTube Recap、Letterboxd 官方案例；推荐私人音乐杂志为主体，故事卡为预览，保留完整来源索引。方案见 docs/codex_2026-09-05_yearbook-design-directions.md。
+
+上一实施任务：小懂哥报告日期、草稿和年度海报修复
+日期：2026-09-05
+状态：代码、浏览器回归、PNG 导出、Android 调试构建完成；等待原发布签名配置和真机验收。
+已完成：报告按 createdAt 本地日期；修复月报不可读和年报静默漏月；首页文字衬底及草稿数量；三项创建菜单；空正文草稿独立保存/原模式续写；年度十二月柱图、评分作品、来源清单和 PNG 预览/保存/分享。
+验证：npm typecheck 通过；30 项既有测试通过；scripts/codex_check_reports.mjs 浏览器回归通过；mobile:build 通过；Gradle assembleDebug 通过。
+调试 APK：android/app/build/outputs/apk/debug/app-debug.apk（70,489,551 bytes）
+SHA-256：0949391A402DAA77DCC435E6446B609B3066D42F5209C3DC1B22466782A8556B
+正式交付条件：四项 XIAODONGGE 签名变量未配置，原签名文件路径需 Yves 提供；ADB 无设备。调试包不是正式版覆盖升级包。
+完整交接：docs/session_summary_2026-09-05_codex.md
+当前更改未提交/推送/发布。保留原有两处 Android Gradle 改动和 .claude/；未修改 cc 状态。
+
+以下为历史记录：
 项目：小懂哥 Android 原生导出按钮修复
 日期：2026-08-04
 状态：实现与自动验证完成，等待 Android 真机点击验收
