@@ -19,3 +19,5 @@ Yves 认为 v2.6 的首页过空，希望融合之前的设计。恢复原有唱
 实际渲染截图位于 `release/codex_home_fusion/`；390px 六条示例首页为 `codex_home_6_390.png`，空记录为 `codex_home_0_390.png`。Web 构建位于 `release/codex_home_fusion_build/`。
 
 本轮仅更新首页代码及预览，未重新构建 APK、未提交或推送。之前交付的 v2.6.1 APK 哈希仍为 `ee67dc84df4187ca1798ab50ccfb27606ad30a69a262fa3fc65375f81577da79`，不包含本次首页融合设计。后续如获打包指令，应生成新的版本或独立产物名称，避免混淆已经交付的包。
+
+后续发布：Yves 已确认设计并要求签名打包、提交推送。本首页已随 v2.6.2 (18) 构建并发布到 GitHub，详见 `../codex_v2.6.2_release_status.md`；上段仅记录设计交付时的历史状态。

@@ -1,3 +1,5 @@
+2026-09-08 v2.6.2 已发布：首页融合版及备份导入/封面选项修复已签名打包，版本2.6.2(18)。release/xiaodongge-v2.6.2.apk 大小67,936,817字节，SHA256=632cd41e5f69d930108ac50ce77236b8246c6af7dba805d84aca414824449097，沿用v2.5/v2.6/v2.6.1签名，可覆盖安装。typecheck、31单测、首页/旧月报/导入界面/SQLite往返回滚撤销、assembleRelease/lintVitalRelease、签名版本与APK资源核验通过。功能提交d8d8c1f已推送main，v2.6.2标签已推送，GitHub Release公开且远端APK大小及digest核对一致：https://github.com/Yvesyzy/xiaodongge/releases/tag/v2.6.2 。私人JSON和签名材料未上传；原有.claude/及三处换行状态保留，手机实际安装仍未操作。完整交接docs/codex_v2.6.2_release_status.md。
+
 2026-09-08 首页融合版已实现：按 Yves 要求恢复纸张纹理、右侧黑胶和墨绿/暖棕入口；标题与草稿区有不透明衬底，草稿回到顶部，最近三条记录继续前置，年记及今日重逢保持紧凑。typecheck、Web 构建、0/6/128 条模拟记录及320/390/768/1280px页面与入口跳转检查通过。预览 release/codex_home_fusion/codex_home_6_390.png；设计/交付 docs/designs/codex_home_fusion_2026-09-08.md。只更新源码和浏览器预览，未重新打包 APK，旧 v2.6.1 包不含此次首页改动；未提交/推送。
 
 2026-09-08 旧版整理完成：release 顶层只保留 v2.6.1 APK。v2.2/v2.3/v2.5/v2.6 旧包及五份生成资源共 74 文件、333.78 MiB，归档至 release/codex_archive_2026-09-08，逐文件 SHA256 验证通过；清单 codex_manifest.json。未永久删除或释放磁盘空间。最新 APK、恢复 JSON、签名材料哈希不变；Git/GitHub 历史及工作区外文件未改。完整说明见 docs/session_summary_2026-09-08_codex.md 的旧版本整理节。

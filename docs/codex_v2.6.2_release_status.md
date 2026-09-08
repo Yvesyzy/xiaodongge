@@ -13,4 +13,4 @@ Yves 已批准融合版首页，并明确要求构建新版签名安装包、提
 
 私人 JSON、签名密钥、旧 APK 归档和测试截图未加入 Git。保留原有 `.claude/` 和三处换行状态，不修改 cc 交接。没有安装手机或验证微信接收。
 
-源码推送、v2.6.2 标签及 GitHub 发布结果在执行完成后追加。
+源码已提交并推送为 `d8d8c1f80cca1c167b4dc4737d1ce4f71696eca6`，v2.6.2 标签指向该提交。GitHub Release 已公开：<https://github.com/Yvesyzy/xiaodongge/releases/tag/v2.6.2>。远端 APK 状态 uploaded，大小 67,936,817 字节，digest 与本地 SHA256 一致；校验文件也已上传。后续交接文档提交不改变版本标签。
