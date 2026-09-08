@@ -1,0 +1,52 @@
+import { chromium } from 'playwright';
+import assert from 'node:assert/strict';
+import { makeJournalFixtures } from '../mobile/codex_journal_fixtures.mjs';
+const browser = await chromium.launch({ channel: 'chrome', headless: true });
+try {
+  const page = await browser.newPage();
+  await page.goto('http://127.0.0.1:5173');
+  const result = await page.evaluate(async entries => {
+    const { store } = await import('/src/store.ts');
+    const { buildMonthlyListeningSnapshot, parseMonthlyListeningSnapshot } = await import('/src/listeningYearbook.ts');
+    const snapshot = buildMonthlyListeningSnapshot(2026, 5, entries);
+    const legacy = structuredClone(snapshot); delete legacy.dateBasis;
+    legacy.days[0].date = '2026-08-18'; legacy.days[0].day.date = '2026-08-18';
+    const check = value => { try { parseMonthlyListeningSnapshot(JSON.stringify(value)); return null; } catch (e) { return e.message; } };
+    const invalid = structuredClone(legacy); invalid.days[0].analysis.sourceEntryCount = 'invalid';
+    const mismatchedCurrent = { ...legacy, dateBasis: 'createdAt' };
+    const raw = JSON.stringify({ version: 5, exportedAt: new Date().toISOString(), entries, summaries: [], monthlySummaries: [{ id: 'legacy-month', year: 2026, month: 5, title: '旧月报', content: '保留的月报正文', themeId: legacy.theme.id, analysisJson: JSON.stringify(legacy), analysisVersion: 1, sourceFingerprint: null, sourceEntryCount: legacy.analysis.sourceEntryCount, generatedAt: new Date().toISOString(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }], covers: [], listeningMoments: [], appData: {} });
+    let previewError = null; try { store.previewBackup(raw); } catch (e) { previewError = e.message; }
+    return { legacy: check(legacy), current: check(snapshot), invalid: check(invalid), mismatchedCurrent: check(mismatchedCurrent), previewError, raw };
+  }, makeJournalFixtures('6'));
+  assert.equal(result.legacy, null, 'Legacy snapshots can contain listening dates outside their manually archived month');
+  assert.equal(result.current, null);
+  assert.match(result.invalid, /月度分析快照格式无效/);
+  assert.match(result.mismatchedCurrent, /月度分析快照格式无效/);
+  assert.equal(result.previewError, null);
+  const errors = []; page.on('pageerror', error => errors.push(error.message));
+  await page.goto('http://127.0.0.1:5173/#/backup');
+  await page.locator('input[type="file"]').setInputFiles({ name: 'legacy.json', mimeType: 'application/json', buffer: Buffer.from(result.raw) });
+  await page.getByText('已读取备份文件：legacy.json', { exact: true }).waitFor();
+  const damaged = JSON.parse(result.raw); damaged.covers = [{ dataUrl: 'damaged' }];
+  await page.locator('form textarea').fill(JSON.stringify(damaged));
+  const importButton = page.getByRole('button', { name: '导入并覆盖当前数据', exact: true });
+  await page.waitForFunction(() => document.querySelector('button[type="submit"]').disabled);
+  await page.getByLabel('跳过备份封面，保留当前封面', { exact: true }).check();
+  await page.waitForFunction(() => !document.querySelector('button[type="submit"]').disabled);
+  let confirmation = '';
+  page.once('dialog', async dialog => { confirmation = dialog.message(); await dialog.accept(); });
+  await importButton.click();
+  await page.getByText(/导入完成：6 条记录/).waitFor();
+  assert.match(confirmation, /保留当前封面/);
+  await page.getByLabel('JSON 包含封面', { exact: true }).uncheck();
+  await page.getByRole('button', { name: '导出 JSON', exact: true }).click();
+  await page.getByText(/xiaodongge-.*-no-covers\.json/, { exact: true }).waitFor();
+  const exported = JSON.parse(await page.locator('textarea[readonly]').inputValue());
+  assert.equal(exported.entries.length, 6); assert.deepEqual(exported.covers, []);
+  await page.getByLabel('JSON 包含封面', { exact: true }).check();
+  assert.equal(await page.locator('textarea[readonly]').count(), 0, 'Changing cover mode clears stale export');
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+  assert.deepEqual(errors, [], 'Asynchronous file reading must not access a cleared event.currentTarget');
+  console.log('PASS: legacy/current boundaries, corrupt field rejection, asynchronous file chooser, cover options, import confirmation and JSON export UI. All data synthetic.');
+} finally { await browser.close(); }

@@ -29,7 +29,7 @@ import { parseList, store } from "./store";
 import { clearStorageCorruption, readStorageCorruption, type StorageCorruption } from "./storageSafety";
 import { ENTRY_TYPE_LABELS, ENTRY_TYPES, type AlbumAggregate, type EntryInput, type ListeningMoment, type ListeningMomentInput, type MusicMetadata, type RatingModifier, type ReviewEntry, type SongAggregate, type YearStats } from "./types";
 
-const APP_VERSION = "2.6";
+const APP_VERSION = "2.6.2";
 
 const nav = [
   ["/", "首页"],
@@ -249,8 +249,9 @@ function HomePage() {
         <div className="home-hero-copy">
           <h1>私人音乐档案</h1>
           <p>记录每一次听歌的心情与感受</p>
+          <Link to="/drafts" className="home-draft-link"><strong>草稿箱 · {draftCount} 条待完成 <span aria-hidden="true">→</span></strong>{latestDraft ? <><span className="home-draft-title">{latestDraft.title || "未命名草稿"}</span><span>{latestDraftResult?.status === "valid" ? excerpt(latestDraftResult.draft.fields.content, 70) || "正文还没写，随时继续。" : "打开草稿箱继续"}</span></> : <span>未写完的感受，留在这里继续。</span>}</Link>
         </div>
-        <div className="hero-record" aria-hidden="true"><span>FOR ME<br />NOT FOR ALL</span></div>
+        <div className="hero-record" aria-hidden="true" />
       </section>
       <div className="home-stats">
         <Stat label="今年记录" value={`${stats?.createdThisYear ?? 0} 条`} />
@@ -262,7 +263,6 @@ function HomePage() {
         <Link to="/timeline">查看全部</Link>
       </div>
       <HomeEntryList entries={entries} />
-      <Link to="/drafts" className="home-draft-link"><strong>草稿箱 · {draftCount} 条待完成</strong>{latestDraft ? <><span>{latestDraft.title || "未命名草稿"} →</span><span>{latestDraftResult?.status === "valid" ? excerpt(latestDraftResult.draft.fields.content, 70) || "正文还没写，随时继续。" : "打开草稿箱继续"}</span></> : <span>暂时没有待续写的记录</span>}</Link>
       <Link to={`/summary?year=${currentYear}`} className="home-annual-link"><div><strong>{currentYear} · 我的音乐年记</strong><p>{stats?.createdThisYear ?? 0} 条今年记录，回顾作品与感受</p></div><span aria-hidden="true">→</span></Link>
       {resurfacingEntry ? (
         <section className="daily-resurfacing-card">
@@ -315,7 +315,7 @@ async function loadEntryCover(entry: ReviewEntry) {
 }
 
 function HomeEntryList({ entries }: { entries: HomeEntry[] }) {
-  if (!entries.length) return <Empty text="还没有记录。" />;
+  if (!entries.length) return <div className="home-empty"><strong>还没有记录</strong><p>点下方「＋」记下第一份听感，或从草稿箱接着写。</p></div>;
   return (
     <div className="home-entry-list">
       {entries.map((entry) => {
@@ -1850,6 +1850,8 @@ function DraftsPage() {
 
 function BackupPage() {
   const [exported, setExported] = useState<ExportedData | null>(null);
+  const [includeCovers, setIncludeCovers] = useState(true);
+  const [skipCovers, setSkipCovers] = useState(false);
   const [exportAction, setExportAction] = useState<"save" | "share" | "copy" | null>(null);
   const [exportStatus, setExportStatus] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [importText, setImportText] = useState("");
@@ -1869,6 +1871,17 @@ function BackupPage() {
   const [busy, setBusy] = useState(false);
   const [health, setHealth] = useState<BackupHealth | null>(null);
   const [corruption, setCorruption] = useState<StorageCorruption | null>(() => readStorageCorruption(localStorage));
+
+  useEffect(() => {
+    setError("");
+    setPreview(null);
+    if (!importText.trim()) return;
+    try {
+      setPreview(store.previewBackup(importText, { includeCovers: !skipCovers }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "备份预览失败");
+    }
+  }, [importText, skipCovers]);
 
   useEffect(() => {
     let active = true;
@@ -1914,9 +1927,10 @@ function BackupPage() {
     setError("");
     setExportStatus(null);
     try {
-      const content = kind === "json" ? await store.exportBackup() : kind === "txt" ? await store.exportTxt() : await store.exportCsv();
+      const content = kind === "json" ? await store.exportBackup({ includeCovers }) : kind === "txt" ? await store.exportTxt() : await store.exportCsv();
       const meta = EXPORT_FILE_META[kind];
-      setExported({ kind, content, fileName: exportFileName(kind), mimeType: meta.mimeType });
+      const fileName = kind === "json" && !includeCovers ? exportFileName(kind).replace(/\.json$/, "-no-covers.json") : exportFileName(kind);
+      setExported({ kind, content, fileName, mimeType: meta.mimeType });
       setExportStatus({ tone: "success", text: `${EXPORT_LABELS[kind]} 已生成，可以保存、分享或复制` });
     } catch (err) {
       setError(err instanceof Error ? err.message : "导出失败");
@@ -2015,21 +2029,11 @@ function BackupPage() {
   function changeImportText(value: string) {
     setImportText(value);
     setMessage("");
-    setError("");
-    if (!value.trim()) {
-      setPreview(null);
-      return;
-    }
-    try {
-      setPreview(store.previewBackup(value));
-    } catch (err) {
-      setPreview(null);
-      setError(err instanceof Error ? err.message : "备份预览失败");
-    }
   }
 
   async function chooseImportFile(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.currentTarget.files?.[0];
+    const input = event.currentTarget;
+    const file = input.files?.[0];
     if (!file) return;
     setMessage("");
     setError("");
@@ -2052,13 +2056,12 @@ function BackupPage() {
         setError("备份文件为空");
         return;
       }
-      setPreview(store.previewBackup(raw));
       setMessage(`已读取备份文件：${file.name}`);
     } catch (err) {
       setPreview(null);
       setError(err instanceof Error ? err.message : "备份文件读取失败");
     } finally {
-      event.currentTarget.value = "";
+      input.value = "";
     }
   }
 
@@ -2067,20 +2070,20 @@ function BackupPage() {
     if (busy) return;
     let nextPreview: BackupPreview;
     try {
-      nextPreview = store.previewBackup(importText);
+      nextPreview = store.previewBackup(importText, { includeCovers: !skipCovers });
       setPreview(nextPreview);
     } catch (err) {
       setError(err instanceof Error ? err.message : "备份预览失败");
       return;
     }
-    if (!confirm(`导入会覆盖当前手机本地数据。备份包含 ${nextPreview.entryCount} 条记录、${nextPreview.summaryCount} 个年度总结、${nextPreview.monthlySummaryCount} 个月度作品、${nextPreview.coverCount} 张封面。确认继续？`)) return;
+    if (!confirm(`导入会覆盖当前手机本地数据。备份包含 ${nextPreview.entryCount} 条记录、${nextPreview.summaryCount} 个年度总结、${nextPreview.monthlySummaryCount} 个月度作品。${skipCovers ? "跳过备份封面，保留当前封面；缺少的封面可之后补充。" : `封面将替换为备份中的 ${nextPreview.coverCount} 张封面。`}确认继续？`)) return;
     setMessage("");
     setError("");
     setBusy(true);
     try {
-      await store.importBackup(importText);
+      await store.importBackup(importText, { includeCovers: !skipCovers });
       setUndoPreview(await store.previewImportUndo());
-      setMessage("导入完成");
+      setMessage(`导入完成：${nextPreview.entryCount} 条记录、${nextPreview.summaryCount} 个年度总结、${nextPreview.monthlySummaryCount} 个月度作品。${skipCovers ? "已保留当前封面，缺少的封面可重新添加。" : `已恢复 ${nextPreview.coverCount} 张封面。`}`);
       setExported(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "导入失败");
@@ -2135,6 +2138,10 @@ function BackupPage() {
           </div>
         </section>
       ) : null}
+      <div className="backup-cover-options">
+        <label><input type="checkbox" checked={includeCovers} disabled={exportAction !== null} onChange={(event) => { setIncludeCovers(event.target.checked); setExported(null); setExportStatus(null); }} />JSON 包含封面</label>
+        <p className="hint">取消勾选可导出不含封面的备份，乐评和总结完整保留，封面可之后重新添加。</p>
+      </div>
       <div className="backup-export-actions">
         <button className="primary-button" type="button" onClick={() => exportData("json")}>导出 JSON</button>
         <button className="secondary-button" type="button" onClick={() => exportData("txt")}>导出 TXT</button>
@@ -2165,16 +2172,21 @@ function BackupPage() {
         </section>
       ) : null}
       <form className="form-card" onSubmit={importData}>
+        <div className="backup-cover-options">
+          <label><input type="checkbox" checked={skipCovers} disabled={busy} onChange={(event) => { setSkipCovers(event.target.checked); setMessage(""); }} />跳过备份封面，保留当前封面</label>
+          <p className="hint">封面损坏或暂时不需要恢复时可勾选，其他内容照常导入。</p>
+        </div>
         <label className="secondary-button file-input-button">
           选择 JSON 文件
-          <input type="file" accept="application/json,.json" onChange={chooseImportFile} />
+          <input type="file" accept="application/json,.json" disabled={busy} onChange={chooseImportFile} />
         </label>
         <label>
           粘贴备份 JSON
-          <textarea rows={10} value={importText} onChange={(event) => changeImportText(event.target.value)} />
+          <textarea rows={10} value={importText} disabled={busy} onChange={(event) => changeImportText(event.target.value)} />
         </label>
         {preview ? <p className="hint">备份内容：{preview.entryCount} 条记录、{preview.summaryCount} 个年度总结、{preview.monthlySummaryCount} 个月度作品、{preview.coverCount} 张封面；导出时间：{formatDate(preview.exportedAt)}</p> : null}
-        <button className="danger-button" type="submit" disabled={busy}>{busy ? "导入中" : "导入并覆盖当前数据"}</button>
+        {skipCovers ? <p className="hint">本次不导入备份中的封面；当前封面保留。</p> : null}
+        <button className="danger-button" type="submit" disabled={busy || !preview}>{busy ? "导入中" : "导入并覆盖当前数据"}</button>
       </form>
       {message ? <p className="hint">{message}</p> : null}
       {error ? <p className="error">{error}</p> : null}

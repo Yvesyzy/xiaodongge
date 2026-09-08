@@ -262,15 +262,6 @@ textarea:focus-visible {
   content: "";
 }
 
-.hero-record span {
-  position: relative;
-  z-index: 1;
-  color: rgba(242, 215, 157, 0.82);
-  font-size: 10px;
-  font-weight: 800;
-  text-align: center;
-}
-
 .home-stats {
   position: relative;
   z-index: 2;
@@ -2984,7 +2975,8 @@ textarea {
 }
 
 /* ---- Multi-Dimension Rating ---- */
-.multi-dimension-toggle {
+.multi-dimension-toggle,
+.backup-cover-options {
   margin: 8px 0 4px;
   padding: 10px 12px;
   border: 1px dashed rgba(7, 31, 27, 0.18);
@@ -2999,6 +2991,20 @@ textarea {
   font-size: 13px;
   color: var(--green-800);
   cursor: pointer;
+}
+
+.backup-cover-options label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.backup-cover-options input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 20px;
+  accent-color: var(--green-800);
 }
 
 .multi-dimension-toggle small {
@@ -3783,22 +3789,40 @@ textarea {
   }
 }
 
-/* Compact reading and writing layout; decoration stays out of the text. */
-.home-page .home-hero { min-height: 0; padding: 24px 20px; background: #fafaf7; }
-.home-page .home-hero::before, .home-page .hero-record { display: none; }
-.home-page .home-hero-copy { padding: 0; background: none; box-shadow: none; }
-.home-page .home-hero h1 { font: 650 28px/1.4 system-ui, "Microsoft YaHei", sans-serif; margin: 0 0 8px; }
-.home-page .home-hero p { font-size: 14px; margin: 0; color: #606b64; }
-.home-page .home-stats { position: static; margin: 0 18px 20px; transform: none; }
-.home-page .home-stats strong { font-size: 27px; }
-.home-page .home-draft-link, .home-annual-link { margin: 20px 18px; padding: 16px; border-radius: 8px; background: #eff2ee; color: #245448; }
-.home-annual-link { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+/* Familiar record sleeve, with an opaque reading area and compact recent entries. */
+.home-page .home-hero { min-height: 0; padding: 24px 18px 62px; }
+.home-page .home-hero::before { opacity: .18; }
+.home-page .hero-record { z-index: 0; top: 18px; right: -92px; width: 286px; height: 286px; }
+.home-page .hero-record::after { width: 7px; height: 7px; border-radius: 50%; background: #ede4c6; content: ""; }
+.home-page .home-hero-copy { width: calc(100% - 44px); max-width: 440px; padding: 18px 16px; border: 1px solid #e2e5d9; border-radius: 12px; background: #fffdf8; box-shadow: 0 8px 24px #071f1b08; }
+.home-page .home-hero h1 { font: 700 clamp(26px, 7.6vw, 34px)/1.3 "Songti SC", SimSun, serif; margin: 0 0 10px; }
+.home-page .home-hero p { font-size: 14px; line-height: 1.6; margin: 0; color: #56645b; }
+.home-page .home-stats { margin: -38px 18px 22px; transform: none; background: #fffdf8; box-shadow: 0 10px 24px #071f1b0d; }
+.home-page .home-stats .stat-card { padding: 14px 6px; }
+.home-page .home-stats strong { font-size: clamp(22px, 6.8vw, 27px); white-space: nowrap; }
+.home-page .home-draft-link { margin: 16px 0 0; padding: 11px 12px; border-radius: 6px; border-color: #d0dacc; background: #edf2eb; color: #245448; }
+.home-page .home-draft-link strong { display: flex; justify-content: space-between; gap: 8px; font-size: 14px; }
+.home-page .home-draft-link > span { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.home-page .home-draft-title { font-weight: 650; }
+.home-annual-link { margin: 18px; padding: 16px; border: 1px solid #d5dece; border-left: 3px solid #b38d49; border-radius: 8px; background: #edf2e8; color: #245448; display: flex; justify-content: space-between; gap: 12px; align-items: center; }
 .home-annual-link p { margin: 6px 0 0; color: #606b64; font-size: 14px; }
-.home-page .home-visual-links { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-.home-page .visual-entry-card { min-height: 0; padding: 16px; background: #eff2ee; color: #245448; box-shadow: none; }
-.home-page .visual-entry-card h2 { font: 600 17px/1.5 system-ui, sans-serif; margin: 8px 0; }
-.home-page .visual-entry-card p { font-size: 13px; color: #606b64; }
-.home-page .visual-entry-card > span { border: none; padding: 0; font-size: 12px; }
+.home-page .home-visual-links { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin: 0 18px 22px; }
+.home-page .visual-entry-card { min-height: 174px; padding: 16px 14px; box-shadow: 0 8px 18px #071f1b0c; }
+.home-page .visual-entry-card.map { background: linear-gradient(135deg, #274d50, #143c32); }
+.home-page .visual-entry-card.insights { background: linear-gradient(135deg, #735a30, #44341d); }
+.home-page .visual-entry-card h2 { color: #fffdf8; font: 650 18px/1.4 "PingFang SC", "Microsoft YaHei", sans-serif; margin: 6px 0; }
+.home-page .visual-entry-card p { font-size: 13px; line-height: 1.6; color: #f1eee5; }
+.home-page .visual-entry-card > span { padding: 3px 8px; font-size: 11px; }
+.home-empty { margin: 0 18px; padding: 20px; border: 1px solid #dce3d6; border-radius: 8px; background: #fffdf8; }
+.home-empty p { margin: 8px 0 0; color: #56645b; font-size: 14px; line-height: 1.7; }
+.home-page .daily-resurfacing-card { grid-template-columns: 64px minmax(0, 1fr); gap: 16px; margin: 18px 18px 24px; padding: 16px; border-radius: 10px; background: #17483e; box-shadow: none; }
+.home-page .daily-resurfacing-card .cover-art.large { width: 64px; height: 64px; }
+.home-page .daily-resurfacing-cover > span { width: 34px; height: 34px; border-width: 6px; right: -6px; bottom: -6px; box-shadow: inset 0 0 0 3px var(--amber); }
+.home-page .daily-resurfacing-copy h2 { font: 650 20px/1.4 "PingFang SC", "Microsoft YaHei", sans-serif; overflow-wrap: anywhere; }
+.home-page .daily-resurfacing-copy > p { font-size: 13px; }
+.home-page .daily-resurfacing-copy blockquote { margin: 12px 0; font: 14px/1.6 "PingFang SC", "Microsoft YaHei", sans-serif; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.home-page .daily-resurfacing-card .action-row { gap: 8px; }
+.home-page .daily-resurfacing-card .action-row > * { padding: 10px 12px; font-size: 13px; }
 .writing-form { background: #fafaf7; }
 .writing-form .cover-picker { padding: 8px 0; margin: 0; }
 .writing-form .cover-picker .cover-art { width: 48px; height: 48px; }
@@ -3811,10 +3835,11 @@ textarea {
 .home-page .home-entry-heading h2 { font: 600 17px/1.5 system-ui, "Microsoft YaHei", sans-serif; }
 .home-page .home-entry-copy > p { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; font-size: 14px; line-height: 1.5; }
 .home-page .home-entry-meta strong { color: #245448; font-size: 14px; }
-.home-page .visual-entry-card::before { display: none; }
-.home-page .visual-entry-card > span { color: #606b64; }
+.home-page .visual-entry-card::before { opacity: .22; }
+.home-page .visual-entry-card > span { color: #fff5df; }
 .app-shell:has(.writing-form, .home-page, .draft-card, .backup-health-card) { background: #fafaf7; font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif; }
 .app-shell:has(.writing-form, .home-page, .draft-card, .backup-health-card) .app-header { background: #245448; box-shadow: none; }
+.app-shell:has(.home-page) .app-header { background: repeating-radial-gradient(circle at right -42px top -46px, #fffdf80b 0 1px, transparent 1px 14px), #17483e; }
 .page:has(.writing-form, .draft-card, .backup-health-card) h1 { font: 650 28px/1.4 "PingFang SC", "Microsoft YaHei", system-ui, sans-serif; color: #202724; }
 .page:has(.writing-form) .lead { font-size: 14px; color: #606b64; }
 .writing-form :is(input, select, textarea, button, label) { font-family: inherit; }

@@ -622,14 +622,14 @@ class Store {
     await this.setAppData(key, value);
   }
 
-  async exportBackup() {
+  async exportBackup(options: { includeCovers?: boolean } = {}) {
     return JSON.stringify({
       version: 5,
       exportedAt: new Date().toISOString(),
       entries: await this.listEntries(),
       summaries: await this.listSummaries(),
       monthlySummaries: await this.listMonthlySummaries(),
-      covers: await this.listCovers(),
+      covers: options.includeCovers === false ? [] : await this.listCovers(),
       listeningMoments: await this.listListeningMoments(),
       // 备份健康是设备本地状态(最近验证/保存时间)，不属于用户数据，不应进入备份
       appData: Object.fromEntries(Object.entries(await this.listAppData()).filter(([key]) => key !== BACKUP_HEALTH_KEY)),
@@ -644,9 +644,10 @@ class Store {
     return formatEntriesCsv(await this.listEntries(), await this.listSummaries());
   }
 
-  async importBackup(raw: string) {
-    const backup = parseBackup(raw);
+  async importBackup(raw: string, options: { includeCovers?: boolean } = {}) {
+    const backup = parseBackup(raw, options);
     const undoBackup = await this.exportBackup();
+    if (options.includeCovers === false) backup.covers = await this.listCovers();
     await this.saveImportUndo(undoBackup);
     await this.writeBackup(backup);
   }
@@ -703,8 +704,8 @@ class Store {
     }
   }
 
-  previewBackup(raw: string) {
-    return summarizeBackup(parseBackup(raw));
+  previewBackup(raw: string, options: { includeCovers?: boolean } = {}) {
+    return summarizeBackup(parseBackup(raw, options));
   }
 
   private async writeBackup(backup: BackupData) {
@@ -736,14 +737,15 @@ class Store {
     }
 
     const set: capSQLiteSet[] = [
-      { statement: "DELETE FROM ListeningMoment" },
-      { statement: "DELETE FROM ReviewEntry" },
-      { statement: "DELETE FROM YearlySummary" },
-      { statement: "DELETE FROM MonthlySummary" },
-      { statement: "DELETE FROM CoverImage" },
-      { statement: "DELETE FROM AppData" },
-      ...backup.listeningMoments.map((moment) => ({ statement: "INSERT INTO ListeningMoment (id, entryId, listenedAt, rating, ratingModifier, moods, content, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", values: listeningMomentValues(moment) })),
+      // Android executeSet requires values even for statements without parameters.
+      { statement: "DELETE FROM ListeningMoment", values: [] },
+      { statement: "DELETE FROM ReviewEntry", values: [] },
+      { statement: "DELETE FROM YearlySummary", values: [] },
+      { statement: "DELETE FROM MonthlySummary", values: [] },
+      { statement: "DELETE FROM CoverImage", values: [] },
+      { statement: "DELETE FROM AppData", values: [] },
       ...backup.entries.map((entry) => ({ statement: "INSERT INTO ReviewEntry (id, type, title, year, month, albumName, songName, artistName, musicMetadata, content, tags, moods, rating, ratingModifier, ratingProduction, ratingSongwriting, ratingOriginality, ratingResonance, compositeRatingLocked, firstListenedAt, listenedAt, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", values: entryValues(entry) })),
+      ...backup.listeningMoments.map((moment) => ({ statement: "INSERT INTO ListeningMoment (id, entryId, listenedAt, rating, ratingModifier, moods, content, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", values: listeningMomentValues(moment) })),
       ...backup.summaries.map((summary) => ({ statement: "INSERT INTO YearlySummary (id, year, title, content, analysisJson, analysisVersion, sourceFingerprint, sourceEntryCount, generatedAt, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", values: summaryValues(summary) })),
       ...backup.monthlySummaries.map((summary) => ({ statement: "INSERT INTO MonthlySummary (id, year, month, title, content, themeId, analysisJson, analysisVersion, sourceFingerprint, sourceEntryCount, generatedAt, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", values: monthlySummaryValues(summary) })),
       ...backup.covers.map((cover) => ({ statement: "INSERT INTO CoverImage (coverKey, kind, albumName, songName, artistName, dataUrl, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?)", values: coverValues(cover) })),
@@ -1011,7 +1013,7 @@ type BackupData = {
   appData: Record<string, string>;
 };
 
-function parseBackup(raw: string): BackupData {
+function parseBackup(raw: string, options: { includeCovers?: boolean } = {}): BackupData {
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
@@ -1026,7 +1028,7 @@ function parseBackup(raw: string): BackupData {
   const entries = readArray(parsed.entries, "entries").map((entry) => readEntry(entry, version >= 2));
   const summaries = readArray(parsed.summaries, "summaries").map((summary) => readSummary(summary, version >= 3));
   const monthlySummaries = version >= 3 ? readArray(parsed.monthlySummaries, "monthlySummaries").map((summary) => readMonthlySummary(summary)) : [];
-  const covers = readArray(parsed.covers, "covers").map(readCover);
+  const covers = options.includeCovers === false ? [] : readArray(parsed.covers, "covers").map(readCover);
   const listeningMoments = version >= 4 ? readArray(parsed.listeningMoments, "listeningMoments").map(readListeningMoment) : [];
   const appData = version >= 3 ? readBackupAppData(parsed.appData) : {};
   return { version: 5, exportedAt: parsed.exportedAt, entries, summaries, monthlySummaries, covers, listeningMoments, appData };

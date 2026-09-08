@@ -1,6 +1,6 @@
-# 小懂哥 v2.5
+# 小懂哥 v2.6.2
 
-一个在安卓手机本地运行、以专辑为中心的私人音乐感受记录 APK。它只保存你手动输入或确认过的信息，不自动编造歌曲、专辑、歌手或感受。v2.5 提供简约年度音乐杂志、完整来源索引和分页图片导出，修复报告日期与漏记问题，并补齐独立保存草稿和续写入口。
+一个在安卓手机本地运行、以专辑为中心的私人音乐感受记录 APK。它只保存你手动输入或确认过的信息，不自动编造歌曲、专辑、歌手或感受。v2.6.2 融合黑胶首页与最近记录，修复 Android JSON 导入，支持无封面备份；保留十分制、独立草稿和年度音乐杂志分页导出。
 
 ## 功能
 
@@ -41,21 +41,23 @@
 
 最新安装包下载：
 
-v2.5 为 `2.5 (15)`，使用新的长期发布签名。**从旧版迁移必须先导出并核对 JSON 备份，再卸载旧版、安装 v2.5 并导入；不能直接覆盖安装。未备份时不要卸载。**
+当前版本为 `2.6.2 (18)`，沿用 v2.5 的长期发布签名，可直接覆盖正式 v2.5、v2.6、v2.6.1，无需卸载。v2.3 及更早的旧签名版本须先导出并核对 JSON 备份，再迁移安装和导入；未备份时不要卸载。
 
 ```text
-https://github.com/Yvesyzy/xiaodongge/releases/download/v2.5/xiaodongge-v2.5.apk
+https://github.com/Yvesyzy/xiaodongge/releases/download/v2.6.2/xiaodongge-v2.6.2.apk
 ```
 
 发布页：
 
 ```text
-https://github.com/Yvesyzy/xiaodongge/releases/tag/v2.5
+https://github.com/Yvesyzy/xiaodongge/releases/tag/v2.6.2
 ```
 
-安装包 `xiaodongge-v2.5.apk` 已使用新长期发布密钥签名。新证书 SHA-256 为 `6386734ef9b4a3fe106d690a8d31ae952697c2ea652ea1ee82f3f7ab488f1022`；后续版本必须继续使用这份密钥，才能覆盖升级 v2.5。
+安装包 `xiaodongge-v2.6.2.apk` 的签名证书 SHA-256 为 `6386734ef9b4a3fe106d690a8d31ae952697c2ea652ea1ee82f3f7ab488f1022`；后续版本必须继续使用这份密钥，才能覆盖升级。
 
-APK SHA-256：`19955f8b1611fb98a514e89f47f2e6f8e88b533a66177e2702434380120a9030`。此版本与 v2.3 及更早正式版的证书不同，旧 debug 版也需要上述备份迁移步骤。
+APK SHA-256：`632cd41e5f69d930108ac50ce77236b8246c6af7dba805d84aca414824449097`。旧 debug 版使用不同签名，也需要备份迁移。
+
+JSON 默认包含封面；取消「JSON 包含封面」可生成无封面文件。导入时勾选「跳过备份封面，保留当前封面」，其他内容照常恢复；导入前会预览数量并保存可撤销快照。
 
 ## 构建 APK
 
@@ -110,7 +112,7 @@ XIAODONGGE_KEY_PASSWORD
 npm.cmd run android:build:release
 ```
 
-脚本会在当前进程变量缺失时加载 Windows 用户签名变量，重新构建 Web 资源并同步 Android，随后执行 `assembleRelease`。只有 v2.5 新发布证书、包名 `com.yves.musicarchive`、版本 `2.5 (15)` 全部验证通过，才会输出 `release/xiaodongge-v2.5.apk` 和 SHA-256；缺少任一签名变量时会在构建前失败。
+脚本会在当前进程变量缺失时加载 Windows 用户签名变量，重新构建 Web 资源并同步 Android，随后执行 `assembleRelease`。只有正式发布证书、包名 `com.yves.musicarchive`、版本 `2.6.2 (18)` 全部验证通过，才会输出 `release/xiaodongge-v2.6.2.apk` 和 SHA-256；缺少任一签名变量时会在构建前失败。
 
 ## 本地数据
 
