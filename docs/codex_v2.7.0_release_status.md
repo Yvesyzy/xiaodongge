@@ -12,6 +12,6 @@ Yves 已批准签名打包、检查并提交源码，以及连接手机后的原
 
 TypeScript、31 项单测、Web 构建、Capacitor 同步、Android assembleRelease/lintVitalRelease、APK v2 签名、包名、版本和包内 Web 资源 SHA256 核对均通过。旧版 v2.6.2 APK 哈希未变。构建仍有 JS 分块大于 500 kB、Gradle 旧接口和 flatDir 提示，不影响本次构建。
 
-源码及本交接纳入本轮本地 Git 提交。没有推送、创建远端 Release 或上传私人数据。用户原有 `.claude/`、三个换行状态及已删除的历史文档保持原状，未纳入提交。
+源码提交 `4c552a3ba42184eafcf7469e5490a9f5fc019dcf` 和 `v2.7.0` 标签已于 2026-09-10 推送 GitHub。经 Yves 授权，[小懂哥 v2.7.0](https://github.com/Yvesyzy/xiaodongge/releases/tag/v2.7.0) 已公开并设为最新版本，包含签名 APK 和 SHA256 文件。远端 APK 大小 68,516,839 字节、SHA256 与本地一致；校验文件 SHA256 为 `120ad6c3c6b6ec0be6c03270fbaa848e38e048fa4b6cac2d1252a1e5833ec4c9`，远端与本地一致。私人数据和签名材料未上传。用户原有 `.claude/`、三个换行状态及已删除的历史文档保持原状，未纳入提交。
 
 ADB 设备列表为空，尚未安装到手机，也未验证原生文件选择器／微信接收。等待 Yves 连接手机并允许 USB 调试后，先核对已安装版本及证书，再进行覆盖安装；不卸载、不清空应用数据。发送给微信联系人的测试需要明确接收对象，本轮未发送任何消息。
