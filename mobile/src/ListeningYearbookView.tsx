@@ -7,6 +7,15 @@ import { MONTH_THEMES, inRecordingPeriod, parseMonthlyListeningSnapshot, parseYe
 import { store } from "./store";
 import { YearbookExport } from "./codex_YearbookExport";
 import type { MonthlySummary, ReviewEntry, YearStats, YearlySummary } from "./types";
+import ReadingTools from "./codex_ReadingTools";
+import ReviewShare from "./codex_ReviewShare";
+
+function reportEntry(summary: MonthlySummary | YearlySummary): ReviewEntry {
+  return { id: `report:${summary.id}`, type: "month" in summary ? "month" : "year", title: summary.title, year: summary.year, month: "month" in summary ? summary.month : null,
+    content: summary.content, createdAt: summary.generatedAt, updatedAt: summary.updatedAt, albumName: null, songName: null, artistName: null, musicMetadata: null,
+    tags: [], moods: [], rating: null, ratingModifier: null, ratingProduction: null, ratingSongwriting: null, ratingOriginality: null, ratingResonance: null,
+    compositeRatingLocked: false, firstListenedAt: null, listenedAt: null };
+}
 
 export function DailyListeningNote({ entry }: { entry: ReviewEntry }) {
   const date = localDateOf(entry.createdAt);
@@ -71,6 +80,8 @@ export function MonthlyListeningPage() {
   const [entries, setEntries] = useState<ReviewEntry[]>([]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [sharing, setSharing] = useState(false);
   const snapshot = useMemo(() => {
     if (!summary?.analysisJson) return null;
     try { return parseMonthlyListeningSnapshot(summary.analysisJson); } catch { return null; }
@@ -82,11 +93,12 @@ export function MonthlyListeningPage() {
     setSummary(null);
     setEntries([]);
     setMessage("");
+    setLoading(true);
     void Promise.all([store.getMonthlySummary(year, month), store.listEntries()]).then(([saved, all]) => {
       if (!active) return;
       setSummary(saved);
       setEntries(all.filter((entry) => inRecordingPeriod(entry, year, month)));
-    }).catch((error) => { if (active) setMessage(error instanceof Error ? error.message : "月份读取失败"); });
+    }).catch((error) => { if (active) setMessage(error instanceof Error ? error.message : "月份读取失败"); }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [month, valid, year]);
   useEffect(() => {
@@ -104,7 +116,7 @@ export function MonthlyListeningPage() {
       setSummary(saved);
       setMessage("月度听感作品已保存");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "生成失败");
+      setMessage(`生成失败${summary ? "，已保留上一次报告" : ""}：${error instanceof Error ? error.message : "请稍后重试"}`);
     } finally {
       setBusy(false);
     }
@@ -114,16 +126,19 @@ export function MonthlyListeningPage() {
   const automaticCount = entries.filter((entry) => entry.type === "song" || entry.type === "album").length;
   const reflections = entries.filter((entry) => entry.type === "month");
   return (
+    <ReadingTools progressKey={`month:${year}:${month}`} title={`${year} 年 ${month} 月`} backTo={`/summary?year=${year}&view=months`} backLabel="月份目录" actions={summary ? <button onClick={() => setSharing(true)}>分享</button> : undefined}>
     <ListeningPage title={`${year} 年 ${month} 月`} text={`${MONTH_THEMES[month - 1].name} · ${automaticCount} 篇歌曲或专辑乐评 · 按首次正式保存时间`}>
       <div className="summary-toolbar">
-        <Link className="secondary-button" to={`/summary?year=${year}&view=overview`}>返回年度</Link>
-        <button className="primary-button" onClick={generate} disabled={busy || automaticCount === 0}>{busy ? "正在生成…" : summary ? "重新生成" : "生成月度作品"}</button>
+        <span role="status">{loading ? "正在读取…" : busy ? "正在生成" : summary ? summary.sourceFingerprint === null || snapshot?.dateBasis !== "createdAt" ? "待更新" : "已生成" : automaticCount ? "可生成" : "暂无记录"}</span>
+        <button className="primary-button" onClick={generate} disabled={loading || busy || automaticCount === 0}>{busy ? "正在生成…" : summary ? "更新月度报告" : "生成月度报告"}</button>
       </div>
       {message ? <p className="hint" role="status">{message}</p> : null}
       {summary?.sourceFingerprint === null ? <p className="stale-notice">乐评或本月自述已经变化，当前保留的是上一次作品；重新生成后更新。</p> : null}
       {snapshot && snapshot.dateBasis !== "createdAt" ? <p className="stale-notice">这是按旧日期口径生成的作品，请重新生成以按记录时间归档。</p> : null}
       {snapshot ? <MonthlyArtwork snapshot={snapshot} reflections={reflections} /> : summary ? <section className="content-card"><p className="error">已保存的月报无法读取，请重新生成。下方保留文字内容。</p><p style={{ whiteSpace: "pre-wrap" }}>{summary.content}</p></section> : <p className="empty">{automaticCount ? "还没有生成这个月的听感作品。" : "这个月还没有歌曲或专辑乐评。"}</p>}
     </ListeningPage>
+    {sharing && summary && <ReviewShare entry={reportEntry(summary)} onClose={() => setSharing(false)} />}
+    </ReadingTools>
   );
 }
 
@@ -136,6 +151,7 @@ export function YearlyListeningPage() {
   });
   const [stats, setStats] = useState<YearStats | null>(null);
   const [summary, setSummary] = useState<YearlySummary | null>(null);
+  const [sharing, setSharing] = useState(false);
   const [monthly, setMonthly] = useState<MonthlySummary[]>([]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
@@ -220,6 +236,8 @@ export function YearlyListeningPage() {
       <button onClick={generate} className="primary-button full" disabled={busy || automaticEntries.length === 0}>{busy ? "正在装订标本册…" : summary ? "重新生成年度标本册" : "生成年度标本册"}</button>
       {message ? <p className="hint" role="status">{message}</p> : null}
       {snapshotOutdated ? <p className="stale-notice">当前已有 {automaticEntries.length} 篇可分析乐评，上次标本册收录 {snapshot?.analysis.sourceEntryCount} 篇。记录或日期口径已变化，请重新生成后查看和导出。</p> : null}
+      {summary && <button onClick={() => setSharing(true)}>分享已保存的年度报告</button>}
+      {sharing && summary && <ReviewShare entry={reportEntry(summary)} onClose={() => setSharing(false)} />}
       {snapshot && !snapshotOutdated ? <YearbookExport snapshot={snapshot} entries={automaticEntries} /> : null}
       {snapshot ? <YearbookArtwork snapshot={snapshot} entries={snapshotOutdated ? [] : automaticEntries} /> : summary ? <LegacySummary summary={summary} /> : <p className="empty">还没有保存年度标本册。</p>}
       {yearEntries.some((entry) => entry.type === "year" || entry.type === "month") ? <section className="content-card"><h2>我的月度与年度自述</h2>{yearEntries.filter((entry) => entry.type === "year" || entry.type === "month").map((entry) => <p key={entry.id}><Link to={`/entries/${entry.id}`}>{entry.title}</Link></p>)}</section> : null}

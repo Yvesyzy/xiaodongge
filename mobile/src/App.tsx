@@ -21,7 +21,8 @@ import { parseSharedMusicPayload, rememberSharedMusic, SharedMusic } from "./nat
 import { applyAppleCatalogMatch, findAppleCatalogMatch, parseCatalogSearchResult, parseNowPlayingResult } from "./nowPlaying";
 import { parseMusicInfoText, type MusicInfoFields } from "./ocr";
 import QuickCapturePage from "./QuickCapturePage";
-import QuickMemoryCardPanel from "./QuickMemoryCardPanel";
+import ReadingTools, { RouteScrollRestoration } from "./codex_ReadingTools";
+import ReviewShare from "./codex_ReviewShare";
 import RatingSlider from "./RatingSlider";
 import RelistenPage from "./RelistenPage";
 import { DAILY_RESURFACING_KEY, dismissDailyResurfacing, parseDailyResurfacingState, resolveDailyResurfacing, type DailyResurfacingState } from "./resurfacing";
@@ -29,7 +30,7 @@ import { parseList, store } from "./store";
 import { clearStorageCorruption, readStorageCorruption, type StorageCorruption } from "./storageSafety";
 import { ENTRY_TYPE_LABELS, ENTRY_TYPES, type AlbumAggregate, type EntryInput, type ListeningMoment, type ListeningMomentInput, type MusicMetadata, type RatingModifier, type ReviewEntry, type SongAggregate, type YearStats } from "./types";
 
-const APP_VERSION = "2.6.2";
+const APP_VERSION = "2.7.0";
 
 const nav = [
   ["/", "首页"],
@@ -104,6 +105,7 @@ export default function App() {
 
   return (
     <div className="app-shell">
+      <RouteScrollRestoration />
       <header className="app-header">
         <Link to="/" className="brand">小懂哥 v{APP_VERSION}</Link>
         <Link to="/more" className="header-menu" aria-label="更多"><span /></Link>
@@ -321,7 +323,7 @@ function HomeEntryList({ entries }: { entries: HomeEntry[] }) {
       {entries.map((entry) => {
         const musicLine = [entry.songName, entry.albumName, entry.artistName].filter(Boolean).join(" / ") || "未关联音乐信息";
         return (
-          <Link key={entry.id} to={`/entries/${entry.id}`} className="home-entry-row">
+          <div key={entry.id} className="codex-entry-list-item"><Link to={`/entries/${entry.id}`} className="home-entry-row">
             <CoverArt src={entry.coverDataUrl} label={entry.albumName ?? entry.songName ?? entry.title} />
             <div className="home-entry-copy">
               <div className="home-entry-heading">
@@ -335,8 +337,8 @@ function HomeEntryList({ entries }: { entries: HomeEntry[] }) {
               </div>
               <p>{excerpt(entry.content)}</p>
             </div>
-            <span className="home-entry-menu" aria-hidden="true" />
-          </Link>
+            <span aria-hidden="true" />
+          </Link><EntryShareMenu entry={entry} /></div>
         );
       })}
     </div>
@@ -931,7 +933,7 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
       draftTimerRef.current = null;
       pendingDraftRef.current = null;
       setHasDraft(false);
-      navigate(`/entries/${saved.id}`);
+      navigate(`/entries/${saved.id}?saved=1`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "保存失败");
     } finally {
@@ -1308,6 +1310,8 @@ function EntryDetailPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [entry, setEntry] = useState<ReviewEntry | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [sharing, setSharing] = useState(searchParams.get("share") === "1");
   const [coverDataUrl, setCoverDataUrl] = useState<string | null>(null);
   const [moments, setMoments] = useState<ListeningMoment[]>([]);
   const [showMomentForm, setShowMomentForm] = useState(false);
@@ -1318,6 +1322,8 @@ function EntryDetailPage() {
 
   useEffect(() => {
     let active = true;
+    setLoading(true);
+    setSharing(searchParams.get("share") === "1");
     if (!id) {
       setEntry(null);
       setCoverDataUrl(null);
@@ -1337,10 +1343,12 @@ function EntryDetailPage() {
       setEntry(null);
       setCoverDataUrl(null);
       setMoments([]);
-    });
+      setError("记录读取失败，请重新打开重试。");
+    }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [id]);
-  if (!entry) return <Page title="记录不存在"><Empty text="没有找到这条记录。" /></Page>;
+  if (loading) return <Page title="正在读取"><p role="status">正在读取乐评…</p></Page>;
+  if (!entry) return <Page title="记录不存在"><Empty text={error || "没有找到这条记录。"} /></Page>;
 
   const musicLine = [entry.songName, entry.albumName, entry.artistName].filter(Boolean).join(" / ");
   const coverLabel = entry.albumName ?? entry.songName ?? entry.title;
@@ -1413,7 +1421,9 @@ function EntryDetailPage() {
   const sameMoods = Array.from(entryMoodSet).filter((m) => allMomentMoods.has(m));
 
   return (
+    <ReadingTools progressKey={`entry:${entry.id}`} title={entry.title} actions={<><button type="button" onClick={() => setSharing(true)}>分享</button><details className="codex-reader-menu"><summary aria-label="更多阅读操作">•••</summary><div><Link to={`/entries/${entry.id}/edit`}>编辑乐评</Link><button className="danger-button" onClick={remove}>删除乐评</button></div></details></>}>
     <Page title={entry.title} text={`${ENTRY_TYPE_LABELS[entry.type]} / ${entry.year} / ${monthLabel(entry.month)}`}>
+      {searchParams.get("saved") === "1" || searchParams.get("card") === "quick" ? <div className="codex-reader-resume" role="status"><span>已保存，乐评可以随时续写。</span><button onClick={() => setSharing(true)}>分享这篇</button></div> : null}
       <div className="detail-hero">
         <CoverArt src={coverDataUrl} label={coverLabel} large />
         <div className="detail-hero-copy">
@@ -1424,13 +1434,10 @@ function EntryDetailPage() {
       </div>
       <div className="action-row">
         {entry.type === "song" ? <Link className="primary-button" to={`/relisten/${entry.id}`}>再次听见</Link> : null}
-        <Link className="secondary-button" to={`/entries/${entry.id}/edit`}>编辑</Link>
-        <button className="danger-button" onClick={remove}>删除</button>
       </div>
       {error ? <p className="error">{error}</p> : null}
       {searchParams.get("draftCleanup") === "failed" ? <p className="hint">记录已保存，但原快速草稿未能清理；可稍后在草稿箱手动删除。</p> : null}
       <article className="content-card">{entry.content}</article>
-      <QuickMemoryCardPanel entry={entry} coverUrl={coverDataUrl} emphasized={searchParams.get("card") === "quick"} />
       <DailyListeningNote entry={entry} />
       <div className="detail-card">
         <Meta label="专辑" value={entry.albumName} />
@@ -1538,6 +1545,8 @@ function EntryDetailPage() {
         </section>
       ) : null}
     </Page>
+    {sharing && <ReviewShare entry={entry} onClose={() => setSharing(false)} />}
+    </ReadingTools>
   );
 }
 
@@ -1650,11 +1659,20 @@ function oldestEntry(entries: ReviewEntry[]) {
 }
 
 function SearchPage() {
-  const [query, setQuery] = useState("");
+  const [params, setParams] = useSearchParams();
+  const savedQuery = params.get("q") ?? "";
+  const [query, setQuery] = useState(savedQuery);
   const [results, setResults] = useState<ReviewEntry[]>([]);
-  async function search(event: FormEvent) {
+  const [error, setError] = useState("");
+  useEffect(() => {
+    let active = true; setQuery(savedQuery); setError("");
+    if (!savedQuery) { setResults([]); return; }
+    void store.searchEntries(savedQuery).then((entries) => { if (active) setResults(entries); }).catch((e: unknown) => { if (active) setError(e instanceof Error ? e.message : "搜索失败"); });
+    return () => { active = false; };
+  }, [savedQuery]);
+  function search(event: FormEvent) {
     event.preventDefault();
-    setResults(await store.searchEntries(query));
+    setParams(query.trim() ? { q: query.trim() } : {}, { replace: true });
   }
   return (
     <Page title="搜索" text="搜索标题、正文、歌曲、专辑、艺术家、标签和情绪。">
@@ -1662,6 +1680,7 @@ function SearchPage() {
         <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="输入关键词" />
         <button className="primary-button">搜索</button>
       </form>
+      {error && <p role="alert" className="error">{error}</p>}
       <EntryList entries={results} emptyText={query ? "没有匹配记录。" : "输入关键词后开始搜索。"} />
     </Page>
   );
@@ -2597,7 +2616,11 @@ function SectionTitle({ title }: { title: string }) {
 
 function EntryList({ entries, emptyText = "暂无记录。" }: { entries: ReviewEntry[]; emptyText?: string }) {
   if (!entries.length) return <Empty text={emptyText} />;
-  return <div className="card-list">{entries.map((entry) => <Link key={entry.id} to={`/entries/${entry.id}`} className="entry-card"><span>{ENTRY_TYPE_LABELS[entry.type]} / {entry.year} / {monthLabel(entry.month)}</span><h2>{entry.title}</h2><p>{[entry.songName, entry.albumName, entry.artistName].filter(Boolean).join(" / ") || "未关联音乐信息"}</p><p>{excerpt(entry.content)}</p></Link>)}</div>;
+  return <div className="card-list">{entries.map((entry) => <div key={entry.id} className="codex-entry-list-item"><Link to={`/entries/${entry.id}`} className="entry-card"><span>{ENTRY_TYPE_LABELS[entry.type]} / {entry.year} / {monthLabel(entry.month)}</span><h2>{entry.title}</h2><p>{[entry.songName, entry.albumName, entry.artistName].filter(Boolean).join(" / ") || "未关联音乐信息"}</p><p>{excerpt(entry.content)}</p></Link><EntryShareMenu entry={entry} /></div>)}</div>;
+}
+
+function EntryShareMenu({ entry }: { entry: ReviewEntry }) {
+  return <details className="codex-list-share"><summary aria-label={`${entry.title}的更多操作`}>•••</summary><Link to={`/entries/${entry.id}?share=1`}>分享这篇</Link></details>;
 }
 
 function CoverArt({ src, label, large = false }: { src: string | null; label: string; large?: boolean }) {

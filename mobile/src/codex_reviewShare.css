@@ -1,0 +1,79 @@
+.review-share-dialog {
+  width: min(700px, calc(100% - 24px));
+  max-height: calc(100dvh - 24px);
+  padding: 0;
+  border: 1px solid #bdc9c2;
+  border-radius: 12px;
+  color: #202724;
+  background: #fafaf7;
+  font: 16px/1.65 "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  overflow: hidden;
+}
+
+.review-share-dialog::backdrop { background: #122a24aa; }
+.review-share-scroll { max-height: calc(100dvh - 24px); padding: 20px; overflow-y: auto; overscroll-behavior: contain; }
+.review-share-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.review-share-header h2 { margin: 5px 0 5px; color: #202724; font-size: 23px; line-height: 1.35; }
+.review-share-header p { margin: 0; color: #606b64; font-size: 13px; }
+.review-share-header button { min-height: 44px; border: 1px solid #bdc9c2; border-radius: 6px; padding: 9px 13px; background: transparent; color: #245448; font: inherit; cursor: pointer; }
+.review-share-eyebrow { color: #245448; font: 800 11px ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .12em; }
+
+.review-share-fieldset { display: flex; flex-wrap: wrap; gap: 8px 16px; margin: 18px 0 0; padding: 10px 12px; border: 1px solid #d6ddd7; border-radius: 8px; }
+.review-share-fieldset legend { padding: 0 5px; color: #606b64; font-size: 12px; }
+.review-share-fieldset label { display: inline-flex; align-items: center; gap: 7px; min-height: 34px; color: #202724; font-size: 13px; cursor: pointer; }
+.review-share-fieldset input { accent-color: #245448; }
+.review-share-fieldset input:is([type="checkbox"],[type="radio"]){width:18px;height:18px;min-height:0;padding:0;margin:0;flex:none}
+.review-share-fieldset:not(.review-share-excerpt-controls) label{white-space:nowrap;font-weight:500}
+.review-share-fieldset:disabled { opacity: .6; }
+.review-share-excerpt-controls { display: grid; grid-template-columns: auto 1fr; align-items: center; gap: 4px 12px; }
+.review-share-excerpt-controls label { min-height: 30px; }
+.review-share-excerpt-controls input[type="range"] { width: 100%; accent-color: #245448; }
+.review-share-excerpt-controls p { grid-column: 1 / -1; margin: 5px 0 0; color: #606b64; font-size: 12px; }
+.review-share-excerpt-controls output { min-width: 32px; color: #245448; font-variant-numeric: tabular-nums; text-align: right; }
+
+.review-share-preview { max-width: 420px; margin: 20px auto 0; padding: 18px; border: 1px solid #d6ddd7; border-radius: 12px; background: #fff; box-shadow: 0 12px 28px rgba(7, 31, 27, .1); overflow-wrap: anywhere; }
+.review-share-preview[data-theme="dark"] { border-color: #36564a; background: #142a24; color: #f2f5ef; box-shadow: 0 12px 28px rgba(7, 31, 27, .24); }
+.review-share-preview:has(.review-share-image){padding:0;overflow:hidden}
+.review-share-image{display:block;width:100%;height:auto}
+.review-share-accessible{position:absolute;width:1px;height:1px;padding:0;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.review-share-preview-art { display: grid; position: relative; place-items: center; height: 190px; overflow: hidden; border-radius: 8px; background: #eef2ed; color: #245448; font-size: 72px; }
+.review-share-preview[data-theme="dark"] .review-share-preview-art { background: #1e3a31; color: #9bd4bf; }
+.review-share-preview-art img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.review-share-preview-art span { position: absolute; }
+.review-share-preview-eyebrow { display: block; margin-top: 16px; color: #245448; font: 800 11px ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: .08em; }
+.review-share-preview[data-theme="dark"] .review-share-preview-eyebrow { color: #9bd4bf; }
+.review-share-preview h3 { margin: 7px 0 2px; color: inherit; font-size: clamp(22px, 5vw, 32px); line-height: 1.25; }
+.review-share-preview-subtitle { margin: 0; color: #606b64; font-size: 14px; }
+.review-share-preview[data-theme="dark"] .review-share-preview-subtitle,
+.review-share-preview[data-theme="dark"] .review-share-preview-meta { color: #adc0b6; }
+.review-share-preview-meta { display: flex; flex-wrap: wrap; gap: 9px 16px; margin: 8px 0 0; color: #606b64; font-size: 12px; }
+.review-share-preview-excerpt { margin: 17px 0 4px; padding-top: 15px; border-top: 1px solid #d6ddd7; white-space: pre-wrap; font-size: 15px; line-height: 1.75; }
+.review-share-preview[data-theme="dark"] .review-share-preview-excerpt { border-color: #36564a; }
+.review-share-preview-brand { margin: 18px 0 0; color: #68726d; font-size: 12px; }
+.review-share-preview[data-theme="dark"] .review-share-preview-brand { color: #adc0b6; }
+
+.review-share-actions { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin: 18px 0 0; }
+.review-share-actions button { min-height: 46px; border: 1px solid #bdc9c2; border-radius: 7px; padding: 9px 10px; background: transparent; color: #245448; font: inherit; cursor: pointer; }
+.review-share-actions .review-share-primary { border-color: #245448; background: #245448; color: #fff; }
+.review-share-actions button:disabled, .review-share-header button:disabled { cursor: default; opacity: .5; }
+.review-share-status { margin: 13px 0 0; color: #287565; font-size: 13px; }
+.review-share-error { margin: 13px 0 0; color: #a42d2d; font-size: 13px; }
+
+.review-share-dialog .review-journal-export { width:100%;max-height:none;padding:0;margin-top: 20px; border: 1px solid #bdc9c2; border-radius: 9px; overflow: hidden; }
+.review-journal-export .journal-export-scroll { max-height: 54dvh; padding: 16px; }
+.review-journal-export .journal-export-footer { max-height: 42dvh; }
+
+@media (max-width: 520px) {
+  .review-share-scroll { padding: 16px; }
+  .review-share-actions { grid-template-columns: 1fr; }
+  .review-share-preview { padding: 14px; }
+}
+
+@media (prefers-color-scheme: dark) {
+  .review-share-dialog { border-color: #36564a; color: #f2f5ef; background: #142a24; }
+  .review-share-header h2, .review-share-fieldset label { color: #f2f5ef; }
+  .review-share-header p, .review-share-fieldset legend, .review-share-excerpt-controls p { color: #adc0b6; }
+  .review-share-header button, .review-share-actions button { border-color: #527264; color: #c3e7d5; }
+  .review-share-fieldset { border-color: #36564a; }
+  .review-share-actions .review-share-primary { border-color: #9bd4bf; background: #9bd4bf; color: #142a24; }
+}
