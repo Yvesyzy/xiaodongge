@@ -1,3 +1,5 @@
+2026-09-10 v2.7.0 README 补齐：同步标题、功能、版本号、下载与校验链接、APK哈希、升级范围及构建输出，注明真机保存和分享待验证。文档信息已与正式发布及构建配置核对。
+
 2026-09-10 v2.7.0 已发布 GitHub：源码提交4c552a3和v2.7.0标签已推送，Release公开并设为最新版本：https://github.com/Yvesyzy/xiaodongge/releases/tag/v2.7.0 。签名APK与SHA256校验文件上传完成，远端大小及摘要与本地一致。私人数据及签名材料未上传；手机原生保存和分享仍待连接后验收。交接 docs/codex_v2.7.0_release_status.md。
 
 2026-09-10 v2.7.0(19) 已签名构建：回顾/阅读/统一分享整合版。APK release/xiaodongge-v2.7.0.apk，68,516,839字节，SHA256=2b278b2b9b66e1f96c9bcd9e88ef6be37a78860c752b0a5e2aeeb7dd899a6de3，沿用v2.6.2正式签名。typecheck、31单测、Web构建、Android assembleRelease/lintVitalRelease、签名版本与包内资源哈希通过。本轮源码纳入本地提交，未推送/公开发布。ADB无设备，手机安装/原生保存/微信接收待连接后验收。交接 docs/codex_v2.7.0_release_status.md。
