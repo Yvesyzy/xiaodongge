@@ -78,8 +78,36 @@ footer{margin-top:40px;border-top:1px solid #c9d2c7;padding-top:16px;font-size:1
 <tr><td>深色阅读</td><td>按钮阴影不含白色光晕</td></tr>
 </table>
 
-<h2>六、本轮没做</h2>
-<p>未改信息架构、配色体系、存储与业务流程；未触碰 <code>release/</code> 与任何已生成的 APK；未重新打包。首页"可视化记忆"两张深色卡片与暖纸体系仍有割裂感，属于配色层面的决定，留给你定方向后再动。</p>
+<h2>六、无障碍审计（实测）</h2>
+<p>新增 <code>scripts/abu_a11y_check.mjs</code>，在 390px 视口下遍历十个页面，实测每个文本节点的对比度（WCAG AA：小字 4.5:1、大字 3:1）与每个交互控件的尺寸。脚本向上追溯真实背景色，包含渐变背景——否则墨绿按钮上的白字会被误判成"白字在暖纸上"。</p>
+
+<h3>对比度：修复前 2 处不达标，现已清零</h3>
+<table>
+<tr><th>位置</th><th>实测</th><th>原因与处理</th></tr>
+<tr><td>速记页「60 秒听感」</td><td>2.32:1</td><td rowspan="2">同一个 <code>.page-eyebrow</code> 用 <code>--amber #c9973f</code> 画 12px 小字。这个色在暖纸上只有 2.32:1、在深绿卡上 3.93:1——它撑不起小字号，一个颜色也不可能同时适配深浅两种底。</td></tr>
+<tr><td>首页「今日重逢」</td><td>3.93:1</td></tr>
+<tr><td colspan="3">处理：新增 <code>--amber-ink #7d5a1f</code>（暖纸底，5.54:1）与 <code>--amber-bright #d7ad62</code>（深绿底，4.94:1），按底色分别使用。<code>#c9973f</code> 保留给色条、评分等大字号与装饰。</td></tr>
+</table>
+<p>修复后十个页面 0 处不达标。其余原本报错的条目经核查是脚本未解析渐变背景导致的误报，已在脚本中修正。</p>
+
+<h3>触控热区：九类目标低于 44px 建议值</h3>
+<table>
+<tr><th>控件</th><th>实测高度</th><th>出现位置</th></tr>
+<tr><td>底部导航</td><td>56</td><td>全站（达标）</td></tr>
+<tr><td>月报与听感分析</td><td>42</td><td>年度回顾</td></tr>
+<tr><td>加减号修饰</td><td>40</td><td>速记</td></tr>
+<tr><td>阅读「深色」按钮</td><td>40</td><td>阅读工具</td></tr>
+<tr><td>情绪标签</td><td>38</td><td>速记</td></tr>
+<tr><td>分享这篇</td><td>35</td><td>首页、时间轴</td></tr>
+<tr><td>曲风标签</td><td>34</td><td>编辑</td></tr>
+<tr><td>品牌链接 / 查看全部</td><td>22 / 21</td><td>全站 / 首页</td></tr>
+<tr><td>补充评分（折叠标题）</td><td>20</td><td>速记</td></tr>
+</table>
+<p>说明：WCAG 2.2 AA 的 Target Size Minimum 只要求 24×24，现有控件全部达标；44px 是 iOS HIG 与 WCAG 2.5.5（AAA）的建议值。<strong>因此这属于体验优化而非缺陷</strong>，且加高会改变表单密度，需要先确认方向再动手。</p>
+<p>按误触代价排序，优先级最高的是<strong>曲风标签（34px）与情绪标签（38px）</strong>——每次记录都要点，且密集排列。</p>
+
+<h2>七、本轮没做</h2>
+<p>未改信息架构、配色体系、存储与业务流程；未触碰 <code>release/</code> 与任何已生成的 APK；未重新打包。触控热区未调整（属平台指南级优化，涉及密度取舍，待定方向）。首页"可视化记忆"两张深色卡片与暖纸体系仍有割裂感，属于配色层面的决定，留给你定方向后再动。</p>
 
 <footer>作者 abu（WorkBuddy）。分支 <code>abu/neumorphism-v2</code>，基于 v2.7.1-test.3 工作区，未合并 main、未推送。截图均为独立浏览器内的合成数据，未读取手机真实记录。</footer>
 </main>

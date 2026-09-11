@@ -26,3 +26,9 @@
 - 发现 1：.git/packed-refs 里 refs/heads/main 是旧值 20f39c57，与 loose ref a4d505f 不一致（loose 优先，故 main 解析正确）。packed-refs 需要清理。
 - 发现 2：core.fscache true 时，git 在跨进程下看不到刚创建的 ref（表现为分支建不成、ref 写入了却报 unborn）。已在本仓库设 core.fscache false 规避。
 - 发现 3：带斜杠的分支名 abu/neumorphism-v2 在本仓库写不进 refs（update-ref 返回 0 但文件未落地，目录创建后被回收），最终改用 abu-neumorphism-v2。
+
+第二轮补充（无障碍审计，同日）:
+- 新增 scripts/abu_a11y_check.mjs，遍历十个页面实测文本对比度与触控尺寸，报告 release/abu_a11y_qa/abu_a11y_report.json。
+- 对比度修复：.page-eyebrow 原用 --amber #c9973f 画 12px 小字，在暖纸上仅 2.32:1（速记页）、在深绿卡上 3.93:1（首页今日重逢）。新增 --amber-ink #7d5a1f（5.54:1）与 --amber-bright #d7ad62（4.94:1），按底色分别使用；#c9973f 保留给大字号与装饰。
+- 结果：修复前 2 处不达标 → 修复后十个页面 0 处不达标。原报告里其余条目经核查为脚本未解析渐变背景造成的误报，已在脚本内修正。
+- 触控热区：九类目标低于 44px（曲风标签 34、情绪标签 38、加减号 40、分享这篇 35、品牌链接 22、查看全部 21、补充评分折叠标题 20 等）。WCAG 2.2 AA 只要求 24×24，现有控件全部达标；44px 属 iOS HIG / WCAG 2.5.5 建议值，判为体验优化而非缺陷，未改，等 Yves 定方向。

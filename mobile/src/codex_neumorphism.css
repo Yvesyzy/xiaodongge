@@ -81,6 +81,8 @@
 .app-shell .codex-list-share summary { min-width: 44px; min-height: 44px; }
 .home-page .home-annual-link { border-radius: 16px; background: var(--neu-surface); box-shadow: var(--neu-control); }
 .home-page :is(.visual-entry-card, .daily-resurfacing-card) { border-radius: 18px; box-shadow: inset 1px 1px 0 #ffffff24, 4px 4px 10px #173d3426; }
+/* Deep-green surfaces need the light amber for the same 12px eyebrow label. */
+.home-page .daily-resurfacing-card .page-eyebrow { color: var(--amber-bright); }
 .home-page .daily-resurfacing-card .secondary-button { box-shadow: inset 1px 1px 0 #fff9, 3px 3px 6px #0d2e2640; }
 
 .app-shell .bottom-nav {
