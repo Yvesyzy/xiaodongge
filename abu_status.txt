@@ -42,3 +42,10 @@
 - 验证：tsc 通过；codex_check_neumorphism.mjs 连续三次 PASS；abu_a11y_check.mjs 在深浅两套主题下各十页面，对比度 0 处不达标，触控目标仅剩 1 个（checkbox 24px，已达 AA）。
 - 修复测试竞态：codex_check_neumorphism.mjs 在 emulateMedia 后未等待一帧即断言，导致 reduced-motion 检查间歇失败，已加 120ms 等待。
 - 深色效果截图：release/abu_dark_qa/；无障碍报告：release/abu_a11y_qa/ 与 release/abu_a11y_dark/。
+
+第四轮（Yves 反馈"深色有点丑"，重新设计）:
+- 诊断：上一版深色只做到"对比度达标"，但所有表面挤在几乎同一明度上（页面 / 卡片 / 输入框 / 操作栏），新拟物的光影在深色下等于消失，卡片与背景糊成一片；封面色块偏灰绿发脏。
+- 根因：浅色模式靠阴影分层，深色下阴影几乎不可见，必须改用**明度阶梯**分层。上一版直接把纸面调到 #17211e 一档了事，没有阶梯。
+- 重设计：页面底 #0c100e → 卡片 #1f2521 → 受光边 #3d4741，落差约 5% 与 9%；投影加深到近黑 #040605，让受光边承担塑形。琥珀提亮到 #e0b567（深色下强调色需要更亮才发光）。卡片补一条顶部受光细边。封面色块与黑胶占位重调，去掉灰绿感。header 渐变由近黑改为深墨绿，保留品牌色。
+- 同时删掉了深色下对 --neu-raised / --neu-control / --neu-inset 的重复定义——它们由 --neu-shade 与 --neu-light 组成，变量引用是延迟解析的，改了这两个就会自动跟随，不需要再写一遍。
+- 验证：tsc 通过；codex_check_neumorphism.mjs PASS；深色十页面对比度 0 处不达标。截图 release/abu_dark_qa/abu_dark4_*。

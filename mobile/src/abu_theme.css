@@ -4,42 +4,53 @@
    derived from the shared tokens, so only the surfaces that are still painted
    with a literal colour need an explicit override below. */
 [data-theme="dark"] {
-  --ink: #e9e9dd;
-  --paper: #17211e;
-  --paper-soft: #202e28;
-  --line: #405149;
-  --muted: #b2bdb6;
+  /* Dark surfaces need a lightness ladder. Light mode separates things with
+     shadow; in the dark every surface collapses to the same near-black and the
+     neumorphism disappears, so the separation has to come from lightness:
+     paper (deepest) -> card -> raised control, roughly 6% and 4% apart. */
+  --ink: #e9e7de;
+  --paper: #1f2521;
+  --paper-soft: #0c100e;
+  --line: #333d37;
+  --muted: #a3b1a8;
 
   /* These double as text colours across the app, so under the dark theme they
      have to become light rather than stay deep green. */
-  --green-950: #e9e9dd;
-  --green-900: #e0e5da;
-  --green-800: #c6d5c5;
-  --green-700: #b4ceb8;
+  --green-950: #e8e6dd;
+  --green-900: #dde3d9;
+  --green-800: #bcd2c0;
+  --green-700: #a9c5ae;
 
-  --amber: #d7ad62;
-  --amber-ink: #d7ad62;
-  --amber-bright: #e8c98a;
-  --amber-soft: #3a2f18;
+  --amber: #e0b567;
+  --amber-ink: #e0b567;
+  --amber-bright: #f0cd8b;
+  --amber-soft: #3d3117;
   --danger: #ffb3bf;
   --danger-soft: #3b2028;
-  --shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
-  --shadow-soft: 0 8px 24px rgba(0, 0, 0, 0.38);
+  --shadow: 0 18px 44px rgba(0, 0, 0, 0.62);
+  --shadow-soft: 0 10px 28px rgba(0, 0, 0, 0.46);
 
-  --neu-surface: #1c2421;
-  --neu-edge: #2c3833;
-  --neu-light: #263230;
-  --neu-shade: #0b100e;
-  --neu-ink: #b4ceb8;
-  --neu-panel: #1c2421;
-  --neu-quiet: #93a49b;
-  --ink-strong: #e9e9dd;
+  --neu-surface: #1f2521;
+  --neu-edge: #353f39;
+  --neu-light: #3d4741;
+  --neu-shade: #040605;
+  --neu-ink: #a9c5ae;
+  --neu-panel: #1b211e;
+  --neu-quiet: #8d9c93;
+  --ink-strong: #e8e6dd;
+
+  /* --neu-raised / --neu-control / --neu-inset are deliberately not redefined:
+     they are built from --neu-shade and --neu-light, so they pick up the new
+     pair automatically once those change above. */
 }
+
+/* The page paper sits one step below the cards so they lift off it. */
+[data-theme="dark"] .app-shell:not(:has(.codex-reader)) { background: var(--paper-soft); }
 
 [data-theme="dark"] body {
   background:
-    linear-gradient(180deg, rgba(11, 48, 41, 0.55), rgba(23, 33, 30, 0) 280px),
-    linear-gradient(90deg, rgba(201, 151, 63, 0.06) 0 1px, transparent 1px 100%),
+    linear-gradient(180deg, rgba(18, 56, 45, 0.5), rgba(15, 20, 18, 0) 300px),
+    linear-gradient(90deg, rgba(224, 181, 103, 0.05) 0 1px, transparent 1px 100%),
     var(--paper-soft);
 }
 
@@ -50,7 +61,7 @@
   border-bottom-color: var(--neu-edge);
   background:
     repeating-radial-gradient(circle at right -42px top -46px, rgba(255, 253, 248, 0.06) 0 1px, transparent 1px 12px),
-    linear-gradient(135deg, #0a1210, #14312a);
+    linear-gradient(135deg, #132a22, #1d4437);
 }
 
 [data-theme="dark"] .app-shell .primary-button {
@@ -64,7 +75,18 @@
 }
 
 /* Surfaces and text still painted with a literal colour. */
-[data-theme="dark"] .cover-art { background: #2a3630; }
+[data-theme="dark"] .cover-art { background: #232925; }
+/* The vinyl placeholder is drawn with literals and reads as a grey slab on dark. */
+[data-theme="dark"] .cover-placeholder {
+  background:
+    radial-gradient(circle, var(--amber) 0 10%, transparent 11%),
+    repeating-radial-gradient(circle, #0d1110 0 3px, #202622 3px 6px);
+}
+/* A hairline of light along the top edge reads as a lit rim on every card. */
+[data-theme="dark"] .app-shell :is(
+  .form-card, .search-box, .draft-card, .quick-extras, .quick-track-card,
+  .relisten-track, .shared-music-card, .insight-card, .cover-row, .codex-timeline-card
+) { border-top-color: #414c45; }
 [data-theme="dark"] .app-shell .cover-copy p:last-child { color: #cfd8d2; }
 [data-theme="dark"] .home-hero-copy,
 [data-theme="dark"] .home-stats { background: rgba(28, 36, 33, 0.94); }
@@ -100,7 +122,7 @@
 [data-theme="dark"] .journal-month-card { border-bottom-color: var(--line); }
 [data-theme="dark"] .journal :is(.journal-placeholder, .journal-recommendation-box > div span) { background: #232d28; color: var(--neu-ink); }
 [data-theme="dark"] .journal-type-cover strong { color: var(--neu-ink); }
-[data-theme="dark"] .entry-save-actions { border-color: var(--line); background: var(--paper); }
+[data-theme="dark"] .entry-save-actions { border-color: var(--line); background: #1f2622; }
 [data-theme="dark"] .bottom-sheet:has(.create-choice) .sheet-handle { background: #4a5a51; }
 [data-theme="dark"] .codex-reader .detail-hero .cover-art.large { box-shadow: 3px 3px 9px #0006; }
 
