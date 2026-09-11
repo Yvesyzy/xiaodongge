@@ -89,7 +89,10 @@ try {
     assert.notEqual(await draftButton.evaluate(el => getComputedStyle(el).boxShadow), resting, 'Press has visible feedback');
     await page.mouse.move(0, 0);
     await page.mouse.up();
+    // The emulated media query needs a frame to repaint before styles reflect it,
+    // otherwise this assertion races and fails intermittently.
     await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.waitForTimeout(120);
     assert.ok(await draftButton.evaluate(el => getComputedStyle(el).transitionDuration.split(',').every(duration => parseFloat(duration) <= .001)), 'Reduced motion has no perceptible press transition');
     await draftButton.hover();
     await page.mouse.down();

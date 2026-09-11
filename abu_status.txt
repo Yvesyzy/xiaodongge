@@ -31,4 +31,14 @@
 - 新增 scripts/abu_a11y_check.mjs，遍历十个页面实测文本对比度与触控尺寸，报告 release/abu_a11y_qa/abu_a11y_report.json。
 - 对比度修复：.page-eyebrow 原用 --amber #c9973f 画 12px 小字，在暖纸上仅 2.32:1（速记页）、在深绿卡上 3.93:1（首页今日重逢）。新增 --amber-ink #7d5a1f（5.54:1）与 --amber-bright #d7ad62（4.94:1），按底色分别使用；#c9973f 保留给大字号与装饰。
 - 结果：修复前 2 处不达标 → 修复后十个页面 0 处不达标。原报告里其余条目经核查为脚本未解析渐变背景造成的误报，已在脚本内修正。
-- 触控热区：九类目标低于 44px（曲风标签 34、情绪标签 38、加减号 40、分享这篇 35、品牌链接 22、查看全部 21、补充评分折叠标题 20 等）。WCAG 2.2 AA 只要求 24×24，现有控件全部达标；44px 属 iOS HIG / WCAG 2.5.5 建议值，判为体验优化而非缺陷，未改，等 Yves 定方向。
+- 触控热区：九类目标低于 44px（曲风标签 34、情绪标签 38、加减号 40、分享这篇 35、品牌链接 22、查看全部 21、补充评分折叠标题 20 等）。WCAG 2.2 AA 只要求 24×24，现有控件全部达标；44px 属 iOS HIG / WCAG 2.5.5 建议值。Yves 确认后已全部加高到 44px，实测小目标 126 → 1。
+
+第三轮（Yves 授权"四点全按最推荐改进"）:
+- 任务页（/new、/entries/:id/edit、/capture）隐藏全局底栏，改由顶部「返回」退出，复用 codex_Navigation 的 requestBack，未保存保护全部保留；消除双层浮动栏堆叠与内容遮挡。.entry-save-actions 的 bottom 由 104px 改为安全区对齐。
+- 修复 reduced-motion 下按钮仍缩放的缺陷：按压规则的 :not() 守卫使其特异性高于覆盖规则，已补齐同样的守卫。
+- 令牌统一：新增 --on-deep（深色底上的文字，与 --paper 分离）、--neu-ink / --neu-panel / --neu-quiet / --ink-strong，替换 styles.css 与 codex_neumorphism.css 中的硬编码墨绿与最深文字色；6 处误用 color: var(--paper) 已改为 --on-deep。
+- 全局深色模式：新增 mobile/src/abu_theme.ts / abu_theme.css，三档（跟随系统/浅色/深色）+ localStorage 持久化，入口在「更多」页。令牌取自阅读页既有深色配色，保证一致。阅读页保留自己的深浅开关，abu_theme.css 内做了隔离，全局深色下阅读页浅色不会被污染。
+- 尚未令牌化的独立浅色子系统（年度回顾 .journal 的 #202724/#fafaf7、首页 hero 与统计卡的半透明纸色、曲风芯片白底）已在 abu_theme.css 内单独覆盖。
+- 验证：tsc 通过；codex_check_neumorphism.mjs 连续三次 PASS；abu_a11y_check.mjs 在深浅两套主题下各十页面，对比度 0 处不达标，触控目标仅剩 1 个（checkbox 24px，已达 AA）。
+- 修复测试竞态：codex_check_neumorphism.mjs 在 emulateMedia 后未等待一帧即断言，导致 reduced-motion 检查间歇失败，已加 120ms 等待。
+- 深色效果截图：release/abu_dark_qa/；无障碍报告：release/abu_a11y_qa/ 与 release/abu_a11y_dark/。

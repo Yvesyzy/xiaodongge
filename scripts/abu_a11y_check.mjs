@@ -25,6 +25,9 @@ const page = await (await chromium.launch({ channel: 'chrome', headless: true })
   viewport: { width: 390, height: 844 },
   timezoneId: 'Asia/Shanghai',
 });
+// ABU_THEME=dark runs the same audit against the global dark theme.
+const forcedTheme = process.env.ABU_THEME;
+if (forcedTheme) await page.addInitScript(value => localStorage.setItem("abu-theme-choice-v1", value), forcedTheme);
 await page.route('**/*', route => new URL(route.request().url()).origin === origin ? route.continue() : route.abort());
 await page.goto(origin);
 const entries = makeJournalFixtures('6');
@@ -78,12 +81,15 @@ const collect = () => {
     if (!text) continue;
     const fg = parse(s.color);
     if (!fg || fg.alpha < 0.5) continue;
+    const parent = el.parentElement;
     texts.push({
       text,
       size: parseFloat(s.fontSize),
       weight: parseInt(s.fontWeight, 10) || 400,
       fg: fg.rgb,
       bg: backgroundOf(el),
+      cls: (el.className || '').toString().slice(0, 50),
+      parentCls: parent ? (parent.className || '').toString().slice(0, 50) : '',
     });
   }
 

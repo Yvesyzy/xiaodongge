@@ -22,6 +22,7 @@ import { applyAppleCatalogMatch, findAppleCatalogMatch, parseCatalogSearchResult
 import { parseMusicInfoText, type MusicInfoFields } from "./ocr";
 import QuickCapturePage from "./QuickCapturePage";
 import ReadingTools, { RouteScrollRestoration } from "./codex_ReadingTools";
+import { readThemeChoice, setThemeChoice, THEME_CHANGED_EVENT, type ThemeChoice } from "./abu_theme";
 import NavigationController, { requestBack, useBackGuard } from "./codex_Navigation";
 import ReviewShare from "./codex_ReviewShare";
 import RatingSlider from "./RatingSlider";
@@ -2226,6 +2227,14 @@ function BackupPage() {
 
 function MorePage() {
   const [draftCount] = useState(() => listEntryDrafts(localStorage).length);
+  const [theme, setTheme] = useState<ThemeChoice>(() => readThemeChoice());
+
+  useEffect(() => {
+    const sync = () => setTheme(readThemeChoice());
+    window.addEventListener(THEME_CHANGED_EVENT, sync);
+    return () => window.removeEventListener(THEME_CHANGED_EVENT, sync);
+  }, []);
+
   const items = [
     ["/timeline", "时间轴", "按时间查看所有听感记录。"],
     ["/abstract-map", "抽象地图", "按情绪把记录放进听歌大陆。"],
@@ -2246,6 +2255,15 @@ function MorePage() {
           </Link>
         ))}
       </div>
+      <section className="form-card">
+        <strong>外观</strong>
+        <p className="hint">深色主题可跟随系统，也可以手动固定；阅读页保留自己的深浅开关。</p>
+        <div className="theme-choice">
+          {([["system", "跟随系统"], ["light", "浅色"], ["dark", "深色"]] as const).map(([value, label]) => (
+            <button key={value} type="button" aria-pressed={theme === value} onClick={() => setThemeChoice(value)}>{label}</button>
+          ))}
+        </div>
+      </section>
       <p className="hint">版本 {APP_VERSION} · 本地优先的私人音乐档案</p>
     </Page>
   );
