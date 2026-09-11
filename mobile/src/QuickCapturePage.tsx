@@ -12,6 +12,7 @@ import { applyAppleCatalogMatch, findAppleCatalogMatch, parseCatalogSearchResult
 import { quickCaptureToEntryInput, recentSavedMoods } from "./quickCapture";
 import RatingSlider from "./RatingSlider";
 import { store } from "./store";
+import { useBackGuard } from "./codex_Navigation";
 import type { EntryType, MusicMetadata, RatingModifier, ReviewEntry } from "./types";
 
 export default function QuickCapturePage() {
@@ -169,6 +170,18 @@ export default function QuickCapturePage() {
       inspiration: false,
     });
   }
+
+  useBackGuard(() => {
+    if (busy) return false;
+    if (!dirtyRef.current) return true;
+    try {
+      writeDraft("quick");
+      return true;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "快速草稿保存失败，请重试后返回");
+      return false;
+    }
+  });
 
   async function refreshNowPlaying(protectDirty: boolean) {
     setBusy(true);

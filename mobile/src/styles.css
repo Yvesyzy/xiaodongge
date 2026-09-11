@@ -805,8 +805,8 @@ button:disabled {
   display: grid;
   grid-template-columns: 82px minmax(0, 1fr);
   gap: 14px;
-  align-items: center;
-  padding: 8px 2px 15px;
+  align-items: start;
+  padding: 18px;
   border-bottom: 1px solid var(--line);
 }
 
@@ -3843,3 +3843,17 @@ textarea {
 .page:has(.writing-form, .draft-card, .backup-health-card) h1 { font: 650 28px/1.4 "PingFang SC", "Microsoft YaHei", system-ui, sans-serif; color: #202724; }
 .page:has(.writing-form) .lead { font-size: 14px; color: #606b64; }
 .writing-form :is(input, select, textarea, button, label) { font-family: inherit; }
+/* Direct cover editing keeps the file input separate from the reading link. */
+.codex-timeline-card { display:flow-root; padding:18px 14px; background:var(--paper); border:1px solid var(--line); border-radius:12px; }
+.codex-timeline-card > .entry-card { padding:0; margin:0; border:0; box-shadow:none; background:transparent; min-width:0; overflow:visible; overflow-wrap:anywhere; }
+.codex-timeline-card > .entry-card::before { display:none; }
+.codex-timeline-card > .entry-card > :is(span,h2) { padding-right:40px; }
+.codex-timeline-card > .entry-card > p:last-child { clear:both; padding-top:8px; }
+.codex-timeline-cover { float:left; width:96px; margin:3px 14px 10px 0; position:relative; z-index:1; }
+.codex-cover-pick { display:grid; gap:6px; position:relative; cursor:pointer; text-align:center; font-size:12px; line-height:1.5; color:var(--green-800); }
+.codex-cover-pick .cover-art { width:100%; height:auto; aspect-ratio:1; object-fit:cover; }
+.codex-cover-pick input { position:absolute; inset:0; opacity:0; width:100%; height:100%; cursor:pointer; }
+.codex-cover-pick:focus-within { outline:2px solid var(--amber); outline-offset:4px; border-radius:8px; }
+.codex-timeline-cover small { display:block; margin-top:6px; font-size:11px; overflow-wrap:anywhere; }
+.codex-back-notice { position:fixed; bottom:calc(100px + env(safe-area-inset-bottom)); left:50%; transform:translateX(-50%); z-index:1000; background:#22352ef2; color:#fff; border-radius:24px; padding:12px 20px; font-size:14px; width:max-content; max-width:90vw; pointer-events:none; text-align:center; }
+@media(max-width:360px) { .codex-timeline-card { padding:14px 10px; } .codex-timeline-cover { width:76px; margin-right:10px; } }

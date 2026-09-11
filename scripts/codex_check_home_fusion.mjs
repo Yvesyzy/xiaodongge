@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 import { makeJournalFixtures } from '../mobile/codex_journal_fixtures.mjs';
 const origin = process.argv[2] || 'http://127.0.0.1:5173';
-const output = 'release/codex_home_fusion';
+const output = process.env.CODEX_QA_DIR || 'release/codex_home_fusion';
 await mkdir(output, { recursive: true });
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {

@@ -7,7 +7,7 @@ import { chromium } from 'playwright';
 
 const origin = process.argv[2] || 'http://127.0.0.1:5180';
 const repo = process.cwd();
-const output = process.env.CODEX_REVIEW_SHARE_QA_DIR || 'D:/codex/.codex-home/visualizations/2026/09/05/01a06f8f-96fb-7e20-b8f6-bc4c8b62363f';
+const output = process.env.CODEX_REVIEW_SHARE_QA_DIR || path.join(repo, 'release', 'codex_mobile_experience_qa');
 const ENTRY_TYPE_LABELS = { year: '年度', month: '月份', album: '专辑', song: '歌曲' };
 const longBody = '第一行 é👨‍👩‍👧‍👦。\n第二行保留换行和连续原文。'.repeat(180);
 

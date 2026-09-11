@@ -1,0 +1,28 @@
+时间: 2026-09-12 00:15
+作者: abu
+做了什么:
+- 新拟物 v2 改进（分支 abu-neumorphism-v2，未合并 main、未推送）：
+  1. 光影基础：阴影色 #d4d8ce → #c8cfc2（与纸面 #f2f1eb 明度差 9% → 15%），高光 #ffffffa6 → #fffffff0，深色阅读阴影 #0e1713 → #0b1310。统一左上光源。
+  2. 专辑/歌曲卡片：.cover-row 内边距左右 2px → 18px（此行为 codex 中断前已改），本轮补 align-items center → start（图文顶对齐）、列表间距 14px → 16px、封面阴影改为与新拟物同光源、摘要行高 1.62 且墨色加深。
+  3. 按压反馈：brightness .94 → .92，过渡 100/120ms → 90ms ease-out；新增规则让所有浮起控件（次按钮、journal 按钮、新建入口、底栏非选中项、阅读工具栏）按下时阴影由凸起翻成凹入。
+  4. 新增 mobile/src/abu_haptics.ts：按下 8ms 轻振，事件委托 pointerdown，特性检测后静默降级。不加音效（音乐 App 的 UI 提示音会打断播放）。已在 main.tsx 接入。
+  5. AndroidManifest.xml 补 android.permission.VIBRATE。
+  6. 设计说明 docs/designs/abu_neumorphism_v2_2026-09-11.html；截图 release/abu_neumorphism_qa/。
+验证结果:
+- tsc --noEmit：通过。
+- scripts/codex_check_neumorphism.mjs：PASS（十条路由、320/390/430/768/1280 视口、三档字号、深浅阅读、原文不变、无运行时报错；专辑卡片封面距边框左右各 ≥18px、图文间距 ≥14px；按压 scale 0.97、阴影翻凹入、松手复原、减少动态效果下保留色彩反馈；深色阅读无白色光晕）。
+- 截图在独立浏览器内以合成数据生成，未读取手机真实记录。
+当前状态: 完成（源码与网页已验证；APK 未重新打包）
+下一步:
+- 真机确认与 APK 重打包需 Yves 决定；触觉反馈必须重新打包才在真机生效。
+阻塞项（如有）:
+- 本仓库 git 异常（详见下方"仓库修复记录"），已处理但根因未定。
+- 首页"可视化记忆"两张深色卡片与暖纸体系割裂，属配色决策，未动。
+
+仓库修复记录（重要，供 codex / cc / Yves 参考）:
+- 接手时 HEAD 指向一个未出生的分支，git 把索引里 246 个文件全部误报为新增。
+- 实际未损坏：refs/heads/main = a4d505f（246 文件）与 origin/main 一致，索引与 main 树 diff 为空，工作区文件完整。
+- 处理：备份 .git/HEAD 到 .git/ABU_HEAD_backup，symbolic-ref 把 HEAD 接回 main，再用 update-ref 建分支。
+- 发现 1：.git/packed-refs 里 refs/heads/main 是旧值 20f39c57，与 loose ref a4d505f 不一致（loose 优先，故 main 解析正确）。packed-refs 需要清理。
+- 发现 2：core.fscache true 时，git 在跨进程下看不到刚创建的 ref（表现为分支建不成、ref 写入了却报 unborn）。已在本仓库设 core.fscache false 规避。
+- 发现 3：带斜杠的分支名 abu/neumorphism-v2 在本仓库写不进 refs（update-ref 返回 0 但文件未落地，目录创建后被回收），最终改用 abu-neumorphism-v2。

@@ -295,23 +295,23 @@ class Store {
   }
 
   async albumAggregates() {
-    const coverMap = await this.coverMap();
-    const groups = group((await this.listEntries()).filter((entry) => entry.albumName), (entry) => JSON.stringify([entry.albumName, entry.artistName]));
+    const [entries, covers] = await Promise.all([this.listEntries(), this.listCovers()]);
+    const groups = group(entries.filter((entry) => entry.albumName), (entry) => JSON.stringify([entry.albumName, entry.artistName]));
     return Array.from(groups.values()).map((items): AlbumAggregate => {
       const latest = [...items].sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
       const albumName = latest.albumName as string;
-      return { albumName, artistName: latest.artistName, coverDataUrl: coverMap.get(coverKey("album", { albumName, artistName: latest.artistName })) ?? null, years: years(items), recordCount: items.length, lastRecordedAt: latest.createdAt, summary: excerpt(latest.content) };
+      return { albumName, artistName: latest.artistName, coverDataUrl: resolveAlbumCover(covers, entries, { albumName, artistName: latest.artistName }), years: years(items), recordCount: items.length, lastRecordedAt: latest.createdAt, summary: excerpt(latest.content) };
     }).sort((a, b) => b.lastRecordedAt.localeCompare(a.lastRecordedAt));
   }
 
   async songAggregates() {
-    const coverMap = await this.coverMap();
-    const groups = group((await this.listEntries()).filter((entry) => entry.songName), (entry) => JSON.stringify([entry.songName, entry.artistName, entry.albumName]));
+    const [entries, covers] = await Promise.all([this.listEntries(), this.listCovers()]);
+    const groups = group(entries.filter((entry) => entry.songName), (entry) => JSON.stringify([entry.songName, entry.artistName, entry.albumName]));
     return Array.from(groups.values()).map((items): SongAggregate => {
       const latest = [...items].sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
       const songName = latest.songName as string;
-      const ownCover = coverMap.get(coverKey("song", { songName, albumName: latest.albumName, artistName: latest.artistName }));
-      const albumCover = latest.albumName ? coverMap.get(coverKey("album", { albumName: latest.albumName, artistName: latest.artistName })) : null;
+      const ownCover = directCover(covers, "song", { songName, albumName: latest.albumName, artistName: latest.artistName });
+      const albumCover = latest.albumName ? resolveAlbumCover(covers, entries, { albumName: latest.albumName, artistName: latest.artistName }) : null;
       return { songName, artistName: latest.artistName, albumName: latest.albumName, coverDataUrl: ownCover ?? albumCover ?? null, years: years(items), recordCount: items.length, lastRecordedAt: latest.createdAt, summary: excerpt(latest.content) };
     }).sort((a, b) => b.lastRecordedAt.localeCompare(a.lastRecordedAt));
   }
@@ -325,34 +325,42 @@ class Store {
   }
 
   async getCover(kind: CoverKind, target: CoverTarget) {
+    return this.resolveCover(kind, normalizeCoverTarget(kind, target));
+  }
+
+  async getEntryCover(entry: ReviewEntry) {
+    const selected = entryCoverTarget(entry);
+    if (!selected) return null;
+    return this.resolveCover(selected.kind, selected.target, entry);
+  }
+
+  private async resolveCover(kind: CoverKind, target: CoverTarget, associationEntry?: ReviewEntry) {
     await this.init();
-    const key = coverKey(kind, target);
-    if (!Capacitor.isNativePlatform()) {
-      const own = readCovers().find((cover) => cover.coverKey === key)?.dataUrl ?? null;
-      if (own || kind !== "song" || !target.albumName) return own;
-      return readCovers().find((cover) => cover.coverKey === coverKey("album", { albumName: target.albumName, artistName: target.artistName }))?.dataUrl ?? null;
-    }
-    const result = await this.dbReady().query("SELECT dataUrl FROM CoverImage WHERE coverKey = ?", [key]);
-    const own = nullableString(result.values?.[0]?.dataUrl);
-    if (own || kind !== "song" || !target.albumName) return own;
-    const fallback = await this.dbReady().query("SELECT dataUrl FROM CoverImage WHERE coverKey = ?", [coverKey("album", { albumName: target.albumName, artistName: target.artistName })]);
-    return nullableString(fallback.values?.[0]?.dataUrl);
+    const covers = await this.listCovers();
+    const own = directCover(covers, kind, target);
+    if (own || !target.albumName) return own;
+    const entries = await this.listEntries();
+    if (associationEntry && !entries.some((entry) => entry.id === associationEntry.id)) entries.push(associationEntry);
+    return resolveAlbumCover(covers, entries, { albumName: target.albumName, artistName: target.artistName });
   }
 
   async setCover(kind: CoverKind, target: CoverTarget, dataUrl: string) {
-    if (kind === "album" && !target.albumName) throw new Error("缺少专辑名称");
-    if (kind === "song" && !target.songName) throw new Error("缺少歌曲名称");
+    const normalizedTarget = normalizeCoverTarget(kind, target);
+    if (kind === "album" && !normalizedTarget.albumName) throw new Error("缺少专辑名称");
+    if (kind === "song" && !normalizedTarget.songName) throw new Error("缺少歌曲名称");
     const now = new Date().toISOString();
-    const cover: CoverRow = { coverKey: coverKey(kind, target), kind, albumName: target.albumName, songName: target.songName ?? null, artistName: target.artistName, dataUrl, updatedAt: now };
+    const cover: CoverRow = { coverKey: coverKey(kind, normalizedTarget), kind, albumName: normalizedTarget.albumName, songName: normalizedTarget.songName ?? null, artistName: normalizedTarget.artistName, dataUrl, updatedAt: now };
     await this.init();
     if (!Capacitor.isNativePlatform()) {
       writeCovers([...readCovers().filter((item) => item.coverKey !== cover.coverKey), cover]);
+      dispatchCoverChanged();
       return;
     }
     await this.dbReady().run(
       `INSERT OR REPLACE INTO CoverImage (coverKey, kind, albumName, songName, artistName, dataUrl, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [cover.coverKey, cover.kind, cover.albumName, cover.songName, cover.artistName, cover.dataUrl, cover.updatedAt],
     );
+    dispatchCoverChanged();
   }
 
   async getYearStats(year: number) {
@@ -821,13 +829,6 @@ class Store {
     return this.db;
   }
 
-  private async coverMap() {
-    await this.init();
-    if (!Capacitor.isNativePlatform()) return new Map(readCovers().map((cover) => [cover.coverKey, cover.dataUrl]));
-    const result = await this.dbReady().query("SELECT coverKey, dataUrl FROM CoverImage");
-    return new Map((result.values ?? []).map((row) => [String(row.coverKey), String(row.dataUrl)]));
-  }
-
   private async listSummaries() {
     await this.init();
     if (!Capacitor.isNativePlatform()) return readSummaries();
@@ -851,6 +852,19 @@ class Store {
 }
 
 export const store = new Store();
+
+export function entryCoverTarget(input: Pick<EntryInput, "type" | "songName" | "albumName" | "artistName">) {
+  if (input.type === "album" && input.albumName) {
+    return { kind: "album" as const, target: { albumName: input.albumName, artistName: input.artistName } };
+  }
+  if (input.songName) {
+    return { kind: "song" as const, target: { albumName: input.albumName, songName: input.songName, artistName: input.artistName } };
+  }
+  if (input.albumName) {
+    return { kind: "album" as const, target: { albumName: input.albumName, artistName: input.artistName } };
+  }
+  return null;
+}
 
 export function parseList(value: string) {
   return Array.from(new Set(value.split(/[,，;；\n\t]/).map((item) => item.trim()).filter(Boolean)));
@@ -1355,6 +1369,42 @@ function topItems(values: string[], limit = 8): FrequencyItem[] {
 
 function years(entries: ReviewEntry[]) {
   return Array.from(new Set(entries.map((entry) => entry.year))).sort((a, b) => b - a);
+}
+
+function normalizeCoverTarget(kind: CoverKind, target: CoverTarget): CoverTarget {
+  return kind === "album"
+    ? { albumName: target.albumName ?? null, artistName: target.artistName ?? null }
+    : { albumName: target.albumName ?? null, songName: target.songName ?? null, artistName: target.artistName ?? null };
+}
+
+function directCover(covers: CoverRow[], kind: CoverKind, target: CoverTarget) {
+  const key = coverKey(kind, normalizeCoverTarget(kind, target));
+  return nullableString(covers.find((cover) => cover.coverKey === key)?.dataUrl);
+}
+
+function resolveAlbumCover(covers: CoverRow[], entries: ReviewEntry[], target: Pick<CoverTarget, "albumName" | "artistName">) {
+  const albumTarget = { albumName: target.albumName, artistName: target.artistName };
+  const existing = directCover(covers, "album", albumTarget);
+  if (existing || !target.albumName) return existing;
+
+  const albumSongNames = new Set(entries
+    .filter((entry) => entry.type === "album" && sameAlbum(entry, target) && entry.songName)
+    .map((entry) => entry.songName as string));
+  if (!albumSongNames.size) return null;
+
+  const legacyImages = new Set(covers
+    .filter((cover) => cover.kind === "song" && sameAlbum(cover, target) && !!cover.songName && albumSongNames.has(cover.songName) && !!nullableString(cover.dataUrl))
+    .map((cover) => cover.dataUrl));
+  return legacyImages.size === 1 ? Array.from(legacyImages)[0] : null;
+}
+
+function sameAlbum(left: Pick<CoverTarget, "albumName" | "artistName">, right: Pick<CoverTarget, "albumName" | "artistName">) {
+  return left.albumName === right.albumName && left.artistName === right.artistName;
+}
+
+function dispatchCoverChanged() {
+  if (typeof window === "undefined" || typeof window.dispatchEvent !== "function" || typeof Event !== "function") return;
+  window.dispatchEvent(new Event("codex:cover-changed"));
 }
 
 function coverKey(kind: CoverKind, target: CoverTarget) {

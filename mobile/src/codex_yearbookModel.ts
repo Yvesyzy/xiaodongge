@@ -31,6 +31,5 @@ export function journalFuture(year: number, month: number, now = new Date()) {
 }
 
 export async function journalCover(entry: ReviewEntry) {
-  const target = { songName: entry.songName, albumName: entry.albumName, artistName: entry.artistName };
-  return store.getCover(entry.type === "song" ? "song" : "album", target);
+  return store.getEntryCover(entry);
 }

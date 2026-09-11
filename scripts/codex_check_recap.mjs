@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 import { makeJournalFixtures } from '../mobile/codex_journal_fixtures.mjs';
 const origin = process.argv[2] || 'http://127.0.0.1:5180';
-const output = process.env.CODEX_QA_DIR || 'D:/codex/.codex-home/visualizations/2026/09/05/01a06f8f-96fb-7e20-b8f6-bc4c8b62363f';
+const output = process.env.CODEX_QA_DIR || 'release/codex_mobile_experience_qa';
 await mkdir(output, { recursive: true });
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {
@@ -52,7 +52,7 @@ try {
       await page.waitForURL(/sort=asc/);
       const filteredUrl = page.url();
       await page.locator('.journal-record').first().click();
-      await page.getByRole('link', { name: '目录', exact: true }).click();
+      await page.getByRole('button', { name: '← 返回', exact: true }).click();
       await page.waitForURL(filteredUrl);
       assert.equal(await page.getByLabel('记录月份').inputValue(), '5');
       assert.equal(await page.getByLabel('记录排序').inputValue(), 'asc');
