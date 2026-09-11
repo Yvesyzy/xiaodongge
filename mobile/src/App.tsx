@@ -22,7 +22,7 @@ import { applyAppleCatalogMatch, findAppleCatalogMatch, parseCatalogSearchResult
 import { parseMusicInfoText, type MusicInfoFields } from "./ocr";
 import QuickCapturePage from "./QuickCapturePage";
 import ReadingTools, { RouteScrollRestoration } from "./codex_ReadingTools";
-import NavigationController, { useBackGuard } from "./codex_Navigation";
+import NavigationController, { requestBack, useBackGuard } from "./codex_Navigation";
 import ReviewShare from "./codex_ReviewShare";
 import RatingSlider from "./RatingSlider";
 import RelistenPage from "./RelistenPage";
@@ -75,6 +75,9 @@ export default function App() {
   const lastShareIdRef = useRef("");
   const navigate = useNavigate();
   const location = useLocation();
+  // New / edit / quick-capture carry their own action bar; showing the global one
+  // on top of it stacks two floating bars and buries the end of the form.
+  const taskRoute = /^\/(new|capture|entries\/[^/]+\/edit)(\?|$)/.test(location.pathname);
 
   useEffect(() => {
     setCreateSheetOpen(false);
@@ -105,11 +108,13 @@ export default function App() {
   }, [navigate]);
 
   return (
-    <div className="app-shell">
+    <div className={taskRoute ? "app-shell task-route" : "app-shell"}>
       <RouteScrollRestoration />
       <NavigationController />
       <header className="app-header">
-        <Link to="/" className="brand">小懂哥 v{APP_VERSION}</Link>
+        {taskRoute
+          ? <button type="button" className="brand task-back" onClick={() => requestBack()}>返回</button>
+          : <Link to="/" className="brand">小懂哥 v{APP_VERSION}</Link>}
         <Link to="/more" className="header-menu" aria-label="更多"><span /></Link>
       </header>
       <main className="app-main">
@@ -137,20 +142,22 @@ export default function App() {
           <Route path="/more" element={<MorePage />} />
         </Routes>
       </main>
-      <nav className="bottom-nav">
-        {nav.slice(0, 2).map(([to, label]) => (
-          <NavLink key={to} to={to} className={({ isActive }) => (isActive ? "active" : "")} end={to === "/"}>
-            {label}
-          </NavLink>
-        ))}
-        {/* 统一的新建和续写入口 */}
-        <button ref={createButtonRef} type="button" aria-label="新建记录" onClick={() => setCreateSheetOpen(true)}>新建</button>
-        {nav.slice(3).map(([to, label]) => (
-          <NavLink key={to} to={to} className={({ isActive }) => (isActive ? "active" : "")} end={to === "/"}>
-            {label}
-          </NavLink>
-        ))}
-      </nav>
+      {taskRoute ? null : (
+        <nav className="bottom-nav">
+          {nav.slice(0, 2).map(([to, label]) => (
+            <NavLink key={to} to={to} className={({ isActive }) => (isActive ? "active" : "")} end={to === "/"}>
+              {label}
+            </NavLink>
+          ))}
+          {/* 统一的新建和续写入口 */}
+          <button ref={createButtonRef} type="button" aria-label="新建记录" onClick={() => setCreateSheetOpen(true)}>新建</button>
+          {nav.slice(3).map(([to, label]) => (
+            <NavLink key={to} to={to} className={({ isActive }) => (isActive ? "active" : "")} end={to === "/"}>
+              {label}
+            </NavLink>
+          ))}
+        </nav>
+      )}
       {createSheetOpen ? (
         <BottomSheet title="新建" text="选择记录方式" onClose={() => setCreateSheetOpen(false)} returnFocusRef={createButtonRef}>
           <div className="create-choice">

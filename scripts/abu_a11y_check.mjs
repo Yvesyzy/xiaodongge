@@ -92,9 +92,15 @@ const collect = () => {
     if (!visible(el)) continue;
     const r = el.getBoundingClientRect();
     if (r.width >= 44 && r.height >= 44) continue;
+    const parent = el.parentElement;
     smallTargets.push({
       tag: el.tagName.toLowerCase(),
       cls: (el.className || '').toString().slice(0, 60),
+      // Without the parent, class-less chips are impossible to target from CSS.
+      parent: parent
+        ? parent.tagName.toLowerCase() + (parent.className ? '.' + String(parent.className).trim().split(/\s+/).join('.') : '')
+        : '',
+      type: el.getAttribute('type') || '',
       w: Math.round(r.width),
       h: Math.round(r.height),
       text: (el.getAttribute('aria-label') || el.textContent || '').trim().slice(0, 30),

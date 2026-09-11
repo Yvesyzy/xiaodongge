@@ -176,5 +176,33 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .app-shell :is(.primary-button, .secondary-button, .danger-button) { transition: none; }
-  .app-shell :is(button, summary, a):active { scale: 1; }
+  /* Same :not() guards as the press rule above — without them the press rule
+     wins on specificity and the button still shrinks under reduced motion. */
+  .app-shell :is(button, summary, a):active:not(:disabled):not([aria-disabled="true"]) { scale: 1; }
 }
+
+/* Task pages (new / edit / quick capture) bring their own action bar, so the
+   global one is withheld there instead of stacking a second floating bar on top
+   of it. requestBack() keeps every unsaved-content guard in play. */
+.app-shell.task-route { padding-bottom: calc(24px + env(safe-area-inset-bottom)); }
+.app-shell.task-route .entry-save-actions { bottom: max(12px, env(safe-area-inset-bottom)); }
+.task-back { border: 0; background: none; color: inherit; font: inherit; padding: 0; text-align: left; cursor: pointer; }
+
+/* Touch targets. Measured with scripts/abu_a11y_check.mjs; 44px is the iOS HIG
+   and WCAG 2.5.5 figure — WCAG 2.2 AA only asks for 24px, so these are the
+   controls where a mis-tap actually costs the user something. */
+.app-shell .brand { min-height: 44px; }
+.app-shell .header-menu { width: 44px; height: 44px; top: calc(14px + env(safe-area-inset-top)); }
+.app-shell :is(.genre-tree-chip, .rating-mod-btn) { min-height: 44px; }
+.app-shell .codex-list-share :is(summary, a) { min-height: 44px; display: grid; align-items: center; }
+.app-shell .codex-list-share > a { padding: 0 14px; }
+.app-shell :is(select, input[type="date"], input[type="number"], input[type="range"]) { min-height: 44px; }
+.app-shell details > summary { min-height: 44px; display: flex; align-items: center; }
+/* Mood and choice chips carry no class of their own, so they are reached through
+   the row that wraps them. */
+.app-shell :is(.quick-mood-all, .choice-chip-row) button { min-height: 44px; }
+.app-shell .quick-capture-form button:not(.rating-mod-btn):not(.primary-button):not(.secondary-button) { min-height: 44px; }
+/* Checkboxes stay small to look right, but a 13px hit box is not tappable. */
+.app-shell :is(input[type="checkbox"], input[type="radio"]) { min-width: 24px; min-height: 24px; }
+.app-shell :is(.home-section-title, .journal-secondary-nav) a { min-height: 44px; display: inline-flex; align-items: center; }
+.app-shell .codex-reader-settings button { min-height: 44px; }
