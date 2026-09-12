@@ -124,3 +124,23 @@ node_modules/@capacitor/cli/bin/capacitor update android   # 可能 60s+
 1. v2.7.5 已真机验收，可考虑合回 main（需 Yves 决定时机与方式）
 2. 若继续调 UI：先跑 `abu_a11y_check.mjs` 拿数据，改完**务必自己截图看一眼**（早班教训：数字全绿但观感是错的）
 3. 构建脚本二选一：修 ps1 或换成 bash 版，别让下次打包再踩 §4 的坑
+
+---
+
+## 9. 事故记录：.git 对象被环境清扫 + 回收站全量恢复（2026-09-12 晚，wb）
+
+**现象**：合并回 main 时进程被 SIGTERM，随后发现 `.git/refs/heads/` 整目录消失、当天全部 loose objects（abu 后半班 5c520b6..0601578 + wb 全部 706a16c..8a1e9ad）不存在——对象库只剩 00:15 的旧 pack（f24a47a，1121 对象）。工作区停在 main + 半截合并（143 个删除已应用、内容更新未应用）。
+
+**根因判断**：与早班 §6.4 的「.git 内新建文件/目录被回收」同源，但波及面大得多——今天所有新建 loose objects 与 loose refs 被一次性清扫。非 git gc（无新 pack 产生，仅删除）。清扫者在会话期间仍活跃（objects/8a/ 目录 mtime 在恢复过程中仍在更新）。**根因未明，建议 Codex 重点复核**（怀疑方向：环境的安全沙箱对"未登记进程写入"的回滚/清理）。
+
+**恢复过程**（供复现）：
+1. 被清扫文件**全部进了 D 盘回收站**（解析 `$RECYCLE.BIN\S-1-...\$I*` 索引可按原始路径定位，`$I`→`$R` 同后缀配对）。
+2. 关键发现：回收站里有 `pack-9a0da9a01b421160f8d44ad021c7ee5d88c992a1.pack`（含全部丢失对象，连带 idx/rev/mtimes）——清扫前有过一次打包。
+3. Python 脚本遍历 `$I` 文件还原原始路径下的对象/refs/logs（跳过 `*.lock` 与 `multi-pack-index`），删除过期的 multi-pack-index 后 `git fsck --full` 通过。
+4. `git update-ref` 重建 main/abu-neumorphism-v2 → reset --hard → 重做 `--no-ff` 合并（7c2261e）→ 推送。
+
+**环境教训（重要）**：
+- 本环境 bash 工具会把脚本源码里的反斜杠改写成 `//`（`D://codex` 进到 python 后变 `D://codex`）——路径字面量必须用 `chr(92)` 运行时拼接，否则静默匹配失败。
+- python 的 `os.path.join` 产物在该沙箱同样可能被改写成混合斜杠，路径比较一律运行时构造。
+- git 全局代理指向 127.0.0.1:7993（已失效），推送需 `-c http.proxy=<环境变量里的可用代理>`。
+- 防复发建议：重要班次结束时 `git bundle create` 一份离线备份；本仓库的 .git 可疑清扫机制在根因查明前，每次打包/合并后校验 `git cat-file -e <HEAD>`。
