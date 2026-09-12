@@ -300,7 +300,7 @@ class Store {
     return Array.from(groups.values()).map((items): AlbumAggregate => {
       const latest = [...items].sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
       const albumName = latest.albumName as string;
-      return { albumName, artistName: latest.artistName, coverDataUrl: resolveAlbumCover(covers, entries, { albumName, artistName: latest.artistName }), years: years(items), recordCount: items.length, lastRecordedAt: latest.createdAt, averageRating: averageRating(items) };
+      return { albumName, artistName: latest.artistName, coverDataUrl: resolveAlbumCover(covers, entries, { albumName, artistName: latest.artistName }), years: years(items), recordCount: items.length, lastRecordedAt: latest.createdAt, latestRating: latest.rating };
     }).sort((a, b) => b.lastRecordedAt.localeCompare(a.lastRecordedAt));
   }
 
@@ -312,7 +312,7 @@ class Store {
       const songName = latest.songName as string;
       const ownCover = directCover(covers, "song", { songName, albumName: latest.albumName, artistName: latest.artistName });
       const albumCover = latest.albumName ? resolveAlbumCover(covers, entries, { albumName: latest.albumName, artistName: latest.artistName }) : null;
-      return { songName, artistName: latest.artistName, albumName: latest.albumName, coverDataUrl: ownCover ?? albumCover ?? null, years: years(items), recordCount: items.length, lastRecordedAt: latest.createdAt, averageRating: averageRating(items) };
+      return { songName, artistName: latest.artistName, albumName: latest.albumName, coverDataUrl: ownCover ?? albumCover ?? null, years: years(items), recordCount: items.length, lastRecordedAt: latest.createdAt, latestRating: latest.rating };
     }).sort((a, b) => b.lastRecordedAt.localeCompare(a.lastRecordedAt));
   }
 
@@ -1369,12 +1369,6 @@ function topItems(values: string[], limit = 8): FrequencyItem[] {
 
 function years(entries: ReviewEntry[]) {
   return Array.from(new Set(entries.map((entry) => entry.year))).sort((a, b) => b - a);
-}
-
-function averageRating(entries: ReviewEntry[]) {
-  const ratings = entries.map((entry) => entry.rating).filter((rating): rating is number => rating !== null);
-  if (!ratings.length) return null;
-  return Math.round((ratings.reduce((sum, rating) => sum + rating, 0) / ratings.length) * 10) / 10;
 }
 
 function normalizeCoverTarget(kind: CoverKind, target: CoverTarget): CoverTarget {

@@ -1592,7 +1592,7 @@ function AggregateList({ title, items, kind, emptyText }: { title: string; items
                 <h2>{name}</h2>
                 <p>{item.artistName ?? "未填写艺术家"}</p>
                 <p>记录于 {formatDateOnly(item.lastRecordedAt)}</p>
-                <p>我的评分：{item.averageRating ?? "未评分"}</p>
+                <p>我的评分：{item.latestRating ?? "未评分"}</p>
               </div>
             </Link>
           );
