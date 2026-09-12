@@ -25,6 +25,8 @@
 | 包内验证 | versionName/Code 已核；JS 含 `2.7.5` + `latestRating`；CSS 含 110px 封面列；4 个资源与 `mobile/dist` 逐文件 SHA256 一致 |
 | 构建日志 | `release/abu_gradle_v275_log.txt`、`release/abu_cap_sync_test4.log` |
 
+GitHub Release（`v2.7.5`）附件沿用历史命名：`xiaodongge-v2.7.5.apk` / `xiaodongge-v2.7.5.sha256.txt`，与 `release/` 本地文件的 `abu_` 前缀名内容相同。
+
 ---
 
 ## 2. wb 班提交清单（全部在 abu-neumorphism-v2）

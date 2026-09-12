@@ -1,6 +1,6 @@
-# 小懂哥 v2.7.0
+# 小懂哥 v2.7.5
 
-一个在安卓手机本地运行、以专辑为中心的私人音乐感受记录 APK。它只保存你手动输入或确认过的信息，不自动编造歌曲、专辑、歌手或感受。v2.7.0 整合年度／月度回顾，新增阅读设置、继续阅读和四类乐评统一分享；保留黑胶首页、十分制、独立草稿和无封面备份。
+一个在安卓手机本地运行、以专辑为中心的私人音乐感受记录 APK。它只保存你手动输入或确认过的信息，不自动编造歌曲、专辑、歌手或感受。v2.7.5 在年度／月度回顾、阅读设置、继续阅读和四类乐评统一分享之上，新增全局深色模式（跟随系统／浅色／深色三档）、按亮度阶梯重设计的深色界面、按压触觉反馈、44px 触控热区与对比度修复，以及专辑／歌曲列表的放大居中封面与精简信息行；保留黑胶首页、十分制、独立草稿和无封面备份。
 
 ## 功能
 
@@ -32,6 +32,11 @@
 - 查看抽象听歌地图：按 `moods` 和 `tags` 把记录归入情绪大陆
 - 导出、导入备份，并支持撤销最近一次导入；导出提供「保存到文件夹」「系统分享」「复制内容」三个入口，全部使用 Android 原生能力并实时反馈处理状态
 - 检查 SQLite v5 备份的记录数量和 SHA-256，区分最近验证与最近成功保存；只有系统确认写入成功后才会更新备份健康状态
+- 全局深色模式：跟随系统、浅色、深色三档切换，入口在「更多」页；深色界面按亮度阶梯分层设计，阅读页保留独立深浅开关
+- 触觉反馈：按钮和主要控件按下时轻微振动（可在系统层关闭振动时静默降级）
+- 专辑／歌曲列表采用放大居中的 110px 封面，信息行精简为名称、艺术家、最近记录日期和最新评分
+- 「更多」页集中低频入口，新增外观设置区块
+- 无障碍：十页面文本对比度达 WCAG AA，交互目标不低于 24×24（主要控件 44px），支持系统"减少动态效果"设置
 
 ## 技术栈
 
@@ -46,18 +51,18 @@
 
 最新安装包下载：
 
-当前版本为 `2.7.0 (19)`，沿用 v2.5 的长期发布签名，可直接覆盖正式 v2.5、v2.6、v2.6.1、v2.6.2，无需卸载。v2.3 及更早的旧签名版本须先导出并核对 JSON 备份，再迁移安装和导入；未备份时不要卸载。
+当前版本为 `2.7.5 (24)`，沿用 v2.5 的长期发布签名，可直接覆盖正式 v2.5、v2.6、v2.6.1、v2.6.2、v2.7.0，无需卸载。v2.3 及更早的旧签名版本须先导出并核对 JSON 备份，再迁移安装和导入；未备份时不要卸载。
 
-- [下载 v2.7.0 APK](https://github.com/Yvesyzy/xiaodongge/releases/download/v2.7.0/xiaodongge-v2.7.0.apk)
-- [下载 SHA256 校验文件](https://github.com/Yvesyzy/xiaodongge/releases/download/v2.7.0/xiaodongge-v2.7.0.sha256.txt)
+- [下载 v2.7.5 APK](https://github.com/Yvesyzy/xiaodongge/releases/download/v2.7.5/xiaodongge-v2.7.5.apk)
+- [下载 SHA256 校验文件](https://github.com/Yvesyzy/xiaodongge/releases/download/v2.7.5/xiaodongge-v2.7.5.sha256.txt)
 
-发布页：[小懂哥 v2.7.0](https://github.com/Yvesyzy/xiaodongge/releases/tag/v2.7.0)。
+发布页：[小懂哥 v2.7.5](https://github.com/Yvesyzy/xiaodongge/releases/tag/v2.7.5)。
 
-安装包 `xiaodongge-v2.7.0.apk` 的签名证书 SHA-256 为 `6386734ef9b4a3fe106d690a8d31ae952697c2ea652ea1ee82f3f7ab488f1022`；后续版本必须继续使用这份密钥，才能覆盖升级。
+安装包 `xiaodongge-v2.7.5.apk` 的签名证书 SHA-256 为 `6386734ef9b4a3fe106d690a8d31ae952697c2ea652ea1ee82f3f7ab488f1022`；后续版本必须继续使用这份密钥，才能覆盖升级。
 
-APK SHA-256：`2b278b2b9b66e1f96c9bcd9e88ef6be37a78860c752b0a5e2aeeb7dd899a6de3`。旧 debug 版使用不同签名，也需要备份迁移。
+APK SHA-256：`e2e0c002f5595f8458d8ec4126a57b925bc88078b456739fb93a769cee5228a4`。旧 debug 版使用不同签名，也需要备份迁移。
 
-本版已通过类型检查、31 项单测、阅读／分享／回顾／首页四套浏览器回归、Android 构建、签名及包内资源校验；GitHub 附件大小与摘要已核对。Android 真机原生文件保存和接收端分享仍待验证。
+本版已通过类型检查、结构回归（十条路由、多视口、深浅主题）、无障碍审计（浅深两轮十页面文本对比度 0 处不达标）、Android 构建、签名及包内资源校验，并经真机验收。
 
 JSON 默认包含封面；取消「JSON 包含封面」可生成无封面文件。导入时勾选「跳过备份封面，保留当前封面」，其他内容照常恢复；导入前会预览数量并保存可撤销快照。
 
@@ -114,7 +119,17 @@ XIAODONGGE_KEY_PASSWORD
 npm.cmd run android:build:release
 ```
 
-脚本会在当前进程变量缺失时加载 Windows 用户签名变量，重新构建 Web 资源并同步 Android，随后执行 `assembleRelease`。只有正式发布证书、包名 `com.yves.musicarchive`、版本 `2.7.0 (19)` 全部验证通过，才会输出 `release/xiaodongge-v2.7.0.apk` 和 SHA-256；缺少任一签名变量时会在构建前失败。
+脚本会在当前进程变量缺失时加载 Windows 用户签名变量，重新构建 Web 资源并同步 Android，随后执行 `assembleRelease`。只有正式发布证书、包名 `com.yves.musicarchive`、版本验证全部通过，才会输出 release APK 和 SHA-256；缺少任一签名变量时会在构建前失败。
+
+在本机直连 `dl.google.com` 超时的网络环境下，Gradle 需要附加镜像注入脚本（capacitor 插件模块自带 `google()` 优先的仓库，不继承根项目镜像）：
+
+```bash
+cd android
+JAVA_HOME="C:\Program Files\Eclipse Adoptium\jdk-21.0.11.10-hotspot" \
+  ./gradlew -I abu_init_mirror.gradle assembleRelease
+```
+
+`cap sync` 在部分环境会在 update 阶段被中断，建议分步执行 `capacitor copy android` 与 `capacitor update android`，并用 `mobile/dist` 与 `android/app/src/main/assets/public` 的资源哈希比对确认同步完整。详细构建注意事项见 `docs/abu_handoff_2026-09-12_v2.md`。
 
 ## 本地数据
 
