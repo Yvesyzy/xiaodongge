@@ -76,3 +76,21 @@
      属 PS 管道 stdio 问题。本轮改用 bash 逐条执行等价命令。
 - 轻微项（非阻塞）：签名仅 v2（无 v3，故不支持密钥轮换，当前单证书发布无影响）；index-*.js 606KB 超出 vite 500KB 警告阈值。
 - 环境备注：apksigner.bat / aapt2.exe 在 bash 下可直接调用；reg.exe 被本机安全策略黑名单拦截；bash 内调用 powershell 会被拦。
+
+第七轮（wb 接手真机反馈：两处 P0 UI 修复 + 两轮迭代 + v2.7.5 发布）:
+时间: 2026-09-12 22:15
+作者: wb
+做了什么:
+- 第一轮（706a16c）: 专辑/歌曲列表封面 82→110px（.cover-row 网格列 + 作用域规则 .cover-row .cover-art { width:100%; border-radius:12px }，全局 .cover-art 未动，min-height 94→148）；更多页「外观」区块 <section> 移进 .card-list 内部继承列表间距。新增 scripts/abu_screenshot_fixes.mjs（QA 截图 + 尺寸断言，两主题）。
+- 打包工具修复（68ffe71）: 新增 android/abu_init_mirror.gradle——capacitor 插件模块自带 google() 优先的 buildscript 仓库、不继承根镜像，本机直连 dl.google.com 超时；该脚本向所有模块 buildscript+project 仓库注入 aliyun 优先镜像。构建命令从此为 ./gradlew -I abu_init_mirror.gradle assembleRelease。另补 android/local.properties（sdk.dir，gitignored）。cap sync 在本环境会被 SIGTERM 掐死在 update 阶段，改为分步 cap copy android + cap update android。
+- 第二轮（dfb7c7d + 6b48051）: .cover-row align-items start→center（封面卡片内垂直居中）；列表信息精简为四行——标题/歌手/记录于（lastRecordedAt）/我的评分；评分字段 latestRating = 该聚合最近一条记录的 rating（Yves 指定"最新一次"，先用平均后按要求改）；删除 所属专辑、年份/记录数、summary 摘要的渲染，aggregate.summary 字段连同 excerpt import 移除。YearStats.averageRating 是年度统计的既有字段，与本轮无关，未动。
+- v2.7.5 发布（d261cb8）: versionCode 24 / versionName 2.7.5（Yves 指定脱离 test 系列）。产物 release/abu_xiaodongge-v2.7.5.apk（67,954,713 bytes）+ sha256.txt；包内验证：证书 6386734e…（与历史一致，覆盖安装 23→24）、JS 含 2.7.5+latestRating、CSS 含 110px 列、4 资源与 mobile/dist 逐文件哈希一致。真机验收 Yves 确认通过。
+- release/ 清理（Yves 两轮确认，走回收站）: 删 7 个旧 APK 及校验文件、codex_archive_2026-09-08（334MB）、codex_android_test_avd（3.5GB）、19 个 QA/工作目录与 ~35 个旧脚本日志。保留：codex_worktrees（git worktree）、codex_recovered_*.json 等数据恢复产物、codex_SIGNING_RECOVERY.md 等签名记录、v2.7.5 产物。
+验证结果:
+- tsc --noEmit 通过；codex_check_neumorphism.mjs PASS；abu_a11y_check.mjs 浅深两轮十页面 0 contrast failures；双主题截图目检通过（release/abu_ui_fix_qa/，可由脚本再生）。
+- 交接文档 docs/abu_handoff_2026-09-12_v2.md（含完整新坑记录与未决事项）。
+当前状态: 完成。HEAD d261cb8（abu-neumorphism-v2），main a4d505f 未动、未 push。
+下一步:
+- 可考虑合回 main（Yves 定时机）；底栏悬浮遮挡仍未动；build ps1 脚本未修（修时须带 -I abu_init_mirror.gradle）。
+阻塞项（如有）:
+- 无新增。git packed-refs 根因仍待 codex 复核（见早班记录）。
