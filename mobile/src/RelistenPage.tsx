@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState, type ReactNode } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Capacitor } from "@capacitor/core";
 import { Directory, Filesystem } from "@capacitor/filesystem";
 import { Link, useParams, useSearchParams } from "react-router-dom";
@@ -8,6 +8,7 @@ import { compareRelisten } from "./relistenComparison";
 import RatingSlider from "./RatingSlider";
 import { blobToBase64, buildRelistenMemoryCard, DEFAULT_PRIVACY, downloadBlob, renderMemoryCard, type MemoryCardPrivacy } from "./shareCard";
 import { store } from "./store";
+import { useBackGuard } from "./codex_Navigation";
 import type { ListeningMoment, RatingModifier, ReviewEntry } from "./types";
 
 
@@ -30,6 +31,16 @@ export default function RelistenPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [pendingHref, setPendingHref] = useState<string | null>(null);
+  const acceptedBack = useRef(false);
+
+  useBackGuard(() => {
+    if (saving) return false;
+    if (!dirty || moment) return true;
+    if (!window.confirm("这次听感还没有保存，确认放弃并离开？")) return false;
+    acceptedBack.current = true;
+    setDirty(false);
+    return true;
+  });
 
   useEffect(() => {
     let active = true;
@@ -80,6 +91,7 @@ export default function RelistenPage() {
   useEffect(() => {
     if (!dirty || saving || moment) return;
     const confirmBackNavigation = () => {
+      if (acceptedBack.current) { acceptedBack.current = false; return; }
       if (window.confirm("这次听感还没有保存，确认放弃并离开？")) {
         setDirty(false);
       } else {
@@ -211,7 +223,7 @@ export default function RelistenPage() {
           <strong>这次听感还没有保存</strong>
           <p>离开后当前输入会丢失。</p>
           <div className="action-row">
-            <button type="button" className="secondary-button" onClick={() => setPendingHref(null)}>继续填写</button>
+            <button type="button" data-codex-back className="secondary-button" onClick={() => setPendingHref(null)}>继续填写</button>
             <button type="button" className="danger-button" onClick={() => {
               const href = pendingHref;
               setDirty(false);
@@ -243,10 +255,7 @@ function MoodChange({ label, values }: { label: string; values: string[] }) {
 }
 
 async function loadCover(entry: ReviewEntry) {
-  let cover: string | null = null;
-  if (entry.songName) cover = await store.getCover("song", { songName: entry.songName, albumName: entry.albumName, artistName: entry.artistName });
-  if (!cover && entry.albumName) cover = await store.getCover("album", { albumName: entry.albumName, artistName: entry.artistName });
-  return cover;
+  return store.getEntryCover(entry);
 }
 
 function ratingText(value: number | null, modifier: RatingModifier | null) {

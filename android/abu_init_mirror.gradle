@@ -1,0 +1,18 @@
+// Inject China-reachable maven mirrors ahead of every project's own
+// repositories, for both buildscript (plugin classpath) and project deps.
+// Motivation: dl.google.com times out on this network; capacitor's plugin
+// modules each declare their own buildscript repos (google() first) and do
+// not inherit the mirrors from android/build.gradle.
+// Usage: ./gradlew -I abu_init_mirror.gradle assembleRelease
+allprojects {
+    buildscript {
+        repositories {
+            maven { url 'https://maven.aliyun.com/repository/google' }
+            maven { url 'https://maven.aliyun.com/repository/public' }
+        }
+    }
+    repositories {
+        maven { url 'https://maven.aliyun.com/repository/google' }
+        maven { url 'https://maven.aliyun.com/repository/public' }
+    }
+}

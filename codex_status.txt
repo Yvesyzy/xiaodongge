@@ -1,3 +1,11 @@
+2026-09-11 轻新拟物测试 APK 已生成：release/codex_xiaodongge-v2.7.1-test.2.apk，2.7.1-test.2(21)，69,105,725 字节，SHA256 f14c26e56bd6c5dd3174c3f3a47be38984eb9c804aa62239b54d87f354dd2458。沿用正式签名，可覆盖同签名旧版。typecheck、Web构建、Capacitor同步、assembleRelease/lintVitalRelease、签名版本与27份包内网页资源哈希通过；实际入口JS/CSS含新版本及新UI。旧test.1与v2.7.0包哈希不变。交接docs/session_summary_2026-09-11_codex.md；未安装手机/提交/推送/公开发布。下一步Yves覆盖安装体验。
+
+2026-09-11 阅读排版与轻新拟物 UI 已完成源码和 Web 验收：正文统一 26–40px 留白，首页/列表/编辑/回顾/阅读/导航/新建弹层统一轻凸起与凹入控件。九页五视口、三档字号与深浅模式、交互状态及原有五套浏览器回归通过；typecheck 和 Web 构建通过。预览 docs/designs/codex_neumorphism_2026-09-11.html，截图 release/codex_neumorphism_qa，检查 scripts/codex_check_neumorphism.mjs。未重新打 APK，既有 2.7.1-test.1 不含此次 UI 改动；未提交/推送/发布。下一步可打测试 APK 并做真机体验。
+
+2026-09-11 四项体验调整已实施并签名打包：时间轴直接选图、阅读设置合入更多菜单/无边框返回、统一专辑封面及历史兼容、Android逐级返回和首页两秒退出保护。类型检查、31单测、五套浏览器回归、SQLite封面检查、Android构建/lint及原生输入回归通过。测试 APK release/codex_xiaodongge-v2.7.1-test.1.apk，版本20，SHA256 aeaf9727fcfa44d4a9c457c5482b96176f797ddd12663caf5456ea2214c8cacb，沿用正式签名；独立Android36模拟器覆盖2.7.0后合成记录保留，20份包内网页资源核验通过。手机体验待Yves确认，未提交/推送/发布。交接 docs/session_summary_2026-09-11_codex.md。
+
+2026-09-10 四图反馈计划已完成：时间轴封面直接选图、阅读设置移入更多菜单、跨页面封面一致性、Android逐级返回与首页退出保护。计划及本轮交接：docs/superpowers/plans/codex_2026-09-10_mobile-experience-plan.md。仅核对代码与编写计划，未改产品代码、未运行产品测试、未打包发布。下一步从封面归属复现与修复开始。
+
 2026-09-10 v2.7.0 README 补齐：同步标题、功能、版本号、下载与校验链接、APK哈希、升级范围及构建输出，注明真机保存和分享待验证。文档信息已与正式发布及构建配置核对。
 
 2026-09-10 v2.7.0 已发布 GitHub：源码提交4c552a3和v2.7.0标签已推送，Release公开并设为最新版本：https://github.com/Yvesyzy/xiaodongge/releases/tag/v2.7.0 。签名APK与SHA256校验文件上传完成，远端大小及摘要与本地一致。私人数据及签名材料未上传；手机原生保存和分享仍待连接后验收。交接 docs/codex_v2.7.0_release_status.md。

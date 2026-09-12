@@ -22,15 +22,17 @@ import { applyAppleCatalogMatch, findAppleCatalogMatch, parseCatalogSearchResult
 import { parseMusicInfoText, type MusicInfoFields } from "./ocr";
 import QuickCapturePage from "./QuickCapturePage";
 import ReadingTools, { RouteScrollRestoration } from "./codex_ReadingTools";
+import { readThemeChoice, setThemeChoice, THEME_CHANGED_EVENT, type ThemeChoice } from "./abu_theme";
+import NavigationController, { requestBack, useBackGuard } from "./codex_Navigation";
 import ReviewShare from "./codex_ReviewShare";
 import RatingSlider from "./RatingSlider";
 import RelistenPage from "./RelistenPage";
 import { DAILY_RESURFACING_KEY, dismissDailyResurfacing, parseDailyResurfacingState, resolveDailyResurfacing, type DailyResurfacingState } from "./resurfacing";
-import { parseList, store } from "./store";
+import { entryCoverTarget, parseList, store } from "./store";
 import { clearStorageCorruption, readStorageCorruption, type StorageCorruption } from "./storageSafety";
 import { ENTRY_TYPE_LABELS, ENTRY_TYPES, type AlbumAggregate, type EntryInput, type ListeningMoment, type ListeningMomentInput, type MusicMetadata, type RatingModifier, type ReviewEntry, type SongAggregate, type YearStats } from "./types";
 
-const APP_VERSION = "2.7.0";
+const APP_VERSION = "2.7.5";
 
 const nav = [
   ["/", "首页"],
@@ -74,6 +76,9 @@ export default function App() {
   const lastShareIdRef = useRef("");
   const navigate = useNavigate();
   const location = useLocation();
+  // New / edit / quick-capture carry their own action bar; showing the global one
+  // on top of it stacks two floating bars and buries the end of the form.
+  const taskRoute = /^\/(new|capture|entries\/[^/]+\/edit)(\?|$)/.test(location.pathname);
 
   useEffect(() => {
     setCreateSheetOpen(false);
@@ -104,10 +109,13 @@ export default function App() {
   }, [navigate]);
 
   return (
-    <div className="app-shell">
+    <div className={taskRoute ? "app-shell task-route" : "app-shell"}>
       <RouteScrollRestoration />
+      <NavigationController />
       <header className="app-header">
-        <Link to="/" className="brand">小懂哥 v{APP_VERSION}</Link>
+        {taskRoute
+          ? <button type="button" className="brand task-back" onClick={() => requestBack()}>返回</button>
+          : <Link to="/" className="brand">小懂哥 v{APP_VERSION}</Link>}
         <Link to="/more" className="header-menu" aria-label="更多"><span /></Link>
       </header>
       <main className="app-main">
@@ -135,20 +143,22 @@ export default function App() {
           <Route path="/more" element={<MorePage />} />
         </Routes>
       </main>
-      <nav className="bottom-nav">
-        {nav.slice(0, 2).map(([to, label]) => (
-          <NavLink key={to} to={to} className={({ isActive }) => (isActive ? "active" : "")} end={to === "/"}>
-            {label}
-          </NavLink>
-        ))}
-        {/* 统一的新建和续写入口 */}
-        <button ref={createButtonRef} type="button" aria-label="新建记录" onClick={() => setCreateSheetOpen(true)}>新建</button>
-        {nav.slice(3).map(([to, label]) => (
-          <NavLink key={to} to={to} className={({ isActive }) => (isActive ? "active" : "")} end={to === "/"}>
-            {label}
-          </NavLink>
-        ))}
-      </nav>
+      {taskRoute ? null : (
+        <nav className="bottom-nav">
+          {nav.slice(0, 2).map(([to, label]) => (
+            <NavLink key={to} to={to} className={({ isActive }) => (isActive ? "active" : "")} end={to === "/"}>
+              {label}
+            </NavLink>
+          ))}
+          {/* 统一的新建和续写入口 */}
+          <button ref={createButtonRef} type="button" aria-label="新建记录" onClick={() => setCreateSheetOpen(true)}>新建</button>
+          {nav.slice(3).map(([to, label]) => (
+            <NavLink key={to} to={to} className={({ isActive }) => (isActive ? "active" : "")} end={to === "/"}>
+              {label}
+            </NavLink>
+          ))}
+        </nav>
+      )}
       {createSheetOpen ? (
         <BottomSheet title="新建" text="选择记录方式" onClose={() => setCreateSheetOpen(false)} returnFocusRef={createButtonRef}>
           <div className="create-choice">
@@ -310,10 +320,7 @@ async function loadHomeCover(entry: ReviewEntry): Promise<HomeEntry> {
 }
 
 async function loadEntryCover(entry: ReviewEntry) {
-  let coverDataUrl: string | null = null;
-  if (entry.songName) coverDataUrl = await store.getCover("song", { songName: entry.songName, albumName: entry.albumName, artistName: entry.artistName });
-  if (!coverDataUrl && entry.albumName) coverDataUrl = await store.getCover("album", { albumName: entry.albumName, artistName: entry.artistName });
-  return coverDataUrl;
+  return store.getEntryCover(entry);
 }
 
 function HomeEntryList({ entries }: { entries: HomeEntry[] }) {
@@ -373,7 +380,7 @@ function TimelinePage() {
           {Array.from(monthMap.entries()).map(([month, items]) => (
             <div key={`${year}-${month ?? "year"}`}>
               <h3>{monthLabel(month)}</h3>
-              <EntryList entries={items} />
+              <EntryList entries={items} showCovers />
             </div>
           ))}
         </section>
@@ -687,6 +694,8 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
     pendingDraftRef.current = draft;
     if (persistPendingDraft()) navigate("/drafts");
   }
+
+  useBackGuard(() => !saving && persistPendingDraft());
 
   async function discardDraft() {
     if (!confirm("放弃这份未保存草稿？此操作无法撤销。")) return;
@@ -1315,10 +1324,12 @@ function EntryDetailPage() {
   const [coverDataUrl, setCoverDataUrl] = useState<string | null>(null);
   const [moments, setMoments] = useState<ListeningMoment[]>([]);
   const [showMomentForm, setShowMomentForm] = useState(false);
+  const [momentDirty, setMomentDirty] = useState(false);
   const [momentSaving, setMomentSaving] = useState(false);
   const [momentError, setMomentError] = useState("");
   const [error, setError] = useState("");
   const momentFormRef = useRef<HTMLFormElement | null>(null);
+  useBackGuard(() => !momentSaving && (!showMomentForm || !momentDirty || window.confirm("这次追加记录还没有保存，确认放弃并返回？")));
 
   useEffect(() => {
     let active = true;
@@ -1386,6 +1397,7 @@ function EntryDetailPage() {
       const saved = await store.createListeningMoment(id, input);
       setMoments((current) => [...current, saved].sort((a, b) => a.listenedAt.localeCompare(b.listenedAt)));
       setShowMomentForm(false);
+      setMomentDirty(false);
       momentFormRef.current?.reset();
     } catch (err) {
       setMomentError(err instanceof Error ? err.message : "添加失败");
@@ -1421,7 +1433,7 @@ function EntryDetailPage() {
   const sameMoods = Array.from(entryMoodSet).filter((m) => allMomentMoods.has(m));
 
   return (
-    <ReadingTools progressKey={`entry:${entry.id}`} title={entry.title} actions={<><button type="button" onClick={() => setSharing(true)}>分享</button><details className="codex-reader-menu"><summary aria-label="更多阅读操作">•••</summary><div><Link to={`/entries/${entry.id}/edit`}>编辑乐评</Link><button className="danger-button" onClick={remove}>删除乐评</button></div></details></>}>
+    <ReadingTools progressKey={`entry:${entry.id}`} title={entry.title} actions={<button type="button" onClick={() => setSharing(true)}>分享</button>} menuActions={<><Link to={`/entries/${entry.id}/edit`}>编辑乐评</Link><button className="danger-button" onClick={remove}>删除乐评</button></>}>
     <Page title={entry.title} text={`${ENTRY_TYPE_LABELS[entry.type]} / ${entry.year} / ${monthLabel(entry.month)}`}>
       {searchParams.get("saved") === "1" || searchParams.get("card") === "quick" ? <div className="codex-reader-resume" role="status"><span>已保存，乐评可以随时续写。</span><button onClick={() => setSharing(true)}>分享这篇</button></div> : null}
       <div className="detail-hero">
@@ -1497,7 +1509,7 @@ function EntryDetailPage() {
         )}
 
         {showMomentForm ? (
-          <form className="moment-form" ref={momentFormRef} onSubmit={addMoment}>
+          <form className="moment-form" ref={momentFormRef} onChange={() => setMomentDirty(true)} onSubmit={addMoment}>
             <label>收听日期<input name="momentListenedAt" type="date" defaultValue={new Date().toLocaleDateString("en-CA")} /></label>
             <div className="moment-form-row">
               <label>评分<input name="momentRating" type="number" min="0.5" max="10" step="0.5" placeholder="0.5-10" /></label>
@@ -1579,9 +1591,8 @@ function AggregateList({ title, items, kind, emptyText }: { title: string; items
               <div className="cover-copy">
                 <h2>{name}</h2>
                 <p>{item.artistName ?? "未填写艺术家"}</p>
-                {"albumName" in item ? <p>所属专辑：{item.albumName ?? "未填写"}</p> : null}
-                <p>年份：{item.years.join(", ")} / 记录：{item.recordCount}</p>
-                <p>{item.summary}</p>
+                <p>记录于 {formatDateOnly(item.lastRecordedAt)}</p>
+                <p>我的评分：{item.latestRating ?? "未评分"}</p>
               </div>
             </Link>
           );
@@ -2215,6 +2226,14 @@ function BackupPage() {
 
 function MorePage() {
   const [draftCount] = useState(() => listEntryDrafts(localStorage).length);
+  const [theme, setTheme] = useState<ThemeChoice>(() => readThemeChoice());
+
+  useEffect(() => {
+    const sync = () => setTheme(readThemeChoice());
+    window.addEventListener(THEME_CHANGED_EVENT, sync);
+    return () => window.removeEventListener(THEME_CHANGED_EVENT, sync);
+  }, []);
+
   const items = [
     ["/timeline", "时间轴", "按时间查看所有听感记录。"],
     ["/abstract-map", "抽象地图", "按情绪把记录放进听歌大陆。"],
@@ -2234,6 +2253,15 @@ function MorePage() {
             <p>{text}</p>
           </Link>
         ))}
+        <section className="form-card">
+          <strong>外观</strong>
+          <p className="hint">深色主题可跟随系统，也可以手动固定；阅读页保留自己的深浅开关。</p>
+          <div className="theme-choice">
+            {([["system", "跟随系统"], ["light", "浅色"], ["dark", "深色"]] as const).map(([value, label]) => (
+              <button key={value} type="button" aria-pressed={theme === value} onClick={() => setThemeChoice(value)}>{label}</button>
+            ))}
+          </div>
+        </section>
       </div>
       <p className="hint">版本 {APP_VERSION} · 本地优先的私人音乐档案</p>
     </Page>
@@ -2614,9 +2642,49 @@ function SectionTitle({ title }: { title: string }) {
   return <h2 className="section-title">{title}</h2>;
 }
 
-function EntryList({ entries, emptyText = "暂无记录。" }: { entries: ReviewEntry[]; emptyText?: string }) {
+function EntryList({ entries, emptyText = "暂无记录。", showCovers = false }: { entries: ReviewEntry[]; emptyText?: string; showCovers?: boolean }) {
   if (!entries.length) return <Empty text={emptyText} />;
-  return <div className="card-list">{entries.map((entry) => <div key={entry.id} className="codex-entry-list-item"><Link to={`/entries/${entry.id}`} className="entry-card"><span>{ENTRY_TYPE_LABELS[entry.type]} / {entry.year} / {monthLabel(entry.month)}</span><h2>{entry.title}</h2><p>{[entry.songName, entry.albumName, entry.artistName].filter(Boolean).join(" / ") || "未关联音乐信息"}</p><p>{excerpt(entry.content)}</p></Link><EntryShareMenu entry={entry} /></div>)}</div>;
+  return <div className="card-list">{entries.map((entry) => <div key={entry.id} className={`codex-entry-list-item${showCovers && (entry.type === "album" || entry.type === "song") ? " codex-timeline-card" : ""}`}>{showCovers && (entry.type === "album" || entry.type === "song") && <TimelineCover entry={entry} />}<Link to={`/entries/${entry.id}`} className="entry-card"><span>{ENTRY_TYPE_LABELS[entry.type]} / {entry.year} / {monthLabel(entry.month)}</span><h2>{entry.title}</h2><p>{[entry.songName, entry.albumName, entry.artistName].filter(Boolean).join(" / ") || "未关联音乐信息"}</p><p>{excerpt(entry.content)}</p></Link><EntryShareMenu entry={entry} /></div>)}</div>;
+}
+
+function TimelineCover({ entry }: { entry: ReviewEntry }) {
+  const [cover, setCover] = useState<string | null>(null);
+  const [message, setMessage] = useState("");
+  const [busy, setBusy] = useState(false);
+  const picking = useRef(false);
+  const revision = useRef(0);
+  useEffect(() => {
+    let active = true;
+    const refresh = () => {
+      const version = ++revision.current;
+      void loadEntryCover(entry).then(value => {
+        if (active && revision.current === version) setCover(value);
+      }).catch(() => { if (active) setMessage("封面读取失败，请重试"); });
+    };
+    refresh();
+    window.addEventListener("codex:cover-changed", refresh);
+    return () => { active = false; window.removeEventListener("codex:cover-changed", refresh); };
+  }, [entry]);
+  async function choose(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || picking.current) return;
+    picking.current = true; ++revision.current; setBusy(true); setMessage("");
+    try {
+      const target = inputToCoverTarget(entry);
+      if (!target) throw new Error("请先在乐评中填写专辑或歌曲名称");
+      const dataUrl = await fileToCoverDataUrl(file);
+      await store.setCover(target.kind, target.target, dataUrl);
+      setCover(dataUrl); setMessage("封面已更新");
+    } catch (reason) {
+      setMessage(reason instanceof Error ? reason.message : "封面保存失败，请重试");
+    } finally { picking.current = false; setBusy(false); }
+  }
+  return <div className="codex-timeline-cover"><label className="codex-cover-pick">
+    <CoverArt src={cover} label={entry.albumName ?? entry.songName ?? entry.title} />
+    <span>{busy ? "正在保存…" : cover ? "更换封面" : "添加封面"}</span>
+    <input type="file" accept="image/*" aria-label={`${entry.title}的封面`} disabled={busy} onChange={choose} />
+  </label>{message && <small role="status">{message}</small>}</div>;
 }
 
 function EntryShareMenu({ entry }: { entry: ReviewEntry }) {
@@ -2729,9 +2797,7 @@ function explicitnessLabel(value?: MusicMetadata["explicitness"]) {
 }
 
 function inputToCoverTarget(input: EntryInput) {
-  if (input.songName) return { kind: "song" as const, target: { albumName: input.albumName, songName: input.songName, artistName: input.artistName } };
-  if (input.albumName) return { kind: "album" as const, target: { albumName: input.albumName, artistName: input.artistName } };
-  return null;
+  return entryCoverTarget(input);
 }
 
 function readDraftFields(form: HTMLFormElement): EntryDraftFields {

@@ -1,0 +1,269 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>小懂哥 · 界面预览（可交互）</title>
+<style>
+:root{
+  --ink:#161712;--paper:#fffdf8;--paper-soft:#f3f6f0;--line:#dfe5dc;--muted:#5d6b62;
+  --green-950:#071f1b;--green-900:#0b3029;--green-800:#17483e;--green-700:#226357;
+  --amber:#c9973f;--amber-ink:#7d5a1f;--amber-bright:#d7ad62;--danger:#b4233b;
+  --neu-surface:#f2f1eb;--neu-edge:#d3d8cd;--neu-light:#fffffff0;--neu-shade:#c8cfc2;
+  --neu-ink:#245448;--neu-panel:#fffdf8;--neu-quiet:#52675b;--ink-strong:#0a0b09;--on-deep:#fffdf8;
+  --neu-raised:6px 6px 16px var(--neu-shade),-6px -6px 16px var(--neu-light);
+  --neu-control:3px 3px 7px var(--neu-shade),-3px -3px 7px var(--neu-light);
+  --neu-inset:inset 3px 3px 7px var(--neu-shade),inset -3px -3px 7px var(--neu-light);
+  --header-bg:linear-gradient(135deg,#071f1b,#17483e);
+  --radius:18px;
+}
+[data-theme="dark"]{
+  --ink:#e9e7de;--paper:#1f2521;--paper-soft:#0c100e;--line:#333d37;--muted:#a3b1a8;
+  --green-950:#e9e7de;--green-900:#dde3d9;--green-800:#bcd2c0;--green-700:#a9c5ae;
+  --amber:#e0b567;--amber-ink:#e0b567;--amber-bright:#f0cd8b;--danger:#ffb3bf;
+  --neu-surface:#1f2521;--neu-edge:#353f39;--neu-light:#3d4741;--neu-shade:#040605;
+  --neu-ink:#a9c5ae;--neu-panel:#1f2521;--neu-quiet:#8d9c93;--ink-strong:#e9e7de;--on-deep:#fffdf8;
+  --header-bg:linear-gradient(135deg,#132a22,#1d4437);
+}
+*{box-sizing:border-box}
+body{margin:0;background:#e9e6df;color:#1c2420;font:15px/1.6 system-ui,"PingFang SC","Microsoft YaHei",sans-serif}
+[data-theme="dark"] body{background:#070a09;color:#d7d5cc}
+.wrap{max-width:1180px;margin:auto;padding:28px 22px 56px}
+.top{display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;margin-bottom:20px}
+h1{font-size:22px;margin:0}
+.sub{font-size:13px;color:#6d6a62;margin:4px 0 0}
+.ctl{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.seg{display:flex;gap:4px;padding:4px;border-radius:12px;background:rgba(128,128,128,.14)}
+.seg button{border:0;background:transparent;color:inherit;font:inherit;font-weight:600;padding:7px 13px;border-radius:9px;cursor:pointer;min-height:36px}
+.seg button[aria-pressed="true"]{background:var(--neu-surface);box-shadow:var(--neu-control);color:var(--neu-ink)}
+.stage{display:grid;grid-template-columns:minmax(0,430px) minmax(0,1fr);gap:26px;align-items:start}
+@media(max-width:980px){.stage{grid-template-columns:1fr}}
+.phone{width:390px;max-width:100%;border-radius:30px;padding:10px;background:#2c3330;box-shadow:0 24px 60px rgba(0,0,0,.28)}
+.screen{height:760px;overflow:auto;border-radius:22px;background:var(--paper-soft);color:var(--ink)}
+.app-header{position:sticky;top:0;z-index:5;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px;background:var(--header-bg);color:var(--on-deep)}
+.brand{display:flex;align-items:center;gap:9px;font-size:17px;font-weight:800;min-height:44px}
+.brand .dot{width:22px;height:22px;border-radius:50%;background:repeating-radial-gradient(circle,#0000 0 1px,var(--on-deep) 1px 2px)}
+.hmenu{width:44px;height:44px;display:grid;place-items:center;border-radius:999px;color:var(--on-deep);font-size:19px;cursor:pointer}
+.page{padding:16px 18px 90px}
+.card{background:var(--neu-surface);border:1px solid var(--neu-edge);border-radius:var(--radius);box-shadow:var(--neu-raised);padding:16px;margin:14px 0}
+.card.flat{box-shadow:none;background:transparent;border:0;padding:0;margin:0}
+.hero{background:var(--green-900);color:var(--on-deep);border-radius:var(--radius);padding:18px;margin:14px 0;box-shadow:var(--neu-raised)}
+.hero h2{margin:0 0 6px;font-size:20px}
+.hero p{margin:0;font-size:13px;opacity:.85}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:14px 0}
+.stat{background:var(--neu-surface);border:1px solid var(--neu-edge);border-radius:14px;padding:12px;box-shadow:var(--neu-control);text-align:center}
+.stat b{display:block;font-size:22px;color:var(--neu-ink)}
+.stat span{font-size:11px;color:var(--muted)}
+.row{display:flex;gap:12px;align-items:flex-start;padding:14px}
+.covart{width:82px;height:82px;border-radius:12px;flex:0 0 82px;background:
+  radial-gradient(circle,var(--amber) 0 10%,#0000 11%),
+  repeating-radial-gradient(circle,#131510 0 3px,#2c2f27 3px 6px)}
+[data-theme="dark"] .covart{background:
+  radial-gradient(circle,var(--amber) 0 10%,#0000 11%),
+  repeating-radial-gradient(circle,#0d1110 0 3px,#202622 3px 6px)}
+.copy h3{margin:0 0 4px;font-size:17px;color:var(--ink-strong)}
+.copy p{margin:2px 0;font-size:13px;color:var(--muted)}
+.copy p:last-child{color:var(--ink);opacity:.82}
+.pill{display:inline-block;padding:3px 9px;border-radius:6px;background:var(--neu-surface);color:var(--neu-ink);font-size:11px;font-weight:800;border:1px solid var(--neu-edge)}
+.btn{border:1px solid var(--neu-edge);border-radius:14px;padding:0 16px;min-height:44px;display:inline-flex;align-items:center;justify-content:center;gap:8px;font-weight:650;background:var(--neu-surface);color:var(--neu-ink);box-shadow:var(--neu-control);cursor:pointer;transition:scale 90ms ease-out,filter 90ms ease-out,box-shadow 90ms ease-out}
+.btn:active{scale:.97;filter:brightness(.92);box-shadow:var(--neu-inset)}
+.btn.primary{background:var(--neu-ink);color:var(--on-deep);border-color:var(--neu-ink)}
+.btn.ghost{box-shadow:none;background:transparent;border:0;color:var(--neu-ink)}
+.field{margin:12px 0}
+.field span{display:block;font-size:12px;font-weight:800;letter-spacing:.14em;text-transform:uppercase;color:var(--amber-ink);margin-bottom:6px}
+.field .in{border:1px solid var(--neu-edge);border-radius:12px;background:var(--neu-surface);box-shadow:var(--neu-inset);padding:12px 14px;min-height:46px;display:flex;align-items:center;color:var(--ink);font-size:15px}
+.field .in.tall{min-height:150px;align-items:flex-start;line-height:1.85}
+.bar{position:sticky;bottom:0;display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:12px;background:var(--paper);border-top:1px solid var(--line)}
+.nav{display:flex;gap:6px;margin:14px 18px;padding:8px;border:1px solid var(--neu-edge);border-radius:24px;background:var(--neu-surface);box-shadow:var(--neu-raised)}
+.nav a{flex:1;min-height:44px;display:grid;place-items:center;border-radius:16px;font-size:13px;font-weight:600;color:var(--neu-quiet);cursor:pointer}
+.nav a.on{color:var(--neu-ink);box-shadow:var(--neu-inset);font-weight:800}
+.reader-body{font-size:var(--body,17px);line-height:1.95;color:var(--ink);margin:16px 0}
+.reader-body p{margin:0 0 1.25em}
+.press{display:grid;gap:10px;grid-template-columns:1fr 1fr}
+.hint{font-size:12px;color:var(--muted);margin:6px 0 0}
+.panel{background:var(--neu-surface);border:1px solid var(--neu-edge);border-radius:18px;box-shadow:var(--neu-raised);padding:18px}
+.panel h3{margin:0 0 12px;font-size:16px;color:var(--neu-ink)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+td{padding:7px 10px;border-bottom:1px solid var(--line)}
+td:first-child{color:var(--muted);white-space:nowrap}
+td:last-child{font-family:ui-monospace,Consolas,monospace;text-align:right;color:var(--ink)}
+.swatch{display:inline-block;width:16px;height:16px;border-radius:5px;vertical-align:-3px;margin-right:8px;border:1px solid rgba(128,128,128,.3)}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+@media(max-width:640px){.grid2{grid-template-columns:1fr}}
+.note{margin-top:18px;font-size:13px;color:#6d6a62}
+</style>
+<div class="wrap">
+<div class="top">
+  <div>
+    <h1>小懂哥 · 界面预览</h1>
+    <p class="sub">令牌与实际分支一致，切换即时生效；卡片和按钮可以点。</p>
+  </div>
+  <div class="ctl">
+    <div class="seg" role="group" aria-label="外观">
+      <button type="button" data-theme-set="light" aria-pressed="true">浅色</button>
+      <button type="button" data-theme-set="dark" aria-pressed="false">深色</button>
+      <button type="button" data-theme-set="system" aria-pressed="false">跟随系统</button>
+    </div>
+    <div class="seg" role="group" aria-label="页面">
+      <button type="button" data-page="home" aria-pressed="true">首页</button>
+      <button type="button" data-page="albums" aria-pressed="false">专辑</button>
+      <button type="button" data-page="editor" aria-pressed="false">编辑</button>
+      <button type="button" data-page="reader" aria-pressed="false">阅读</button>
+    </div>
+  </div>
+</div>
+
+<div class="stage">
+  <div>
+    <div class="phone"><div class="screen" id="screen"></div></div>
+    <p class="note">手机框 390px。深色下注意卡片与页面底的明度差——这是改版的关键。</p>
+  </div>
+
+  <div class="grid2">
+    <div class="panel">
+      <h3>当前令牌</h3>
+      <table id="tokens"></table>
+    </div>
+    <div class="panel">
+      <h3>按压反馈</h3>
+      <div class="press">
+        <button class="btn" type="button" id="demo">按住我试试</button>
+        <button class="btn primary" type="button" id="demo2">主要按钮</button>
+      </div>
+      <p class="hint">按下会缩小到 0.97 并把凸起阴影翻成凹入，松手复原。真机上还会给一次 8ms 轻振——这里没有振动器，所以只演示视觉通道。</p>
+      <h3 style="margin-top:18px">字号</h3>
+      <div class="seg" role="group" aria-label="字号">
+        <button type="button" data-size="15" aria-pressed="false">小</button>
+        <button type="button" data-size="17" aria-pressed="true">标准</button>
+        <button type="button" data-size="21" aria-pressed="false">大</button>
+      </div>
+    </div>
+  </div>
+</div>
+</div>
+
+<script>
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+const KEY = "abu-preview-theme";
+
+const pages = {
+  home: `
+    <div class="app-header"><div class="brand"><span class="dot"></span>小懂哥 v2.7.1-test.3</div><div class="hmenu">⋮</div></div>
+    <div class="page">
+      <div class="hero"><h2>私人音乐档案</h2><p>记录每一次听歌的心情与感受，本地优先。</p></div>
+      <div class="stats">
+        <div class="stat"><b>6</b><span>今年记录</span></div>
+        <div class="stat"><b>6</b><span>今年专辑</span></div>
+        <div class="stat"><b>2</b><span>今年歌曲</span></div>
+      </div>
+      <div class="card">
+        <div style="font-size:22px;font-weight:700;color:var(--ink-strong);margin-bottom:8px">最近记录</div>
+        <div class="row"><div class="covart" style="width:60px;height:60px;flex:0 0 60px"></div>
+          <div class="copy"><h3 style="font-size:16px">小岛来信</h3><p>林间电台（模拟） · 昨天</p><p>最先留住我的，是鼓点之间的空白。</p></div></div>
+        <div class="row" style="border-top:1px solid var(--line)"><div class="covart" style="width:60px;height:60px;flex:0 0 60px"></div>
+          <div class="copy"><h3 style="font-size:16px">晚风经过</h3><p>河边乐队 · 8 月</p><p>适合傍晚回家路上听。</p></div></div>
+      </div>
+      <div class="card"><h3 style="margin:0 0 6px;font-size:17px;color:var(--ink-strong)">2026 · 我的音乐年记</h3>
+        <p style="margin:0;font-size:13px;color:var(--muted)">6 条今年记录，回顾作品与感受。</p></div>
+    </div>
+    <div class="nav"><a class="on">首页</a><a>专辑</a><a>新建</a><a>搜索</a><a>总结</a></div>`,
+
+  albums: `
+    <div class="app-header"><div class="brand"><span class="dot"></span>小懂哥 v2.7.1-test.3</div><div class="hmenu">⋮</div></div>
+    <div class="page">
+      <h2 style="margin:4px 0 2px;font-size:26px;color:var(--ink-strong)">专辑</h2>
+      <p style="margin:0 0 10px;font-size:13px;color:var(--muted)">按专辑名称聚合，封面距卡片边框 18px。</p>
+      <div class="card"><div class="row" style="padding:4px">
+        <div class="covart"></div>
+        <div class="copy"><h3>小岛来信</h3><p>林间电台（模拟）</p><p>年份：2026 / 记录：2</p><p>模拟记录 6。最先留住我的，是鼓点之间的空白。</p></div></div></div>
+      <div class="card"><div class="row" style="padding:4px">
+        <div class="covart" style="background:#4a5a51 url()"></div>
+        <div class="copy"><h3>晚风经过</h3><p>河边乐队</p><p>年份：2026 / 记录：1</p><p>适合傍晚回家路上听的一张。</p></div></div></div>
+      <div class="card"><div class="row" style="padding:4px">
+        <div class="covart" style="background:#5c4a3a url()"></div>
+        <div class="copy"><h3>城市边缘</h3><p>夜间巴士</p><p>年份：2025 / 记录：3</p><p>通勤路上反复听的一张。</p></div></div></div>
+    </div>
+    <div class="nav"><a>首页</a><a class="on">专辑</a><a>新建</a><a>搜索</a><a>总结</a></div>`,
+
+  editor: `
+    <div class="app-header"><div class="brand">返回</div><div class="hmenu">⋮</div></div>
+    <div class="page">
+      <h2 style="margin:4px 0 2px;font-size:26px;color:var(--ink-strong)">新建记录</h2>
+      <p style="margin:0 0 10px;font-size:13px;color:var(--muted)">任务页不显示主导航，底部只留一对操作。</p>
+      <div class="card">
+        <div class="field"><span>记录类型</span><div class="in">专辑</div></div>
+        <div class="field"><span>标题</span><div class="in">小岛来信</div></div>
+        <div class="field"><span>艺术家</span><div class="in">林间电台（模拟）</div></div>
+      </div>
+      <div class="card">
+        <div class="row" style="padding:4px"><div class="covart" style="width:72px;height:72px;flex:0 0 72px"></div>
+          <div class="copy"><h3 style="font-size:16px">封面照片</h3><p>点击从相册选择</p></div></div>
+      </div>
+      <div class="card">
+        <div class="field"><span>正文</span><div class="in tall">最先留住我的，是鼓点之间的空白。整张作品的编曲比较克制……</div></div>
+      </div>
+    </div>
+    <div class="bar"><button class="btn" type="button">保存草稿</button><button class="btn primary" type="button">保存完整乐评</button></div>`,
+
+  reader: `
+    <div class="app-header"><div class="brand">返回</div><div class="hmenu">⋮</div></div>
+    <div class="page">
+      <h1 style="font-size:26px;line-height:1.45;margin:12px 0 6px;color:var(--ink-strong)">小岛来信</h1>
+      <p style="margin:0 0 4px;font-size:14px;color:var(--muted)">专辑 / 2026 / 9 月</p>
+      <div class="reader-body">
+        <p>我之前不认识这位歌手，也没听过他的歌。这张专辑让我对他过去的音乐产生了兴趣。</p>
+        <p>最喜欢的是人声和伴奏之间的空间：有些地方贴得很近，有些地方又留出足够的余韵。重新听的时候，我开始注意那些第一次没有发现的细节。</p>
+        <p>阅读应该有舒服的留白，也应该完整保留记录。正文左右各留 26px 以上，行宽最多 620px。</p>
+      </div>
+    </div>`
+};
+
+function renderPage(name) {
+  $("#screen").innerHTML = pages[name] || "";
+  $$("[data-page]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.page === name)));
+}
+
+function applyTheme(choice) {
+  const dark = choice === "dark" || (choice === "system" && matchMedia("(prefers-color-scheme: dark)").matches);
+  document.documentElement.dataset.theme = dark ? "dark" : "light";
+  $$("[data-theme-set]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.themeSet === choice)));
+  localStorage.setItem(KEY, choice);
+  renderTokens();
+}
+
+const TOKENS = ["--paper-soft","--paper","--neu-surface","--neu-edge","--neu-light","--neu-shade","--ink","--muted","--neu-ink","--amber"];
+function renderTokens() {
+  const cs = getComputedStyle(document.documentElement);
+  $("#tokens").innerHTML = TOKENS.map(t => {
+    const v = cs.getPropertyValue(t).trim();
+    return `<tr><td>${t.replace("--", "")}</td><td><span class="swatch" style="background:${v}"></span>${v}</td></tr>`;
+  }).join("");
+}
+
+$$("[data-theme-set]").forEach(b => b.onclick = () => applyTheme(b.dataset.themeSet));
+$$("[data-page]").forEach(b => b.onclick = () => renderPage(b.dataset.page));
+$$("[data-size]").forEach(b => b.onclick = () => {
+  $$("[data-size]").forEach(x => x.setAttribute("aria-pressed", String(x === b)));
+  $("#screen").style.setProperty("--body", b.dataset.size + "px");
+});
+
+// Press feedback demo: visual channel only, the haptic tick needs a real device.
+for (const id of ["#demo", "#demo2"]) {
+  const el = $(id);
+  el.addEventListener("pointerdown", () => {
+    if (navigator.vibrate) navigator.vibrate([8]);
+    el.textContent = "已按下";
+  });
+  el.addEventListener("pointerup", () => {
+    el.textContent = id === "#demo" ? "按住我试试" : "主要按钮";
+  });
+}
+
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+  if (localStorage.getItem(KEY) === "system") applyTheme("system");
+});
+
+applyTheme(localStorage.getItem(KEY) || "system");
+renderPage("home");
+</script>
+</html>

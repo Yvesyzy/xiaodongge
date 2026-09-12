@@ -1,0 +1,203 @@
+/* Global dark theme.
+   Palette values are lifted from the reader's dark mode so the whole app uses
+   the same paper and ink the reading view already ships. Everything else is
+   derived from the shared tokens, so only the surfaces that are still painted
+   with a literal colour need an explicit override below. */
+[data-theme="dark"] {
+  /* Dark surfaces need a lightness ladder. Light mode separates things with
+     shadow; in the dark every surface collapses to the same near-black and the
+     neumorphism disappears, so the separation has to come from lightness:
+     paper (deepest) -> card -> lit edge, roughly 9% and 14% apart. The steps
+     were widened by one notch because the layers read as too flat before. */
+  --ink: #e9e7de;
+  --paper: #222924;
+  --paper-soft: #0b0f0d;
+  --line: #333d37;
+  --muted: #a3b1a8;
+
+  /* These double as text colours across the app, so under the dark theme they
+     have to become light rather than stay deep green. */
+  --green-950: #e8e6dd;
+  --green-900: #dde3d9;
+  --green-800: #bcd2c0;
+  --green-700: #a9c5ae;
+
+  --amber: #e0b567;
+  --amber-ink: #e0b567;
+  --amber-bright: #f0cd8b;
+  --amber-soft: #3d3117;
+  --danger: #ffb3bf;
+  --danger-soft: #3b2028;
+  --shadow: 0 18px 44px rgba(0, 0, 0, 0.62);
+  --shadow-soft: 0 10px 28px rgba(0, 0, 0, 0.46);
+
+  --neu-surface: #222924;
+  --neu-edge: #39433d;
+  --neu-light: #434f48;
+  --neu-shade: #030504;
+  --neu-ink: #a9c5ae;
+  --neu-panel: #1b211e;
+  --neu-quiet: #8d9c93;
+  --ink-strong: #e8e6dd;
+
+  /* --neu-raised / --neu-control / --neu-inset are deliberately not redefined:
+     they are built from --neu-shade and --neu-light, so they pick up the new
+     pair automatically once those change above. */
+}
+
+/* The page paper sits one step below the cards so they lift off it. */
+[data-theme="dark"] .app-shell:not(:has(.codex-reader)) { background: var(--paper-soft); }
+
+[data-theme="dark"] body {
+  background:
+    linear-gradient(180deg, rgba(18, 56, 45, 0.5), rgba(15, 20, 18, 0) 300px),
+    linear-gradient(90deg, rgba(224, 181, 103, 0.05) 0 1px, transparent 1px 100%),
+    var(--paper-soft);
+}
+
+/* The header is painted with a literal gradient, and under the dark theme it
+   has to go darker rather than inherit the lightened green tokens. */
+[data-theme="dark"] .app-header,
+[data-theme="dark"] .app-shell:not(:has(.codex-reader)) .app-header {
+  border-bottom-color: var(--neu-edge);
+  background:
+    repeating-radial-gradient(circle at right -42px top -46px, rgba(255, 253, 248, 0.06) 0 1px, transparent 1px 12px),
+    linear-gradient(135deg, #132a22, #1d4437);
+}
+
+[data-theme="dark"] .app-shell .primary-button {
+  border-color: #3d7365;
+  background: linear-gradient(145deg, #356e5e, #27584a);
+}
+
+[data-theme="dark"] .app-shell .bottom-nav > :nth-child(3) {
+  border-color: #3d7365;
+  background: #2c6455;
+}
+
+/* Surfaces and text still painted with a literal colour. */
+[data-theme="dark"] .cover-art { background: #232925; }
+/* The vinyl placeholder is drawn with literals and reads as a grey slab on dark. */
+[data-theme="dark"] .cover-placeholder {
+  background:
+    radial-gradient(circle, var(--amber) 0 10%, transparent 11%),
+    repeating-radial-gradient(circle, #0d1110 0 3px, #202622 3px 6px);
+}
+/* A hairline of light along the top edge reads as a lit rim on every card. */
+[data-theme="dark"] .app-shell :is(
+  .form-card, .search-box, .draft-card, .quick-extras, .quick-track-card,
+  .relisten-track, .shared-music-card, .insight-card, .cover-row, .codex-timeline-card
+) { border-top-color: #414c45; }
+[data-theme="dark"] .app-shell .cover-copy p:last-child { color: #cfd8d2; }
+[data-theme="dark"] .home-hero-copy,
+[data-theme="dark"] .home-stats { background: rgba(28, 36, 33, 0.94); }
+[data-theme="dark"] .home-stats { border-color: var(--neu-edge); }
+[data-theme="dark"] .home-entry-meta { background: #232d28; color: var(--neu-ink); }
+[data-theme="dark"] .stat-card :is(strong, b, em) { color: var(--neu-ink); }
+/* The two "visual memory" cards are painted with a dark gradient in light mode
+   so they stand out against the warm paper. Under the dark theme the paper has
+   already collapsed to near-black, so the same fill reads as a bright slab
+   pasted on top. Deepen the base and pull the coloured glare back so they sink
+   into the new system — but keep each card's hue (map = cold blue-green,
+   insights = warm brown) so the two stay instantly distinguishable. */
+[data-theme="dark"] .visual-entry-card { box-shadow: 0 18px 34px rgba(0, 0, 0, 0.55); }
+/* Pull the light-mode glare right back. The home page sets
+   `.home-page .visual-entry-card::before { opacity: .22 }`, so the dark value
+   has to go *below* .22 to actually dim the glow — anything higher brightens it. */
+[data-theme="dark"] .visual-entry-card::before { opacity: 0.16; }
+[data-theme="dark"] .visual-entry-card.map {
+  background:
+    linear-gradient(135deg, rgba(128, 167, 255, 0.15), transparent 42%),
+    linear-gradient(160deg, #0a0e15, #123029);
+}
+[data-theme="dark"] .visual-entry-card.insights {
+  background:
+    linear-gradient(135deg, rgba(255, 200, 110, 0.16), transparent 48%),
+    linear-gradient(160deg, #1c1305, #33240e);
+}
+/* The home page repaints both cards with its own opaque gradient
+   (.home-page .visual-entry-card.map / .insights). Those rules have the SAME
+   specificity (0,3,0) as the generic dark overrides above, so the cascade is
+   decided by source order — abu_theme.css is imported after styles.css, so the
+   dark fill would win either way. These .home-page-scoped rules (0,4,0) just
+   state it explicitly so the fill never depends on import order. */
+[data-theme="dark"] .home-page .visual-entry-card { box-shadow: 0 8px 18px rgba(0, 0, 0, 0.5); }
+[data-theme="dark"] .home-page .visual-entry-card.map {
+  background: linear-gradient(150deg, #16333a, #0a1613);
+}
+[data-theme="dark"] .home-page .visual-entry-card.insights {
+  background: linear-gradient(150deg, #342812, #1b1407);
+}
+/* Mid-tone hint text is painted with literals across several components. */
+[data-theme="dark"] .app-shell :is(
+  .lead, .hint, .journal-muted, .journal-secondary-nav, .journal-type-cover,
+  .journal-tabs a, .home-hero-copy p, .home-annual-link p, .page-heading p
+) { color: var(--muted); }
+[data-theme="dark"] .journal :is(.journal-quote, .journal-insight) { background: var(--paper-soft); color: var(--ink); }
+[data-theme="dark"] .journal small { color: var(--muted); }
+/* Untargeted stat labels in the yearbook keep a mid-tone literal; scope this to
+   class-less nodes so the deliberate accent colours stay untouched. */
+[data-theme="dark"] .journal :is(span, em, b, i):not([class]) { color: var(--muted); }
+[data-theme="dark"] .journal-recommendation-box > div span { color: var(--neu-ink); }
+[data-theme="dark"] .home-entry-meta span { background: #2a3833; color: var(--neu-ink); }
+[data-theme="dark"] .journal-page .journal-actions .journal-primary {
+  border-color: #3d7365;
+  background: linear-gradient(145deg, #356e5e, #27584a);
+}
+[data-theme="dark"] .page:has(.writing-form, .draft-card, .backup-health-card) h1 { color: var(--ink-strong); }
+
+/* The yearbook view is a self-contained light sub-system with its own literals. */
+[data-theme="dark"] .journal {
+  --journal-green: #b4ceb8;
+  color: var(--ink);
+  background: var(--paper);
+}
+[data-theme="dark"] .journal :is(h1, h2, h3, .journal-bar-value, .journal-month-card) { color: var(--ink); }
+[data-theme="dark"] .journal :is(input, select) { border-color: var(--line); background: var(--paper-soft); color: var(--ink); }
+[data-theme="dark"] .journal-month-card { border-bottom-color: var(--line); }
+[data-theme="dark"] .journal :is(.journal-placeholder, .journal-recommendation-box > div span) { background: #232d28; color: var(--neu-ink); }
+[data-theme="dark"] .journal-type-cover strong { color: var(--neu-ink); }
+[data-theme="dark"] .entry-save-actions { border-color: var(--line); background: #1f2622; }
+[data-theme="dark"] .bottom-sheet:has(.create-choice) .sheet-handle { background: #4a5a51; }
+[data-theme="dark"] .codex-reader .detail-hero .cover-art.large { box-shadow: 3px 3px 9px #0006; }
+
+/* Appearance switch on the More page. */
+.theme-choice { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
+.theme-choice button {
+  min-height: 44px;
+  border: 1px solid var(--neu-edge);
+  border-radius: 14px;
+  background: var(--neu-surface);
+  color: var(--neu-quiet);
+  font-weight: 650;
+  box-shadow: var(--neu-control);
+}
+.theme-choice button[aria-pressed="true"] {
+  color: var(--neu-ink);
+  box-shadow: var(--neu-inset);
+  font-weight: 800;
+}
+
+/* The reader owns its own light/dark switch, so restore its paper palette when
+   the global theme is dark but the reader itself was left on light. */
+[data-theme="dark"] .codex-reader:not(.codex-reader-dark) {
+  --ink: #24362e;
+  --muted: #5d6b62;
+  --paper: #fffdf8;
+  --paper-soft: #f3f6f0;
+  --line: #dedfd5;
+  --green-950: #071f1b;
+  --green-900: #0b3029;
+  --green-800: #17483e;
+  --green-700: #226357;
+  --amber: #c9973f;
+  --amber-ink: #7d5a1f;
+  --amber-bright: #d7ad62;
+  --danger: #b4233b;
+  --danger-soft: #fff1f2;
+  --neu-surface: #f2f1eb;
+  --neu-edge: #d3d8cd;
+  --neu-light: #fffffff0;
+  --neu-shade: #c8cfc2;
+  --neu-panel: #fffdf8;
+}

@@ -1,0 +1,215 @@
+/* Soft record-player controls; prose and exported artwork stay flat. */
+:root {
+  --neu-surface: #f2f1eb;
+  --neu-edge: #d3d8cd;
+  /* Paper #f2f1eb vs shade needs ~15% lightness gap, otherwise every raised
+     surface reads as flat and press feedback has nowhere to travel to. */
+  --neu-light: #fffffff0;
+  --neu-shade: #c8cfc2;
+  --muted: #5d6b62;
+}
+/* Resolve compound shadows where theme colors change, not only at :root. */
+:root, .codex-reader {
+  --neu-raised: 6px 6px 16px var(--neu-shade), -6px -6px 16px var(--neu-light);
+  --neu-control: 3px 3px 7px var(--neu-shade), -3px -3px 7px var(--neu-light);
+  --neu-inset: inset 3px 3px 7px var(--neu-shade), inset -3px -3px 7px var(--neu-light);
+}
+
+.app-shell:not(:has(.codex-reader)) { background: var(--neu-surface); }
+.app-shell:not(:has(.codex-reader)) .app-header {
+  background: var(--neu-ink);
+  border-bottom: 1px solid #416b5d;
+  box-shadow: inset 0 1px 0 #ffffff16, 0 4px 12px #142d231a;
+}
+.app-shell .page { padding-inline: clamp(20px, 5vw, 32px); }
+.app-shell .page h1 { line-height: 1.35; overflow-wrap: anywhere; }
+.app-shell .codex-reader .page { padding-inline: 0; }
+.app-shell :is(.primary-button, .secondary-button, .danger-button) {
+  border-radius: 14px;
+  font-weight: 650;
+  transition: box-shadow 120ms ease, background-color 120ms ease;
+}
+.app-shell .primary-button {
+  color: var(--on-deep);
+  border-color: #376354;
+  background: linear-gradient(145deg, #2d6253, var(--neu-ink));
+  box-shadow: inset 1px 1px 1px #ffffff24, 3px 3px 8px #173d342b;
+}
+.app-shell .secondary-button {
+  border-color: var(--neu-edge);
+  color: var(--neu-ink);
+  background: var(--neu-surface);
+  box-shadow: var(--neu-control);
+}
+.app-shell .primary-button:active:not(:disabled) { box-shadow: inset 3px 3px 6px #122e28, inset -2px -2px 5px #467667; }
+.app-shell .secondary-button:active:not(:disabled) { box-shadow: var(--neu-inset); }
+.app-shell :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="hidden"]), select, textarea) {
+  border: 1px solid #a8b5a9;
+  border-radius: 12px;
+  background: var(--neu-surface);
+  color: var(--ink);
+  box-shadow: inset 2px 2px 5px var(--neu-shade), inset -2px -2px 5px var(--neu-light);
+}
+.app-shell textarea { padding: 16px; line-height: 1.85; }
+.app-shell :is(button, a, input, select, textarea, summary):focus-visible {
+  outline: 3px solid #a57529;
+  outline-offset: 3px;
+}
+.app-shell :is(.form-card, .search-box, .draft-card, .quick-extras, .quick-track-card, .relisten-track, .shared-music-card, .insight-card, .cover-row, .codex-timeline-card) {
+  background: var(--neu-surface);
+  border: 1px solid var(--neu-edge);
+  border-radius: 18px;
+  box-shadow: var(--neu-raised);
+}
+.app-shell :is(.card-list, .draft-list) { gap: 18px; }
+.app-shell .entry-card { border-radius: 14px; box-shadow: none; }
+.app-shell .codex-timeline-card>.entry-card { border: 0; background: transparent; border-radius: 0; }
+.app-shell .stat-card::after { display: none; }
+.app-shell .rating-track-bg { background: var(--neu-surface); box-shadow: var(--neu-inset); }
+.app-shell .thumb-inner { background: var(--neu-surface); box-shadow: var(--neu-control); }
+
+/* Preserve the sleeve, vinyl and the first-screen draft/recent-entry hierarchy. */
+.home-page .home-hero { background-color: var(--neu-surface); }
+.home-page .home-hero-copy { border-radius: 18px; box-shadow: inset 1px 1px 0 #fff, 5px 5px 14px #233a281c; }
+.home-page .home-draft-link { border-radius: 12px; background: var(--neu-surface); box-shadow: var(--neu-inset); }
+.home-page .home-stats { background: var(--neu-surface); border: 1px solid var(--neu-edge); border-radius: 18px; box-shadow: var(--neu-raised); }
+.home-page .home-entry-list { border: 1px solid var(--neu-edge); border-radius: 18px; background: var(--neu-panel); box-shadow: 3px 3px 10px #173d340c; overflow: hidden; }
+.home-page .home-entry-row { background: transparent; border-radius: 0; box-shadow: none; }
+.home-page .home-entry-heading { grid-template-columns: minmax(0, 1fr); gap: 4px; padding-right: 32px; }
+.home-page .home-entry-heading time { font-size: 12px; }
+.app-shell .codex-list-share { padding: 0; top: 8px; right: 8px; }
+.app-shell .codex-list-share summary { min-width: 44px; min-height: 44px; }
+.home-page .home-annual-link { border-radius: 16px; background: var(--neu-surface); box-shadow: var(--neu-control); }
+.home-page :is(.visual-entry-card, .daily-resurfacing-card) { border-radius: 18px; box-shadow: inset 1px 1px 0 #ffffff24, 4px 4px 10px #173d3426; }
+/* Deep-green surfaces need the light amber for the same 12px eyebrow label. */
+.home-page .daily-resurfacing-card .page-eyebrow { color: var(--amber-bright); }
+.home-page .daily-resurfacing-card .secondary-button { box-shadow: inset 1px 1px 0 #fff9, 3px 3px 6px #0d2e2640; }
+
+.app-shell .bottom-nav {
+  width: min(calc(100% - 24px), 736px);
+  bottom: max(10px, env(safe-area-inset-bottom));
+  padding: 8px;
+  gap: 6px;
+  border: 1px solid var(--neu-edge);
+  border-radius: 24px;
+  background: var(--neu-surface);
+  backdrop-filter: none;
+  box-shadow: 0 6px 20px #233a2829, inset 1px 1px 0 #fff;
+}
+.app-shell .bottom-nav>:is(a, button) { color: var(--neu-quiet); border-radius: 16px; font-weight: 600; }
+.app-shell .bottom-nav>.active { color: var(--neu-ink); background: var(--neu-surface); box-shadow: var(--neu-inset); font-weight: 800; }
+.app-shell .bottom-nav>:nth-child(3) {
+  min-height: 56px;
+  margin: 0;
+  border: 1px solid #376354;
+  border-radius: 18px;
+  background: var(--neu-ink);
+  color: #fff3d7;
+  box-shadow: inset 1px 1px 1px #ffffff24, 3px 3px 6px #173d3433;
+}
+.app-shell .bottom-nav>:nth-child(3):active { box-shadow: inset 3px 3px 6px #142e26; }
+.app-shell:not(:has(.codex-reader)) { padding-bottom: calc(102px + env(safe-area-inset-bottom)); }
+
+.app-shell .journal-page:not(:has(.codex-reader)) { background: var(--neu-surface); }
+.journal-page :is(.journal-button, .journal-primary) { border-radius: 12px; }
+.journal-page .journal-tabs { gap: 6px; padding: 6px; border: 1px solid var(--neu-edge); border-radius: 16px; box-shadow: var(--neu-inset); }
+.journal-page .journal-tabs a { border: 0; border-radius: 11px; }
+.journal-page .journal-tabs a.active { background: var(--neu-panel); color: var(--neu-ink); box-shadow: var(--neu-control); }
+.journal-page :is(.journal-actions, .journal-curation-actions) :is(button, .journal-button) { border-radius: 12px; box-shadow: var(--neu-control); }
+.journal-page .journal-actions .journal-primary { background: var(--neu-ink); color: var(--on-deep); box-shadow: inset 1px 1px 1px #ffffff24, 3px 3px 6px #173d342b; }
+.review-share-dialog { border-radius: 20px; }
+.review-share-dialog :is(.review-share-header button, .review-share-actions button) { border-radius: 12px; }
+.app-shell .bottom-sheet:has(.create-choice) { padding: 14px 22px calc(22px + env(safe-area-inset-bottom)); border-color: var(--neu-edge); border-radius: 26px 26px 0 0; background: var(--neu-surface); color: var(--ink); }
+.bottom-sheet:has(.create-choice) .sheet-handle { background: #9aaa9d; box-shadow: var(--neu-inset); }
+.bottom-sheet:has(.create-choice) .sheet-head p { color: var(--muted); }
+.bottom-sheet:has(.create-choice) .sheet-head button { width: 44px; min-height: 44px; border: 1px solid var(--neu-edge); border-radius: 12px; background: var(--neu-surface); color: var(--neu-ink); box-shadow: var(--neu-control); }
+.bottom-sheet .create-choice { gap: 16px; }
+.bottom-sheet .create-choice-card { border: 1px solid var(--neu-edge); border-radius: 16px; background: var(--neu-surface); box-shadow: var(--neu-control); }
+.bottom-sheet .create-choice-card strong { color: var(--neu-ink); }
+.bottom-sheet .create-choice-card span { color: var(--muted); }
+.bottom-sheet .create-choice-card:active { box-shadow: var(--neu-inset); }
+
+/* Reader tokens stay local: deep green shadows never leak into light dialogs. */
+.codex-reader { --neu-surface: var(--reader-paper); --neu-edge: var(--reader-line); }
+.codex-reader-dark { --neu-light: #24362e; --neu-shade: #0b1310; }
+.codex-reader .codex-reader-toolbar { padding-inline: 16px; border-bottom-color: color-mix(in srgb, var(--reader-line) 60%, transparent); }
+.codex-reader .codex-reader-actions>button,
+.codex-reader .codex-reader-menu>summary { min-height: 44px; border-radius: 13px; background: var(--reader-paper); box-shadow: var(--neu-control); }
+.codex-reader .codex-reader-actions { gap: 12px; }
+.codex-reader .codex-reader-menu[open]>summary,
+.codex-reader .codex-reader-actions>button:active { box-shadow: var(--neu-inset); }
+.codex-reader .codex-reader-menu[open]>div { border-radius: 16px; box-shadow: 0 10px 28px #0003; }
+.codex-reader .codex-reader-back { box-shadow: none; }
+.codex-reader .detail-hero .cover-art { box-shadow: 3px 3px 9px #0002; }
+.codex-reader .detail-hero-copy strong { color: #a57529; }
+.codex-reader-dark .detail-hero-copy strong { color: #d7ad62; }
+.codex-reader .secondary-button { color: var(--reader-ink); }
+.codex-reader .review-share-dialog { --neu-surface: #f2f1eb; --neu-shade: #c8cfc2; --neu-light: #fff; --ink: #202724; }
+.codex-reader .review-share-dialog :is(input, select, textarea) { color: #202724; }
+
+/* Album/song shelves: covers and text share the top-left light source, and the
+   copy reads as title / meta / summary instead of five equally weighted lines. */
+.app-shell .cover-art {
+  box-shadow: 3px 3px 9px var(--neu-shade), -2px -2px 6px var(--neu-light);
+}
+.app-shell .cover-list { gap: 16px; }
+.app-shell .cover-copy { display: grid; gap: 6px; }
+.app-shell .cover-copy h2 { margin: 0; }
+.app-shell .cover-copy p { margin: 0; }
+.app-shell .cover-copy p:last-child { color: #3f544c; line-height: 1.62; }
+
+/* Press feedback: a held control sinks into the paper instead of merely dimming.
+   Deliberately silent — this app plays music while you use it, so UI sound cues
+   would fight playback. The tactile tick lives in abu_haptics.ts. */
+.app-shell :is(button, summary, .primary-button, .secondary-button, .journal-button, .journal-primary, .create-choice-card, .cover-row, .bottom-nav>a, .journal-tabs>a) {
+  transition: scale 90ms ease-out, filter 90ms ease-out, box-shadow 90ms ease-out, background-color 120ms ease;
+}
+.app-shell :is(button, summary, .primary-button, .secondary-button, .journal-button, .journal-primary, .create-choice-card, .cover-row, .bottom-nav>a, .journal-tabs>a):active:not(:disabled):not([aria-disabled="true"]) {
+  scale: .97;
+  filter: brightness(.92);
+}
+.app-shell .cover-row:active { scale: .99; }
+/* Every raised surface trades its shadow for the inset one while held, so the
+   press is felt in depth and not only in size. */
+.app-shell :is(.secondary-button, .journal-button, .create-choice-card, .home-annual-link, .bottom-nav>a:not(.active), .codex-reader-actions>button, .codex-reader-menu>summary):active:not(:disabled):not([aria-disabled="true"]) {
+  box-shadow: var(--neu-inset);
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-shell :is(.primary-button, .secondary-button, .danger-button) { transition: none; }
+  /* Mirror the press rule's selector verbatim, :is() body included. Matching
+     only the :not() guards is NOT enough: the press rule's :is() carries
+     `.bottom-nav>a` / `.journal-tabs>a`, so it contributes a type selector
+     ((0,5,1)), while `:is(button, summary, a)` only reaches (0,4,1) — one level
+     short, so the press rule keeps winning. Copying the selector exactly ties
+     the specificity, and this block sits after the press rule, so source order
+     wins the tie. No !important. */
+  /* Order-sensitive: this block must stay after the press rule above, or source
+     order will flip and the press rule wins the tie again. */
+  .app-shell :is(button, summary, .primary-button, .secondary-button, .journal-button, .journal-primary, .create-choice-card, .cover-row, .bottom-nav>a, .journal-tabs>a):active:not(:disabled):not([aria-disabled="true"]) { scale: 1; }
+}
+
+/* Task pages (new / edit / quick capture) bring their own action bar, so the
+   global one is withheld there instead of stacking a second floating bar on top
+   of it. requestBack() keeps every unsaved-content guard in play. */
+.app-shell.task-route { padding-bottom: calc(24px + env(safe-area-inset-bottom)); }
+.app-shell.task-route .entry-save-actions { bottom: max(12px, env(safe-area-inset-bottom)); }
+.task-back { border: 0; background: none; color: inherit; font: inherit; padding: 0; text-align: left; cursor: pointer; }
+
+/* Touch targets. Measured with scripts/abu_a11y_check.mjs; 44px is the iOS HIG
+   and WCAG 2.5.5 figure — WCAG 2.2 AA only asks for 24px, so these are the
+   controls where a mis-tap actually costs the user something. */
+.app-shell .brand { min-height: 44px; }
+.app-shell .header-menu { width: 44px; height: 44px; top: calc(14px + env(safe-area-inset-top)); }
+.app-shell :is(.genre-tree-chip, .rating-mod-btn) { min-height: 44px; }
+.app-shell .codex-list-share :is(summary, a) { min-height: 44px; display: grid; align-items: center; }
+.app-shell .codex-list-share > a { padding: 0 14px; }
+.app-shell :is(select, input[type="date"], input[type="number"], input[type="range"]) { min-height: 44px; }
+.app-shell details > summary { min-height: 44px; display: flex; align-items: center; }
+/* Mood and choice chips carry no class of their own, so they are reached through
+   the row that wraps them. */
+.app-shell :is(.quick-mood-all, .choice-chip-row) button { min-height: 44px; }
+.app-shell .quick-capture-form button:not(.rating-mod-btn):not(.primary-button):not(.secondary-button) { min-height: 44px; }
+/* Checkboxes stay small to look right, but a 13px hit box is not tappable. */
+.app-shell :is(input[type="checkbox"], input[type="radio"]) { min-width: 24px; min-height: 24px; }
+.app-shell :is(.home-section-title, .journal-secondary-nav) a { min-height: 44px; display: inline-flex; align-items: center; }
+.app-shell .codex-reader-settings button { min-height: 44px; }

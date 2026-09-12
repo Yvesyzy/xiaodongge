@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { readJournalEdition, type JournalEdition } from "../../shared/backupAppData";
 import { journalTitle } from "./codex_yearbookModel";
 import type { ReviewEntry } from "./types";
+import { useBackGuard } from "./codex_Navigation";
 
 export const EMPTY_EDITION: JournalEdition = { coverId: null, entryIds: [], quotes: {}, message: "" };
 export function journalQuote(entry: ReviewEntry, edition: JournalEdition) {
@@ -15,6 +16,7 @@ export function JournalEditor({ entries, edition, onSave }: { entries: ReviewEnt
   const [notice, setNotice] = useState("");
   const [query, setQuery] = useState("");
   const [limit, setLimit] = useState(20);
+  useBackGuard(() => !busy && (JSON.stringify(value) === JSON.stringify(edition) || window.confirm("年度精选尚未保存，确认放弃修改并返回？")));
   useEffect(() => setValue(edition), [edition]);
   const recommendations = useMemo(() => entries.filter((entry) => entry.rating !== null).sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0) || b.createdAt.localeCompare(a.createdAt) || a.id.localeCompare(b.id)).slice(0, 3), [entries]);
   const matches = entries.filter((e) => `${journalTitle(e)} ${e.artistName ?? ""}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()));

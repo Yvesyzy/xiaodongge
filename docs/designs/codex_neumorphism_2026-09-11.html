@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>小懂哥 · 轻新拟物改版预览</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f2f1eb;color:#24362e;font:16px/1.7 system-ui,"Microsoft YaHei",sans-serif}main{max-width:1280px;margin:auto;padding:40px 24px 64px}header{max-width:800px;margin-bottom:32px}h1{font-size:clamp(26px,4vw,38px);line-height:1.4;margin:8px 0}p{color:#5d6b62;margin:8px 0}header small{font-weight:650;color:#245448}nav{display:flex;gap:16px;flex-wrap:wrap;margin-top:20px}a{color:#245448;text-underline-offset:4px}.grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:28px 24px}figure{margin:0;min-width:0}figcaption{margin:0 0 12px;font-weight:650}figcaption small{display:block;color:#5d6b62;font-weight:400;font-size:13px}.screen{max-height:790px;overflow:auto;border:1px solid #c9d2c7;border-radius:18px;background:#fffdf8;box-shadow:4px 4px 14px #24362e13}.screen img{display:block;width:100%;height:auto}footer{margin-top:32px;border-top:1px solid #c9d2c7;padding-top:16px;font-size:14px}a:focus-visible{outline:3px solid #a57529;outline-offset:4px}@media(max-width:850px){.grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:560px){.grid{grid-template-columns:1fr}main{padding:24px 18px}.screen{max-height:80vh}}
+</style>
+<main>
+<header><small>小懂哥 · v2.7.1 设计改造</small><h1>让阅读舒展，让操作有触感。</h1><p>沿用墨绿、暖纸与黑胶。正文保持平整，按钮轻轻浮起，输入框与选中导航浅浅凹入。以下为实际应用截图，全部使用模拟记录。</p><p>390px 手机视口：正文左右各约 27px；小屏至少 26px。保留三档字号、深浅阅读、原文换行和现有操作。</p><nav aria-label="预览页面"><a href="#reading">阅读</a><a href="#home">首页</a><a href="#editor">编辑</a><a href="#yearbook">回顾</a><a href="#create">新建</a></nav></header>
+<div class="grid">
+<figure id="reading"><figcaption>深色阅读<small>增加页边留白，作品信息与正文分层。</small></figcaption><div class="screen"><img src="../../release/codex_neumorphism_qa/codex_after_reader_dark.png" alt="深色阅读页面，留白与浅浮起操作按钮"></div></figure>
+<figure><figcaption>浅色阅读<small>正文不叠投影，保留纸面感。</small></figcaption><div class="screen"><img src="../../release/codex_neumorphism_qa/codex_after_reader_light.png" alt="浅色阅读页面"></div></figure>
+<figure id="home"><figcaption>首页<small>保留黑胶、草稿与最近记录；长图可滚动。</small></figcaption><div class="screen"><img src="../../release/codex_neumorphism_qa/codex_after_home.png" alt="首页完整长图"></div></figure>
+<figure id="editor"><figcaption>编辑<small>输入浅凹入，保存按钮明确可辨。</small></figcaption><div class="screen"><img src="../../release/codex_neumorphism_qa/codex_after_editor.png" alt="新建完整乐评编辑页面" loading="lazy"></div></figure>
+<figure id="yearbook"><figcaption>年度回顾<small>年度与月度切换统一触感，保留简约内容。</small></figcaption><div class="screen"><img src="../../release/codex_neumorphism_qa/codex_after_yearbook.png" alt="年度回顾页面" loading="lazy"></div></figure>
+<figure id="create"><figcaption>新建弹层<small>统一面板与三种记录入口。</small></figcaption><div class="screen"><img src="../../release/codex_neumorphism_qa/codex_after_create_sheet.png" alt="速记、完整和草稿入口" loading="lazy"></div></figure>
+</div>
+<footer>已通过：九个主要页面与五种视口、三档字号与深浅阅读、原有五套浏览器回归、类型检查、Web 生产构建。已生成 <a href="../../release/codex_xiaodongge-v2.7.1-test.2.apk">2.7.1-test.2 测试 APK</a>，同签名且包内资源已核验；尚未在 Yves 的手机上验收。</footer>
+</main>
+</html>

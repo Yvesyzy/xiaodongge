@@ -1,0 +1,96 @@
+时间: 2026-09-12 00:15
+作者: abu
+做了什么:
+- 新拟物 v2 改进（分支 abu-neumorphism-v2，未合并 main、未推送）：
+  1. 光影基础：阴影色 #d4d8ce → #c8cfc2（与纸面 #f2f1eb 明度差 9% → 15%），高光 #ffffffa6 → #fffffff0，深色阅读阴影 #0e1713 → #0b1310。统一左上光源。
+  2. 专辑/歌曲卡片：.cover-row 内边距左右 2px → 18px（此行为 codex 中断前已改），本轮补 align-items center → start（图文顶对齐）、列表间距 14px → 16px、封面阴影改为与新拟物同光源、摘要行高 1.62 且墨色加深。
+  3. 按压反馈：brightness .94 → .92，过渡 100/120ms → 90ms ease-out；新增规则让所有浮起控件（次按钮、journal 按钮、新建入口、底栏非选中项、阅读工具栏）按下时阴影由凸起翻成凹入。
+  4. 新增 mobile/src/abu_haptics.ts：按下 8ms 轻振，事件委托 pointerdown，特性检测后静默降级。不加音效（音乐 App 的 UI 提示音会打断播放）。已在 main.tsx 接入。
+  5. AndroidManifest.xml 补 android.permission.VIBRATE。
+  6. 设计说明 docs/designs/abu_neumorphism_v2_2026-09-11.html；截图 release/abu_neumorphism_qa/。
+验证结果:
+- tsc --noEmit：通过。
+- scripts/codex_check_neumorphism.mjs：PASS（十条路由、320/390/430/768/1280 视口、三档字号、深浅阅读、原文不变、无运行时报错；专辑卡片封面距边框左右各 ≥18px、图文间距 ≥14px；按压 scale 0.97、阴影翻凹入、松手复原、减少动态效果下保留色彩反馈；深色阅读无白色光晕）。
+- 截图在独立浏览器内以合成数据生成，未读取手机真实记录。
+当前状态: 完成（源码与网页已验证；APK 未重新打包）
+下一步:
+- 真机确认与 APK 重打包需 Yves 决定；触觉反馈必须重新打包才在真机生效。
+阻塞项（如有）:
+- 本仓库 git 异常（详见下方"仓库修复记录"），已处理但根因未定。
+- 首页"可视化记忆"两张深色卡片与暖纸体系割裂，属配色决策，未动。
+
+仓库修复记录（重要，供 codex / cc / Yves 参考）:
+- 接手时 HEAD 指向一个未出生的分支，git 把索引里 246 个文件全部误报为新增。
+- 实际未损坏：refs/heads/main = a4d505f（246 文件）与 origin/main 一致，索引与 main 树 diff 为空，工作区文件完整。
+- 处理：备份 .git/HEAD 到 .git/ABU_HEAD_backup，symbolic-ref 把 HEAD 接回 main，再用 update-ref 建分支。
+- 发现 1：.git/packed-refs 里 refs/heads/main 是旧值 20f39c57，与 loose ref a4d505f 不一致（loose 优先，故 main 解析正确）。packed-refs 需要清理。
+- 发现 2：core.fscache true 时，git 在跨进程下看不到刚创建的 ref（表现为分支建不成、ref 写入了却报 unborn）。已在本仓库设 core.fscache false 规避。
+- 发现 3：带斜杠的分支名 abu/neumorphism-v2 在本仓库写不进 refs（update-ref 返回 0 但文件未落地，目录创建后被回收），最终改用 abu-neumorphism-v2。
+
+第二轮补充（无障碍审计，同日）:
+- 新增 scripts/abu_a11y_check.mjs，遍历十个页面实测文本对比度与触控尺寸，报告 release/abu_a11y_qa/abu_a11y_report.json。
+- 对比度修复：.page-eyebrow 原用 --amber #c9973f 画 12px 小字，在暖纸上仅 2.32:1（速记页）、在深绿卡上 3.93:1（首页今日重逢）。新增 --amber-ink #7d5a1f（5.54:1）与 --amber-bright #d7ad62（4.94:1），按底色分别使用；#c9973f 保留给大字号与装饰。
+- 结果：修复前 2 处不达标 → 修复后十个页面 0 处不达标。原报告里其余条目经核查为脚本未解析渐变背景造成的误报，已在脚本内修正。
+- 触控热区：九类目标低于 44px（曲风标签 34、情绪标签 38、加减号 40、分享这篇 35、品牌链接 22、查看全部 21、补充评分折叠标题 20 等）。WCAG 2.2 AA 只要求 24×24，现有控件全部达标；44px 属 iOS HIG / WCAG 2.5.5 建议值。Yves 确认后已全部加高到 44px，实测小目标 126 → 1。
+
+第三轮（Yves 授权"四点全按最推荐改进"）:
+- 任务页（/new、/entries/:id/edit、/capture）隐藏全局底栏，改由顶部「返回」退出，复用 codex_Navigation 的 requestBack，未保存保护全部保留；消除双层浮动栏堆叠与内容遮挡。.entry-save-actions 的 bottom 由 104px 改为安全区对齐。
+- 修复 reduced-motion 下按钮仍缩放的缺陷：按压规则的 :not() 守卫使其特异性高于覆盖规则，已补齐同样的守卫。
+- 令牌统一：新增 --on-deep（深色底上的文字，与 --paper 分离）、--neu-ink / --neu-panel / --neu-quiet / --ink-strong，替换 styles.css 与 codex_neumorphism.css 中的硬编码墨绿与最深文字色；6 处误用 color: var(--paper) 已改为 --on-deep。
+- 全局深色模式：新增 mobile/src/abu_theme.ts / abu_theme.css，三档（跟随系统/浅色/深色）+ localStorage 持久化，入口在「更多」页。令牌取自阅读页既有深色配色，保证一致。阅读页保留自己的深浅开关，abu_theme.css 内做了隔离，全局深色下阅读页浅色不会被污染。
+- 尚未令牌化的独立浅色子系统（年度回顾 .journal 的 #202724/#fafaf7、首页 hero 与统计卡的半透明纸色、曲风芯片白底）已在 abu_theme.css 内单独覆盖。
+- 验证：tsc 通过；codex_check_neumorphism.mjs 连续三次 PASS；abu_a11y_check.mjs 在深浅两套主题下各十页面，对比度 0 处不达标，触控目标仅剩 1 个（checkbox 24px，已达 AA）。
+- 修复测试竞态：codex_check_neumorphism.mjs 在 emulateMedia 后未等待一帧即断言，导致 reduced-motion 检查间歇失败，已加 120ms 等待。
+- 深色效果截图：release/abu_dark_qa/；无障碍报告：release/abu_a11y_qa/ 与 release/abu_a11y_dark/。
+
+第四轮（Yves 反馈"深色有点丑"，重新设计）:
+- 诊断：上一版深色只做到"对比度达标"，但所有表面挤在几乎同一明度上（页面 / 卡片 / 输入框 / 操作栏），新拟物的光影在深色下等于消失，卡片与背景糊成一片；封面色块偏灰绿发脏。
+- 根因：浅色模式靠阴影分层，深色下阴影几乎不可见，必须改用**明度阶梯**分层。上一版直接把纸面调到 #17211e 一档了事，没有阶梯。
+- 重设计：页面底 #0c100e → 卡片 #1f2521 → 受光边 #3d4741，落差约 5% 与 9%；投影加深到近黑 #040605，让受光边承担塑形。琥珀提亮到 #e0b567（深色下强调色需要更亮才发光）。卡片补一条顶部受光细边。封面色块与黑胶占位重调，去掉灰绿感。header 渐变由近黑改为深墨绿，保留品牌色。
+- 同时删掉了深色下对 --neu-raised / --neu-control / --neu-inset 的重复定义——它们由 --neu-shade 与 --neu-light 组成，变量引用是延迟解析的，改了这两个就会自动跟随，不需要再写一遍。
+- 验证：tsc 通过；codex_check_neumorphism.mjs PASS；深色十页面对比度 0 处不达标。截图 release/abu_dark_qa/abu_dark4_*。
+
+第五轮（Yves 要求：可视化卡片适配深色 + 明度阶梯加一档。本轮起按软件开发团队流程执行：工程师实现 → QA 独立复核）:
+- 「可视化记忆」两张卡片深色适配：压深底色、收掉彩色炫光（::before 由浅色的 .22 收到 .16）。**注意坑**：styles.css:1406/1418 的基础规则在首页不生效，首页被 .home-page 作用域规则覆盖（两者特异性同为 (0,3,0)，胜负实为加载顺序所致），故做了两层覆盖。同时覆盖卡片投影为近黑——浅色的 rgba(7,31,27,.2) 在深色背景上会发亮显脏。
+- 明度阶梯加大一档：#0c100e/#1f2521/#3d4741 → #0b0f0d/#222924/#434f48（HSL 步长 7.84%/12.55% → 9.61%/13.92%）。提交 c6365da。
+- **修正上一轮的错误结论**：上一轮声称修复了「reduced-motion 下按钮仍缩放」，实际无效。抑制规则 :is(button, summary, a) 特异性 (0,4,1)，低于按下规则 :is(..., .bottom-nav>a, ...) 的 (0,5,1)——:is() 取括号内最高者，差一档就永远赢不了。上一轮那 3 次 PASS 是测试在 mouse.down() 同一 tick 读值造成的**误通过**。已把抑制规则选择器改为与按下规则逐字一致（特异性相等，靠源顺序取胜），未用 !important，并补了顺序约束注释防止日后代码整理时静默失效。提交 480d252。
+- 回归脚本 codex_check_neumorphism.mjs：在 mouse.down() 后补 160ms 等待，把「偶发误通过」变成「稳定暴露」——这是发现上面那个真缺陷的前提。
+- 验证：深色与浅色各十页面对比度 0 处不达标；reduced-motion 下 button / summary / a 三类控件按住后 scale 采样全为 1，并用 no-preference 对照（三类均回到 0.97）排除「假 1」；回归连跑 2 次 PASS。
+
+第六轮（构建发布 APK。团队流程：工程师构建 → QA 独立验证）:
+- 产物：release/abu_xiaodongge-v2.7.1-test.3.apk，67,954,737 bytes
+  SHA256 56ea8131213129c60b1b9326f0f818285ee9a35e2e162206554cf2d8652a1cf2
+  校验文件 release/abu_xiaodongge-v2.7.1-test.3.sha256.txt
+- 签名证书 SHA256 6386734ef9b4a3fe106d690a8d31ae952697c2ea652ea1ee82f3f7ab488f1022（与历史一致，可覆盖安装）
+  versionCode 22 / versionName 2.7.1-test.3 / package com.yves.musicarchive / minSdk 24 / targetSdk 36
+- 包内验证：assets/public/assets 下 4 个 web 资源与 mobile/dist 逐文件 SHA256 一致；CSS 含新令牌 0b0f0d / 434f48；
+  JS 含 abu-theme-choice-v1 与 vibrate；APK 已声明 android.permission.VIBRATE（触觉功能的前提条件）。
+- 与上一测试包 test.2 对比：4 项特征串在新包全有、在旧包全无，确认版本确实前进，排除「同一旧代码重打一遍」。
+- 意外改善：旧包 assets/public 内残留 22 个未被引用的旧资源（约 4.7MB 无效体积），新包只剩实际引用的 4 个文件，
+  包体反而更小（test.2 69,105,725 → test.3 67,954,737）。
+- **构建环境两个坑（建议后续修脚本，本轮未改）**:
+  1. scripts/build-android-release.ps1 在当前环境跑不通：首行 $ErrorActionPreference="Stop"，而 Vite 把输出写到
+     stderr，PS 5.1 将原生命令的 stderr 视为终止性错误 → 在 mobile:build 之后即抛错退出（Vite 实为成功）。
+     建议：对原生命令加 2>&1，或临时置 $ErrorActionPreference='Continue' 后再判 $LASTEXITCODE。
+  2. PowerShell 管道下 cap sync 假死（进程树活着但 20 分钟无进展、无 java 进程）；同一命令用 bash 直跑 3.6 秒完成。
+     属 PS 管道 stdio 问题。本轮改用 bash 逐条执行等价命令。
+- 轻微项（非阻塞）：签名仅 v2（无 v3，故不支持密钥轮换，当前单证书发布无影响）；index-*.js 606KB 超出 vite 500KB 警告阈值。
+- 环境备注：apksigner.bat / aapt2.exe 在 bash 下可直接调用；reg.exe 被本机安全策略黑名单拦截；bash 内调用 powershell 会被拦。
+
+第七轮（wb 接手真机反馈：两处 P0 UI 修复 + 两轮迭代 + v2.7.5 发布）:
+时间: 2026-09-12 22:15
+作者: wb
+做了什么:
+- 第一轮（706a16c）: 专辑/歌曲列表封面 82→110px（.cover-row 网格列 + 作用域规则 .cover-row .cover-art { width:100%; border-radius:12px }，全局 .cover-art 未动，min-height 94→148）；更多页「外观」区块 <section> 移进 .card-list 内部继承列表间距。新增 scripts/abu_screenshot_fixes.mjs（QA 截图 + 尺寸断言，两主题）。
+- 打包工具修复（68ffe71）: 新增 android/abu_init_mirror.gradle——capacitor 插件模块自带 google() 优先的 buildscript 仓库、不继承根镜像，本机直连 dl.google.com 超时；该脚本向所有模块 buildscript+project 仓库注入 aliyun 优先镜像。构建命令从此为 ./gradlew -I abu_init_mirror.gradle assembleRelease。另补 android/local.properties（sdk.dir，gitignored）。cap sync 在本环境会被 SIGTERM 掐死在 update 阶段，改为分步 cap copy android + cap update android。
+- 第二轮（dfb7c7d + 6b48051）: .cover-row align-items start→center（封面卡片内垂直居中）；列表信息精简为四行——标题/歌手/记录于（lastRecordedAt）/我的评分；评分字段 latestRating = 该聚合最近一条记录的 rating（Yves 指定"最新一次"，先用平均后按要求改）；删除 所属专辑、年份/记录数、summary 摘要的渲染，aggregate.summary 字段连同 excerpt import 移除。YearStats.averageRating 是年度统计的既有字段，与本轮无关，未动。
+- v2.7.5 发布（d261cb8）: versionCode 24 / versionName 2.7.5（Yves 指定脱离 test 系列）。产物 release/abu_xiaodongge-v2.7.5.apk（67,954,713 bytes）+ sha256.txt；包内验证：证书 6386734e…（与历史一致，覆盖安装 23→24）、JS 含 2.7.5+latestRating、CSS 含 110px 列、4 资源与 mobile/dist 逐文件哈希一致。真机验收 Yves 确认通过。
+- release/ 清理（Yves 两轮确认，走回收站）: 删 7 个旧 APK 及校验文件、codex_archive_2026-09-08（334MB）、codex_android_test_avd（3.5GB）、19 个 QA/工作目录与 ~35 个旧脚本日志。保留：codex_worktrees（git worktree）、codex_recovered_*.json 等数据恢复产物、codex_SIGNING_RECOVERY.md 等签名记录、v2.7.5 产物。
+验证结果:
+- tsc --noEmit 通过；codex_check_neumorphism.mjs PASS；abu_a11y_check.mjs 浅深两轮十页面 0 contrast failures；双主题截图目检通过（release/abu_ui_fix_qa/，可由脚本再生）。
+- 交接文档 docs/abu_handoff_2026-09-12_v2.md（含完整新坑记录与未决事项）。
+当前状态: 完成。HEAD d261cb8（abu-neumorphism-v2），main a4d505f 未动、未 push。
+下一步:
+- 可考虑合回 main（Yves 定时机）；底栏悬浮遮挡仍未动；build ps1 脚本未修（修时须带 -I abu_init_mirror.gradle）。
+阻塞项（如有）:
+- 无新增。git packed-refs 根因仍待 codex 复核（见早班记录）。

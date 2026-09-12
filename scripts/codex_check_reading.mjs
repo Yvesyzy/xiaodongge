@@ -5,7 +5,7 @@ import { makeJournalFixtures } from '../mobile/codex_journal_fixtures.mjs';
 
 // Browser plugin not available. Synthetic data in an isolated browser context only.
 const origin = process.argv[2] || 'http://127.0.0.1:5180';
-const output = process.env.CODEX_QA_DIR || 'D:/codex/.codex-home/visualizations/2026/09/05/01a06f8f-96fb-7e20-b8f6-bc4c8b62363f';
+const output = process.env.CODEX_QA_DIR || 'release/codex_mobile_experience_qa';
 await mkdir(output, { recursive: true });
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {
@@ -28,15 +28,19 @@ try {
   await page.locator('.entry-card').nth(10).click();
   await page.locator('.codex-reader-toolbar').waitFor();
   assert.equal(await page.locator('.bottom-nav').isVisible(), false);
-  assert.equal(await page.locator('.codex-reader-menu button').isVisible(), false);
+  assert.equal(await page.locator('.codex-reader-menu .danger-button').isVisible(), false);
   await page.getByRole('button', { name: '← 返回', exact: true }).click();
-  await page.waitForURL(listUrl);
+  await page.waitForURL(listUrl).catch(async error => {
+    console.error(await page.evaluate(() => ({ url: location.href, history: history.state, openDetails: Array.from(document.querySelectorAll('details[open]')).map(el => ({ className: el.className, text: el.querySelector('summary')?.textContent })) })));
+    throw error;
+  });
   await page.waitForFunction(y => Math.abs(scrollY - y) < 5, listY);
   assert.equal(await page.locator('.entry-card').count(), count);
   assert.equal(await page.getByPlaceholder('输入关键词').inputValue(), '模拟记录');
 
   await page.goto(origin + '/#/entries/' + entries[0].id);
   await page.locator('.codex-reader-toolbar').waitFor();
+  await page.getByLabel('更多阅读操作', { exact: true }).click();
   await page.getByLabel('阅读字号').selectOption('large');
   await page.getByRole('button', { name: '深色', exact: true }).click();
   assert.equal(await page.locator('.content-card').first().evaluate(el => getComputedStyle(el).fontSize), '21px');
@@ -46,6 +50,7 @@ try {
   }
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: `${output}/codex_reader_dark_large.png` });
+  await page.keyboard.press('Escape');
   await page.mouse.wheel(0, 700);
   await page.waitForFunction(() => scrollY > 500);
   const readY = await page.evaluate(() => scrollY);
