@@ -16,3 +16,4 @@ release/
 *.keystore
 .firecrawl/
 .superpowers/
+.workbuddy/
