@@ -1,12 +1,16 @@
 zcode 状态文件 · 小懂哥
-更新时间: 2026-09-13 01:20 (GMT+8)
+更新时间: 2026-09-13 02:56 (GMT+8)
 
-本轮完成: 年度专辑榜单（Top 15）功能
+本轮完成: 年度专辑榜单（Top 15）功能 + v2.8.0 release 构建
 - shared/backupAppData.ts: top-albums:{year} 键 + readYearTopAlbums 校验器 + 备份白名单
 - mobile/src/codex_TopAlbumsEditor.tsx: 编辑器组件（新文件）
 - mobile/src/codex_YearbookPage.tsx: 封面板块 + view=rank / view=rank-edit
 - mobile/src/codex_yearbook.css + abu_theme.css: 榜单样式与深色覆盖
 - 验证: typecheck / npm test 32 绿 / vite build / debug APK 实机走查 / vision 验收 8 PASS
-- 已提交: feature/top-albums-ranking 合并入 main
-- 版本号未动 (2.7.5/24)，bump 2.8.0 待 Yves 确认
+- 版本 bump: 2.8.0 / versionCode 25（package.json + build.gradle + release 脚本断言 + README 六处）
+- release 构建: 已签名验签通过（v2.5 生产证书）
+  - release/codex_xiaodongge-v2.8.0.apk（脚本产物）
+  - release/xiaodongge-v2.8.0.apk（上传命名副本）
+  - release/xiaodongge-v2.8.0.sha256.txt: 8868659078746607c34dcc0463d62e1fd8bf195ac31cbdfe0f354c9e0fd3609b
+- 待 Yves 手动: push 到 GitHub + 建 v2.8.0 release 并上传 APK 与 sha256（README 下载链接已指向 v2.8.0）
 - 详情: docs/session_summary_2026-09-13-zcode.md

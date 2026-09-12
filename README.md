@@ -1,6 +1,6 @@
-# 小懂哥 v2.7.5
+# 小懂哥 v2.8.0
 
-一个在安卓手机本地运行、以专辑为中心的私人音乐感受记录 APK。它只保存你手动输入或确认过的信息，不自动编造歌曲、专辑、歌手或感受。v2.7.5 在年度／月度回顾、阅读设置、继续阅读和四类乐评统一分享之上，新增全局深色模式（跟随系统／浅色／深色三档）、按亮度阶梯重设计的深色界面、按压触觉反馈、44px 触控热区与对比度修复，以及专辑／歌曲列表的放大居中封面与精简信息行；保留黑胶首页、十分制、独立草稿和无封面备份。
+一个在安卓手机本地运行、以专辑为中心的私人音乐感受记录 APK。它只保存你手动输入或确认过的信息，不自动编造歌曲、专辑、歌手或感受。v2.8.0 在全局深色模式、阅读设置与统一分享之上，新增年度专辑榜单：按评分推荐或手动挑选最多 15 张专辑、排定名次并为每张写下入选理由，榜单保存本机并随备份导出；保留黑胶首页、十分制、独立草稿和无封面备份。
 
 ## 功能
 
@@ -52,14 +52,14 @@
 
 最新安装包下载：
 
-当前版本为 `2.7.5 (24)`，沿用 v2.5 的长期发布签名，可直接覆盖正式 v2.5、v2.6、v2.6.1、v2.6.2、v2.7.0，无需卸载。v2.3 及更早的旧签名版本须先导出并核对 JSON 备份，再迁移安装和导入；未备份时不要卸载。
+当前版本为 `2.8.0 (25)`，沿用 v2.5 的长期发布签名，可直接覆盖正式 v2.5、v2.6、v2.6.1、v2.6.2、v2.7.0、v2.7.5，无需卸载。v2.3 及更早的旧签名版本须先导出并核对 JSON 备份，再迁移安装和导入；未备份时不要卸载。
 
-- [下载 v2.7.5 APK](https://github.com/Yvesyzy/xiaodongge/releases/download/v2.7.5/xiaodongge-v2.7.5.apk)
-- [下载 SHA256 校验文件](https://github.com/Yvesyzy/xiaodongge/releases/download/v2.7.5/xiaodongge-v2.7.5.sha256.txt)
+- [下载 v2.8.0 APK](https://github.com/Yvesyzy/xiaodongge/releases/download/v2.8.0/xiaodongge-v2.8.0.apk)
+- [下载 SHA256 校验文件](https://github.com/Yvesyzy/xiaodongge/releases/download/v2.8.0/xiaodongge-v2.8.0.sha256.txt)
 
-发布页：[小懂哥 v2.7.5](https://github.com/Yvesyzy/xiaodongge/releases/tag/v2.7.5)。
+发布页：[小懂哥 v2.8.0](https://github.com/Yvesyzy/xiaodongge/releases/tag/v2.8.0)。
 
-安装包 `xiaodongge-v2.7.5.apk` 的签名证书 SHA-256 为 `6386734ef9b4a3fe106d690a8d31ae952697c2ea652ea1ee82f3f7ab488f1022`；后续版本必须继续使用这份密钥，才能覆盖升级。
+安装包 `xiaodongge-v2.8.0.apk` 的签名证书 SHA-256 为 `6386734ef9b4a3fe106d690a8d31ae952697c2ea652ea1ee82f3f7ab488f1022`；后续版本必须继续使用这份密钥，才能覆盖升级。
 
 APK SHA-256：`e2e0c002f5595f8458d8ec4126a57b925bc88078b456739fb93a769cee5228a4`。旧 debug 版使用不同签名，也需要备份迁移。
 

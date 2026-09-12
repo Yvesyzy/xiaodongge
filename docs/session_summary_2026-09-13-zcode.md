@@ -36,13 +36,19 @@
 - 代码已完成并提交：feature 分支 `feature/top-albums-ranking` 合并入 `main`。
 - 模拟器（Pixel_8a）已还原测试数据（ReviewEntry 清空、top-albums 键删除、主题还原跟随系统）。
 - 验收截图存 `docs/shots/`（12 张，未入 git，目录已加 .gitignore）。
-- **版本号未动**：仍是 2.7.5 / versionCode 24。新功能按语义化版本应 bump 到 **2.8.0 / versionCode 25**，待 Yves 决定后改 `package.json` + `android/app/build.gradle` + README 顶部描述。
+- **v2.8.0 (versionCode 25) 已 bump 并完成签名 release 构建**（2026-09-13 02:53，Yves 确认后执行）：
+  - `package.json` 2.8.0；`android/app/build.gradle` versionCode 25 / versionName 2.8.0
+  - `scripts/build-android-release.ps1` 的硬编码断言从遗留的 versionCode 22 / 2.7.1-test.3 更新为 25 / 2.8.0（否则构建会在元数据校验步抛错），产物命名同步 `codex_xiaodongge-v2.8.0.apk`
+  - README：标题、简介、当前版本行（升级链补 v2.7.5）、下载链接、发布页、安装包文件名共六处更新；签名证书 SHA-256 不变
+  - 构建输出：`release/codex_xiaodongge-v2.8.0.apk`（67.9MB，脚本已 apksigner 验签 + 断言证书与 versionCode/Name）+ 上传命名副本 `release/xiaodongge-v2.8.0.apk` + `release/xiaodongge-v2.8.0.sha256.txt`
+  - APK SHA-256：`8868659078746607c34dcc0463d62e1fd8bf195ac31cbdfe0f354c9e0fd3609b`
 
 ## 下一步（供 Yves 决策）
 
-1. 确认版本号 bump（2.8.0 / versionCode 25）与正式发布构建（`npm run android:build:release`）。
+1. **发布上线（手动）**：push main 到 GitHub → 建 v2.8.0 release → 上传 `xiaodongge-v2.8.0.apk` 与 `xiaodongge-v2.8.0.sha256.txt`（README 下载链接已指向该 release，上传前链接 404）。
 2. 可选迭代：把年度榜单加入 1080×1680 PNG 导出体系（`codex_yearbookPages.ts` 加一种 kind）。
 3. 可选迭代：封面页预览「查看完整榜单」按钮文案精简（如「完整榜单」）避免折行。
+4. 旧版本 App 导入含 `top-albums:` 键的备份会报「不支持的键」；v2.8.0 覆盖安装后无此问题。
 
 ## 注意事项（给下一班）
 
