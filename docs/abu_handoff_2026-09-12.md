@@ -234,6 +234,46 @@ sha256sum -c release/abu_xiaodongge-v2.7.1-test.3.sha256.txt
 
 ---
 
+## 7. ★ 未完成：真机反馈的两处 UI 问题（P0，尚未动代码）
+
+Yves 已装上 `v2.7.1-test.3` 真机包，反馈了两个问题。**侦察已完成，代码未改**（工作区干净，`styles.css` 仍是原状）。
+接手请直接做这两处，规格如下 —— 行号已核实。
+
+### 问题一：专辑页封面太小
+
+**用户原话**：「我希望专辑封面照片可以扩大到我这个红色框差不多的位置」（附真机截图，红框圈出期望尺寸）
+
+**当前事实**（已核实）：
+- `mobile/src/styles.css:815` `.cover-row { display: grid; grid-template-columns: 82px minmax(0, 1fr); gap: 14px; align-items: start; padding: 18px; }`
+- `mobile/src/styles.css:825` `.cover-art { width: 82px; aspect-ratio: 1; border-radius: 8px; }`
+- 即封面是 **82×82px**
+- 按用户截图红框与卡片宽度的比例换算，红框约相当于真机 **108×118px** → 封面为正方形，**目标边长约 110px**
+- 放大后文字区由约 218px 收窄到约 190px（需确认「所属专辑：xxx」这类长文案不会频繁换行）
+
+**要点与风险**：
+- `.cover-art` 是**全局类**（首页「最近记录」缩略图、详情页、阅读页都在用）。**只改 `.cover-row` 作用域内的**，建议 `.cover-row .cover-art { width: 100% }` 让封面跟随网格列宽，避免和 `.cover-art` 的固定 82px 打架
+- 封面变大后可能需要配套调整：圆角（现 8px，卡片是 18px，放大后 8px 会显小）、`.cover-row` 的 `min-height`（现 94px）、`gap`（现 14px）
+
+### 问题二：更多页「外观」区块紧贴上方卡片
+
+**用户原话**：「这个设置外观的框，离上面的隐私说明太近了，设置得合理一点」
+
+**根因**（已核实）：
+- `mobile/src/App.tsx` MorePage 结构：`<div className="card-list">`（8 个 Link 卡片）**之后**才是 `<section className="form-card">`（外观区块）
+- `mobile/src/styles.css:649` `.card-list { gap: 12px }` 只作用于列表**内部**，而外观 `<section>` 在列表**外面**，`.form-card` 自身没有 margin → 所以零间距
+
+**两种修法**：
+- **A（推荐）**：把 `<section>` 移进 `.card-list` 内部 —— 自动获得 12px 间距，且未来改 gap 会自动跟随
+- **B**：结构不动，给该 section 加 `margin-top`（取值需权衡：12px 与卡片间距一致 / 更大以体现区块区隔）
+
+### 环境提醒（做这两处时会用到）
+- dev server 启动：`cd /d/codex/workspaces/小懂哥 && "/c/Users/lenovo/.workbuddy/binaries/node/versions/22.22.2-3/node.exe" node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5184 --strictPort --config mobile/vite.config.ts`
+- bash 里先 `export PATH="/usr/bin:/bin:$PATH"`；**不要在 bash 里调 powershell**（会被安全策略拦截）
+- 改完**务必自己截图看一眼**：先 `page.addInitScript(() => localStorage.setItem('abu-theme-choice-v1','dark'))` 切深色，再用 `makeJournalFixtures` 造数据
+- 回归：`node scripts/codex_check_neumorphism.mjs http://127.0.0.1:5184`（应 PASS）+ `node scripts/abu_a11y_check.mjs http://127.0.0.1:5184`（十页面 0 failures）
+
+---
+
 ## 8. 下一步建议
 
 1. **真机验收**：重点摸**触觉反馈**（这是唯一只能在真机验证的改动），以及深色在真实屏幕上的观感
