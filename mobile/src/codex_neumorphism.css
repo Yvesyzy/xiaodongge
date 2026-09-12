@@ -176,9 +176,16 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .app-shell :is(.primary-button, .secondary-button, .danger-button) { transition: none; }
-  /* Same :not() guards as the press rule above — without them the press rule
-     wins on specificity and the button still shrinks under reduced motion. */
-  .app-shell :is(button, summary, a):active:not(:disabled):not([aria-disabled="true"]) { scale: 1; }
+  /* Mirror the press rule's selector verbatim, :is() body included. Matching
+     only the :not() guards is NOT enough: the press rule's :is() carries
+     `.bottom-nav>a` / `.journal-tabs>a`, so it contributes a type selector
+     ((0,5,1)), while `:is(button, summary, a)` only reaches (0,4,1) — one level
+     short, so the press rule keeps winning. Copying the selector exactly ties
+     the specificity, and this block sits after the press rule, so source order
+     wins the tie. No !important. */
+  /* Order-sensitive: this block must stay after the press rule above, or source
+     order will flip and the press rule wins the tie again. */
+  .app-shell :is(button, summary, .primary-button, .secondary-button, .journal-button, .journal-primary, .create-choice-card, .cover-row, .bottom-nav>a, .journal-tabs>a):active:not(:disabled):not([aria-disabled="true"]) { scale: 1; }
 }
 
 /* Task pages (new / edit / quick capture) bring their own action bar, so the

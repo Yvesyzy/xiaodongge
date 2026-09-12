@@ -96,6 +96,10 @@ try {
     assert.ok(await draftButton.evaluate(el => getComputedStyle(el).transitionDuration.split(',').every(duration => parseFloat(duration) <= .001)), 'Reduced motion has no perceptible press transition');
     await draftButton.hover();
     await page.mouse.down();
+    // Assert the settled press state, not a same-tick frame: reading scale
+    // immediately after mouse.down() can catch the pre-press value of 1 and
+    // "pass" for the wrong reason, which made this assertion flaky.
+    await page.waitForTimeout(160);
     assert.equal(await draftButton.evaluate(el => getComputedStyle(el).scale), '1', 'Reduced motion suppresses shrinking');
     assert.notEqual(await draftButton.evaluate(el => getComputedStyle(el).filter), 'none', 'Reduced motion keeps color feedback');
     await page.mouse.move(0, 0);
