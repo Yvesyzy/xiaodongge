@@ -1,0 +1,12 @@
+zcode 状态文件 · 小懂哥
+更新时间: 2026-09-13 01:20 (GMT+8)
+
+本轮完成: 年度专辑榜单（Top 15）功能
+- shared/backupAppData.ts: top-albums:{year} 键 + readYearTopAlbums 校验器 + 备份白名单
+- mobile/src/codex_TopAlbumsEditor.tsx: 编辑器组件（新文件）
+- mobile/src/codex_YearbookPage.tsx: 封面板块 + view=rank / view=rank-edit
+- mobile/src/codex_yearbook.css + abu_theme.css: 榜单样式与深色覆盖
+- 验证: typecheck / npm test 32 绿 / vite build / debug APK 实机走查 / vision 验收 8 PASS
+- 已提交: feature/top-albums-ranking 合并入 main
+- 版本号未动 (2.7.5/24)，bump 2.8.0 待 Yves 确认
+- 详情: docs/session_summary_2026-09-13-zcode.md

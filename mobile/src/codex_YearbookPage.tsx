@@ -1,5 +1,6 @@
 import { EMPTY_EDITION, JournalEditor, journalQuote } from "./codex_JournalEditor";
-import { JOURNAL_EDITION_PREFIX, readJournalEdition, type JournalEdition } from "../../shared/backupAppData";
+import { EMPTY_TOP_ALBUMS, TopAlbumsEditor, topAlbumCandidates } from "./codex_TopAlbumsEditor";
+import { JOURNAL_EDITION_PREFIX, TOP_ALBUMS_PREFIX, readJournalEdition, readYearTopAlbums, type JournalEdition, type YearTopAlbum, type YearTopAlbums } from "../../shared/backupAppData";
 import { analyzeListeningEntries, applySemanticOverrides, type SemanticOverride } from "../../shared/listeningAnalysis";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
@@ -60,6 +61,9 @@ function JournalContent({ year, all }: { year: number; all: ReviewEntry[] }) {
   const [edition, setEdition] = useState<JournalEdition>(EMPTY_EDITION);
   const [editionReady, setEditionReady] = useState(false);
   const [editionError, setEditionError] = useState("");
+  const [topAlbums, setTopAlbums] = useState<YearTopAlbums>(EMPTY_TOP_ALBUMS);
+  const [topReady, setTopReady] = useState(false);
+  const [topError, setTopError] = useState("");
   const [monthlySummaries, setMonthlySummaries] = useState<MonthlySummary[] | null>(null);
   const [semanticOverrides, setSemanticOverrides] = useState<SemanticOverride[] | null>(null);
   const [monthlyError, setMonthlyError] = useState("");
@@ -69,6 +73,8 @@ function JournalContent({ year, all }: { year: number; all: ReviewEntry[] }) {
     try { return listEntryDrafts(localStorage).length; } catch { return null; }
   }, []);
   const recommendations = useMemo(() => entries.filter((entry) => entry.rating !== null).sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0) || b.createdAt.localeCompare(a.createdAt) || a.id.localeCompare(b.id)).slice(0, 3), [entries]);
+  const albumCandidates = useMemo(() => topAlbumCandidates(entries), [entries]);
+  const rankMeta = (album: YearTopAlbum) => { const candidate = albumCandidates.find((item) => item.key === topAlbumKey(album)); return candidate ? candidate.rating === null ? "未评分" : `${candidate.ratingLabel} / 10` : "原记录已删除"; };
   useEffect(() => {
     let active = true;
     setEditionReady(false); setEditionError("");
@@ -80,6 +86,16 @@ function JournalContent({ year, all }: { year: number; all: ReviewEntry[] }) {
     }).catch((e: unknown) => { if (active) setEditionError(e instanceof Error ? e.message : "年度精选读取失败"); });
     return () => { active = false; };
   }, [year, entries]);
+  useEffect(() => {
+    let active = true;
+    setTopReady(false); setTopError("");
+    void store.getStoredAppData(TOP_ALBUMS_PREFIX + year).then((raw) => {
+      if (!active) return;
+      setTopAlbums(raw ? readYearTopAlbums(JSON.parse(raw)) : EMPTY_TOP_ALBUMS);
+      setTopReady(true);
+    }).catch((e: unknown) => { if (active) setTopError(e instanceof Error ? e.message : "年度专辑榜单读取失败"); });
+    return () => { active = false; };
+  }, [year]);
   useEffect(() => {
     let active = true;
     setMonthlySummaries(null); setSemanticOverrides(null); setMonthlyError("");
@@ -123,8 +139,10 @@ function JournalContent({ year, all }: { year: number; all: ReviewEntry[] }) {
       {edition.message && <div className="journal-quote"><small>给这一年的话</small><p>{edition.message}</p></div>}
       <AnnualFacts entries={entries} /><RecordScopeSummary musicCount={entries.length} reflectionCount={reflections.length} draftCount={draftCount} />
       {editionError && <p className="journal-error" role="alert">{editionError}；重新打开本页可重试。</p>}
+      {topError && <p className="journal-error" role="alert">{topError}；榜单展示暂不可用，重新打开本页可重试。</p>}
       <div className="journal-actions journal-curation-actions"><Link className="journal-button" to={href("edit")}>编辑年度精选</Link>{edition.entryIds.length > 0 ? <span className="journal-muted">已选 {edition.entryIds.length} 篇代表作品</span> : null}</div>
       {edition.entryIds.length > 0 ? <section><h2>我的年度代表作品</h2>{edition.entryIds.map((id) => { const entry = entries.find((item) => item.id === id); return entry ? <Link className="journal-quote journal-representative" key={id} to={href("work", id)}><JournalCover entry={entry} /><div><small>{journalTitle(entry)} · {journalRating(entry)}</small><p>{journalQuote(entry, edition) ?? excerpt(entry.content, 100)}</p></div></Link> : null; })}</section> : <RecommendationSection entries={recommendations} href={href} />}
+      {topAlbums.albums.length > 0 ? <section><h2>我的年度专辑榜单</h2><div className="journal-rank-preview">{topAlbums.albums.slice(0, 5).map((album, index) => <Link className="journal-rank-item" key={topAlbumKey(album)} to={href("rank")}><span className="journal-rank-number" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span><JournalCover entry={rankCoverEntry(album, year)} /><div className="journal-rank-info"><strong>{album.albumName}</strong><small>{album.artistName || "未填写音乐人"} · {rankMeta(album)}</small></div></Link>)}</div><div className="journal-actions"><Link className="journal-button" to={href("rank")}>查看完整榜单（{topAlbums.albums.length} 张）</Link><Link className="journal-button" to={href("rank-edit")}>编辑榜单</Link></div></section> : <section><h2>我的年度专辑榜单</h2><div className="journal-empty"><span aria-hidden="true" className="journal-empty-icon">♪</span><p>选出这一年你最中意的 15 张专辑，排下名次、写下入选理由。</p><div className="journal-stack"><Link className="journal-primary" to={href("rank-edit")}>创建年度榜单</Link></div></div></section>}
       <h2>这一年的记录</h2><div className="journal-contents"><Link to={href("overview")}>作品与记录日历 <span>{entries.length} 篇 →</span></Link><Link to={href("quotes")}>年度摘录 <span>查看 →</span></Link></div>
       <div className="journal-quote"><small>原文摘录 · {journalTitle(cover)}</small><p>{journalQuote(cover, edition) ?? excerpt(cover.content, 100)}</p></div>
     </>}
@@ -140,6 +158,20 @@ function JournalContent({ year, all }: { year: number; all: ReviewEntry[] }) {
       <div className="journal-nav"><Link to={href("cover")}>← 年度封面</Link><span>{year}</span></div><h1>编辑年度精选</h1><p className="journal-muted">选择封面、代表作品、原句与寄语；保存后会保留在本机并随备份导出。</p>
       {editionError ? <p className="journal-error" role="alert">{editionError}</p> : editionReady ? <JournalEditor entries={entries} edition={edition} onSave={async (value) => { await store.setStoredAppData(JOURNAL_EDITION_PREFIX + year, JSON.stringify(value)); setEdition(value); const next = new URLSearchParams(params); next.set("view", "cover"); next.delete("entry"); setParams(next, { replace: true }); }} /> : <p role="status">正在读取年度精选…</p>}
     </>}
+    {view === "rank" && <>
+      <div className="journal-nav"><Link to={href("cover")}>← 年度封面</Link><span>{year}</span></div>
+      <h1>我的年度专辑榜单</h1><p className="journal-muted">{year} 年 · 名次由你排序，理由由你书写；评分仅作参考。</p>
+      {topError ? <p className="journal-error" role="alert">{topError}；重新打开本页可重试。</p> : !topReady ? <p role="status">正在读取年度榜单…</p> : topAlbums.albums.length ? <>
+        <p className="journal-stat"><strong>{topAlbums.albums.length}</strong> 张专辑 <span>最多 15 张</span></p>
+        <ol className="journal-rank-list">{topAlbums.albums.map((album, index) => <li className="journal-rank-item" key={topAlbumKey(album)}><span className="journal-rank-number" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span><JournalCover entry={rankCoverEntry(album, year)} /><div className="journal-rank-info"><strong>{album.albumName}</strong><small>{album.artistName || "未填写音乐人"} · {rankMeta(album)}</small>{album.note.trim() && <p>{album.note}</p>}</div></li>)}</ol>
+        <div className="journal-actions"><Link className="journal-primary" to={href("rank-edit")}>编辑榜单</Link><Link className="journal-button" to={href("cover")}>返回年度封面</Link></div>
+      </> : <div className="journal-empty"><span aria-hidden="true" className="journal-empty-icon">♪</span><h2>还没有创建年度榜单</h2><p>从今年的专辑乐评里挑出你最中意的作品吧。</p><div className="journal-stack"><Link className="journal-primary" to={href("rank-edit")}>创建年度榜单</Link></div></div>}
+    </>}
+    {view === "rank-edit" && <>
+      <div className="journal-nav"><Link to={href("rank")}>← 年度专辑榜单</Link><span>{year}</span></div>
+      <h1>编辑年度专辑榜单</h1><p className="journal-muted">从今年的专辑乐评里选出最多 15 张专辑，排序并写下入选理由；保存后保留在本机并随备份导出。</p>
+      {topError ? <p className="journal-error" role="alert">{topError}；重新打开本页可重试。</p> : topReady ? <TopAlbumsEditor entries={entries} saved={topAlbums} onSave={async (value) => { await store.setStoredAppData(TOP_ALBUMS_PREFIX + year, JSON.stringify(value)); setTopAlbums(value); const next = new URLSearchParams(params); next.set("view", "rank"); next.delete("entry"); setParams(next, { replace: true }); }} /> : <p role="status">正在读取年度榜单…</p>}
+    </>}
     {view === "work" && (selected ? <ReadingTools key={selected.id} progressKey={`entry:${selected.id}`} title={journalTitle(selected)} backTo={href("overview")} actions={<button onClick={() => setSharing(true)}>分享</button>} menuActions={<><Link to={`/entries/${selected.id}/edit`}>编辑乐评</Link><Link to={href("edit")}>编辑年记</Link></>} footer={<>{entries.indexOf(selected) > 0 && <Link to={href("work", entries[entries.indexOf(selected) - 1].id)}>上一篇</Link>}{entries.indexOf(selected) < entries.length - 1 && <Link to={href("work", entries[entries.indexOf(selected) + 1].id)}>下一篇</Link>}</>}><section className="journal-work-view codex-journal-reading" data-entry-id={selected.id}>
       <p className="journal-muted">{entries.indexOf(selected) + 1} / {entries.length} 篇</p>
       <h1>{journalTitle(selected)}</h1><p>{selected.artistName || "未填写音乐人"} · {selected.type === "song" ? "歌曲" : "专辑"}</p>
@@ -150,7 +182,7 @@ function JournalContent({ year, all }: { year: number; all: ReviewEntry[] }) {
       <Link className="journal-text-link" to={`/entries/${encodeURIComponent(selected.id)}`}>查看完整乐评与编辑 →</Link>
     </section>{sharing && <ReviewShare entry={selected} onClose={() => setSharing(false)} />}</ReadingTools> : <><h1>记录不存在</h1><p>这篇记录已删除或不属于当前年份。</p><Link to={href("overview")}>返回年度总览</Link></>) }
     {view === "quotes" && <ReadingTools progressKey={`quotes:${year}`} title={`${year} 年度摘录`} backTo={href("overview")} actions={<button onClick={() => setExportKind("works")}>分享全年作品</button>}><div className="codex-journal-reading"><JournalQuotes entries={quoteEntries} href={href} edition={edition} /></div></ReadingTools>}
-    {!['cover', 'overview', 'work', 'quotes', 'edit'].includes(view) && <Link to={href("cover")}>返回年度封面</Link>}
+    {!['cover', 'overview', 'work', 'quotes', 'edit', 'rank', 'rank-edit'].includes(view) && <Link to={href("cover")}>返回年度封面</Link>}
     {view !== "work" && view !== "quotes" && <><ReflectionLinks entries={reflections} />{secondary}</>}{exportDialog}
   </>;
 }
@@ -206,6 +238,12 @@ function musicIdentityKey(entry: ReviewEntry, kind: "album" | "song") {
   if (catalogId?.trim()) return `${kind}:catalog:${catalogId.trim()}`;
   const name = kind === "album" ? entry.albumName : entry.songName;
   return JSON.stringify([kind, normalizeMusicIdentityText(name), normalizeMusicIdentityText(entry.artistName), kind === "song" ? normalizeMusicIdentityText(entry.albumName) : ""]);
+}
+
+function topAlbumKey(album: YearTopAlbum) { return JSON.stringify([album.albumName, album.artistName ?? ""]); }
+
+function rankCoverEntry(album: YearTopAlbum, year: number): ReviewEntry {
+  return { id: `top-albums:${topAlbumKey(album)}`, type: "album", title: album.albumName, year, month: null, albumName: album.albumName, songName: null, artistName: album.artistName, musicMetadata: null, content: "", tags: [], moods: [], rating: null, ratingModifier: null, ratingProduction: null, ratingSongwriting: null, ratingOriginality: null, ratingResonance: null, compositeRatingLocked: false, firstListenedAt: null, listenedAt: null, createdAt: "", updatedAt: "" };
 }
 
 function RecordScopeSummary({ musicCount, reflectionCount, draftCount }: { musicCount: number; reflectionCount: number; draftCount: number | null }) {

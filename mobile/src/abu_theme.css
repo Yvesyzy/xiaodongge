@@ -157,6 +157,7 @@
 [data-theme="dark"] .journal-month-card { border-bottom-color: var(--line); }
 [data-theme="dark"] .journal :is(.journal-placeholder, .journal-recommendation-box > div span) { background: #232d28; color: var(--neu-ink); }
 [data-theme="dark"] .journal-type-cover strong { color: var(--neu-ink); }
+[data-theme="dark"] .journal .journal-rank-item { border-color: var(--line); background: var(--paper-soft); color: var(--ink); }
 [data-theme="dark"] .entry-save-actions { border-color: var(--line); background: #1f2622; }
 [data-theme="dark"] .bottom-sheet:has(.create-choice) .sheet-handle { background: #4a5a51; }
 [data-theme="dark"] .codex-reader .detail-hero .cover-art.large { box-shadow: 3px 3px 9px #0006; }

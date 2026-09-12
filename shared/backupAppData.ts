@@ -15,6 +15,15 @@ export function readJournalEdition(value: unknown): JournalEdition {
   return { coverId: value.coverId as string | null, entryIds: value.entryIds as string[], quotes: value.quotes as Record<string, string>, message: value.message };
 }
 
+export const TOP_ALBUMS_PREFIX = "top-albums:";
+export type YearTopAlbum = { albumName: string; artistName: string | null; note: string };
+export type YearTopAlbums = { albums: YearTopAlbum[] };
+
+export function readYearTopAlbums(value: unknown): YearTopAlbums {
+  if (!isRecord(value) || !Array.isArray(value.albums) || value.albums.length > 15 || value.albums.some((item) => !isRecord(item) || typeof item.albumName !== "string" || !item.albumName.trim() || (item.artistName !== null && typeof item.artistName !== "string") || typeof item.note !== "string" || item.note.length > 500) || new Set(value.albums.map((item) => JSON.stringify([item.albumName, item.artistName ?? ""]))).size !== value.albums.length) throw new Error("年度榜单格式无效");
+  return { albums: value.albums as YearTopAlbum[] };
+}
+
 export type DailyResurfacingState = {
   date: string;
   entryId: string | null;
@@ -30,6 +39,7 @@ export function readBackupAppData(value: unknown) {
     else if (key.startsWith("listening-weather:")) parseWeatherRecord(JSON.parse(raw));
     else if (key.startsWith("listening-quote:")) readPreferredQuote(JSON.parse(raw));
     else if (/^journal-edition:[1-9]\d{0,3}$/.test(key)) readJournalEdition(JSON.parse(raw));
+    else if (/^top-albums:[1-9]\d{0,3}$/.test(key)) readYearTopAlbums(JSON.parse(raw));
     else if (key === DAILY_RESURFACING_KEY) {
       if (!parseDailyResurfacingState(raw)) throw new Error("今日重逢状态格式无效");
     } else if (key === SEMANTIC_OVERRIDES_KEY) {
