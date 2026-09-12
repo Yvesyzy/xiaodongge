@@ -56,3 +56,23 @@
 - **修正上一轮的错误结论**：上一轮声称修复了「reduced-motion 下按钮仍缩放」，实际无效。抑制规则 :is(button, summary, a) 特异性 (0,4,1)，低于按下规则 :is(..., .bottom-nav>a, ...) 的 (0,5,1)——:is() 取括号内最高者，差一档就永远赢不了。上一轮那 3 次 PASS 是测试在 mouse.down() 同一 tick 读值造成的**误通过**。已把抑制规则选择器改为与按下规则逐字一致（特异性相等，靠源顺序取胜），未用 !important，并补了顺序约束注释防止日后代码整理时静默失效。提交 480d252。
 - 回归脚本 codex_check_neumorphism.mjs：在 mouse.down() 后补 160ms 等待，把「偶发误通过」变成「稳定暴露」——这是发现上面那个真缺陷的前提。
 - 验证：深色与浅色各十页面对比度 0 处不达标；reduced-motion 下 button / summary / a 三类控件按住后 scale 采样全为 1，并用 no-preference 对照（三类均回到 0.97）排除「假 1」；回归连跑 2 次 PASS。
+
+第六轮（构建发布 APK。团队流程：工程师构建 → QA 独立验证）:
+- 产物：release/abu_xiaodongge-v2.7.1-test.3.apk，67,954,737 bytes
+  SHA256 56ea8131213129c60b1b9326f0f818285ee9a35e2e162206554cf2d8652a1cf2
+  校验文件 release/abu_xiaodongge-v2.7.1-test.3.sha256.txt
+- 签名证书 SHA256 6386734ef9b4a3fe106d690a8d31ae952697c2ea652ea1ee82f3f7ab488f1022（与历史一致，可覆盖安装）
+  versionCode 22 / versionName 2.7.1-test.3 / package com.yves.musicarchive / minSdk 24 / targetSdk 36
+- 包内验证：assets/public/assets 下 4 个 web 资源与 mobile/dist 逐文件 SHA256 一致；CSS 含新令牌 0b0f0d / 434f48；
+  JS 含 abu-theme-choice-v1 与 vibrate；APK 已声明 android.permission.VIBRATE（触觉功能的前提条件）。
+- 与上一测试包 test.2 对比：4 项特征串在新包全有、在旧包全无，确认版本确实前进，排除「同一旧代码重打一遍」。
+- 意外改善：旧包 assets/public 内残留 22 个未被引用的旧资源（约 4.7MB 无效体积），新包只剩实际引用的 4 个文件，
+  包体反而更小（test.2 69,105,725 → test.3 67,954,737）。
+- **构建环境两个坑（建议后续修脚本，本轮未改）**:
+  1. scripts/build-android-release.ps1 在当前环境跑不通：首行 $ErrorActionPreference="Stop"，而 Vite 把输出写到
+     stderr，PS 5.1 将原生命令的 stderr 视为终止性错误 → 在 mobile:build 之后即抛错退出（Vite 实为成功）。
+     建议：对原生命令加 2>&1，或临时置 $ErrorActionPreference='Continue' 后再判 $LASTEXITCODE。
+  2. PowerShell 管道下 cap sync 假死（进程树活着但 20 分钟无进展、无 java 进程）；同一命令用 bash 直跑 3.6 秒完成。
+     属 PS 管道 stdio 问题。本轮改用 bash 逐条执行等价命令。
+- 轻微项（非阻塞）：签名仅 v2（无 v3，故不支持密钥轮换，当前单证书发布无影响）；index-*.js 606KB 超出 vite 500KB 警告阈值。
+- 环境备注：apksigner.bat / aapt2.exe 在 bash 下可直接调用；reg.exe 被本机安全策略黑名单拦截；bash 内调用 powershell 会被拦。
