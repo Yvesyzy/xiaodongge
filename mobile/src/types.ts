@@ -147,7 +147,7 @@ export type AlbumAggregate = {
   years: number[];
   recordCount: number;
   lastRecordedAt: string;
-  summary: string;
+  averageRating: number | null;
 };
 
 export type SongAggregate = {
@@ -158,5 +158,5 @@ export type SongAggregate = {
   years: number[];
   recordCount: number;
   lastRecordedAt: string;
-  summary: string;
+  averageRating: number | null;
 };

@@ -817,7 +817,7 @@ button:disabled {
   display: grid;
   grid-template-columns: 110px minmax(0, 1fr);
   gap: 14px;
-  align-items: start;
+  align-items: center;
   padding: 18px;
   border-bottom: 1px solid var(--line);
 }

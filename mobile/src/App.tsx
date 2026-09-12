@@ -1591,9 +1591,8 @@ function AggregateList({ title, items, kind, emptyText }: { title: string; items
               <div className="cover-copy">
                 <h2>{name}</h2>
                 <p>{item.artistName ?? "未填写艺术家"}</p>
-                {"albumName" in item ? <p>所属专辑：{item.albumName ?? "未填写"}</p> : null}
-                <p>年份：{item.years.join(", ")} / 记录：{item.recordCount}</p>
-                <p>{item.summary}</p>
+                <p>记录于 {formatDateOnly(item.lastRecordedAt)}</p>
+                <p>我的评分：{item.averageRating ?? "未评分"}</p>
               </div>
             </Link>
           );
