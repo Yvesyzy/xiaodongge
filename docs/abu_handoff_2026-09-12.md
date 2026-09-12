@@ -234,7 +234,19 @@ sha256sum -c release/abu_xiaodongge-v2.7.1-test.3.sha256.txt
 
 ---
 
-## 7. ★ 未完成：真机反馈的两处 UI 问题（P0，尚未动代码）
+## 7. ★ 已完成：真机反馈的两处 UI 问题（wb，2026-09-12）
+
+原记录的两处 P0 已由 wb 修复并打进 `v2.7.1-test.4`（提交 `706a16c` + `68ffe71`）：
+
+- 封面 82→110px：`.cover-row` 网格列 + 作用域规则 `.cover-row .cover-art { width:100%; border-radius:12px }`，全局 `.cover-art` 未动
+- 「外观」区块：`<section>` 移进 `.card-list` 内部，继承列表 gap
+- 回归全绿：tsc / codex_check_neumorphism PASS / a11y 浅深两轮 0 failures / 双主题截图目检（`release/abu_ui_fix_qa/`）
+- test.4 包内验证：versionCode 23、证书 SHA-256 与历史一致、CSS 含 110px 规则、dist 哈希逐文件一致
+- **新构建坑**：capacitor 插件模块自带 google() 优先的 buildscript 仓库，不继承 `android/build.gradle` 里的 aliyun 镜像，
+  本机网络直连 dl.google.com 超时 → 已加 `android/abu_init_mirror.gradle`，构建命令改为
+  `./gradlew -I abu_init_mirror.gradle assembleRelease`；另需 `android/local.properties`（sdk.dir，已 gitignore）
+
+以下为原始侦察记录（已完成，留档）：
 
 Yves 已装上 `v2.7.1-test.3` 真机包，反馈了两个问题。**侦察已完成，代码未改**（工作区干净，`styles.css` 仍是原状）。
 接手请直接做这两处，规格如下 —— 行号已核实。
