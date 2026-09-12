@@ -2254,16 +2254,16 @@ function MorePage() {
             <p>{text}</p>
           </Link>
         ))}
+        <section className="form-card">
+          <strong>外观</strong>
+          <p className="hint">深色主题可跟随系统，也可以手动固定；阅读页保留自己的深浅开关。</p>
+          <div className="theme-choice">
+            {([["system", "跟随系统"], ["light", "浅色"], ["dark", "深色"]] as const).map(([value, label]) => (
+              <button key={value} type="button" aria-pressed={theme === value} onClick={() => setThemeChoice(value)}>{label}</button>
+            ))}
+          </div>
+        </section>
       </div>
-      <section className="form-card">
-        <strong>外观</strong>
-        <p className="hint">深色主题可跟随系统，也可以手动固定；阅读页保留自己的深浅开关。</p>
-        <div className="theme-choice">
-          {([["system", "跟随系统"], ["light", "浅色"], ["dark", "深色"]] as const).map(([value, label]) => (
-            <button key={value} type="button" aria-pressed={theme === value} onClick={() => setThemeChoice(value)}>{label}</button>
-          ))}
-        </div>
-      </section>
       <p className="hint">版本 {APP_VERSION} · 本地优先的私人音乐档案</p>
     </Page>
   );
