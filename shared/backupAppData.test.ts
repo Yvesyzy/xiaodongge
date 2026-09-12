@@ -7,6 +7,7 @@ import {
   readBackupAppData,
   readJournalEdition,
   readSemanticOverride,
+  readYearTopAlbums,
   SEMANTIC_OVERRIDES_KEY,
   WEATHER_LOCATION_KEY,
 } from "./backupAppData.ts";
@@ -21,6 +22,21 @@ test("年度精选随备份保留；拒绝超过三篇、重复编号及过长�
   assert.throws(() => readJournalEdition({ ...edition, message: "字".repeat(121) }), /年度精选格式无效/);
   assert.throws(() => readJournalEdition({ ...edition, quotes: { a1: 1 } }), /年度精选格式无效/);
   assert.throws(() => readBackupAppData({ "journal-edition:0": raw }), /不支持的键/);
+});
+
+test("年度专辑榜单随备份保留；拒绝超过十五张、重复专辑及过长理由", () => {
+  const topAlbums = { albums: [{ albumName: "OK Computer", artistName: "Radiohead", note: "今年循环最多的一张。" }, { albumName: "杂集", artistName: null, note: "" }] };
+  const raw = JSON.stringify(topAlbums);
+  assert.equal(readBackupAppData({ "top-albums:2026": raw })["top-albums:2026"], raw);
+  assert.deepEqual(readYearTopAlbums(topAlbums), topAlbums);
+  const fifteen = Array.from({ length: 15 }, (_, i) => ({ albumName: `专辑${i + 1}`, artistName: null, note: "" }));
+  assert.equal(readYearTopAlbums({ albums: fifteen }).albums.length, 15);
+  assert.throws(() => readYearTopAlbums({ albums: [...fifteen, { albumName: "第十六张", artistName: null, note: "" }] }), /年度榜单格式无效/);
+  assert.throws(() => readYearTopAlbums({ albums: [{ albumName: "同一张", artistName: "A", note: "" }, { albumName: "同一张", artistName: "A", note: "x" }] }), /年度榜单格式无效/);
+  assert.throws(() => readYearTopAlbums({ albums: [{ albumName: "  ", artistName: null, note: "" }] }), /年度榜单格式无效/);
+  assert.throws(() => readYearTopAlbums({ albums: [{ albumName: "X", artistName: 42, note: "" }] }), /年度榜单格式无效/);
+  assert.throws(() => readYearTopAlbums({ albums: [{ albumName: "X", artistName: null, note: "字".repeat(501) }] }), /年度榜单格式无效/);
+  assert.throws(() => readBackupAppData({ "top-albums:0": raw }), /不支持的键/);
 });
 
 test("白名单接受备份健康键(回归锁:A1)", () => {

@@ -156,3 +156,14 @@
 .journal-quotes-preview { border-top: 1px solid #dfe5df; margin: 24px 0; padding-top: 4px; }
 .journal-work-view { min-width: 0; }
 .journal-representative{display:grid;grid-template-columns:64px minmax(0,1fr);gap:14px;align-items:start}.journal-representative>.journal-art{width:64px;height:64px;font-size:28px}
+.journal-rank-preview { display: grid; gap: 10px; margin: 16px 0; }
+.journal-rank-list { list-style: none; margin: 16px 0; padding: 0; display: grid; gap: 10px; }
+.journal-rank-item { display: grid; grid-template-columns: 30px 64px minmax(0, 1fr); gap: 12px; align-items: start; padding: 12px; border: 1px solid #dfe5df; border-radius: 5px; background: #eff2ee; color: #202724; }
+a.journal-rank-item { color: #202724; }
+.journal-rank-number { color: var(--journal-green); font-size: 18px; font-weight: 650; font-variant-numeric: tabular-nums; line-height: 1.3; padding-top: 2px; }
+.journal-rank-item .journal-art { width: 64px; height: 64px; font-size: 28px; }
+.journal-rank-info { display: grid; gap: 4px; min-width: 0; }
+.journal-rank-info strong { font-size: 16px; font-weight: 550; line-height: 1.45; }
+.journal-rank-info small { display: block; }
+.journal-rank-info p { margin: 2px 0 0; font-size: 13.5px; line-height: 1.7; white-space: pre-wrap; }
+.journal-rank-note textarea { min-height: 76px; }
