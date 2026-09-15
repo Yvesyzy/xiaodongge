@@ -124,3 +124,5 @@ ADB 当前未发现连接设备。安装 debug APK 后，分别用 JSON/TXT/CSV 
 2026-09-15 B版字体更新：Yves希望接近Spotify字体。核实官方Spotify Mix介绍后，采用已安装Arial Black年份/名次＋Noto Sans SC中文；B版年份140px/900、字距-7px，年度专辑70px/900、字距-2px，专辑名30px/800。使用近似字形，并非Spotify Mix原版字体。冠军460px与5/5/5保留；六页检查通过，已目检更新样张。仅独立预览，未接入产品。
 
 2026-09-15 v2.9正式实现与打包完成：B版青绿鎏金拼贴已接入codex_yearbookPages.ts；5/5/5倒序分组、460px冠军封面、离线Noto Sans SC与Montserrat数字、已删记录封面复用。根与mobile类型检查、32项基础测试、1–15张共30页场景、年度标签和分享回归通过。release/codex_xiaodongge-v2.9.apk，79,453,121字节，SHA256 f8923da74bb59af85bf5c86fee582e6890f4327f8091ce28c5154247fa0968c0；Android2.9(26)，沿用v2.8签名，11个网页构建资源逐字节核验通过。当前无ADB设备，未真机安装。交接docs/codex_v2.9_release.md；开始提交main并推送origin、发布v2.9。
+
+2026-09-15 v2.9发布最终核验完成：实现提交66bf196f7ef4d8b49d44f75e945d88bfc16cf3f5已推送origin/main，v2.9标签指向同一提交。GitHub正式Release https://github.com/Yvesyzy/xiaodongge/releases/tag/v2.9 已发布（非草稿/非预发布）；APK及SHA256附件uploaded，服务端APK digest与本地f8923da74bb59af85bf5c86fee582e6890f4327f8091ce28c5154247fa0968c0完全一致，大小79,453,121字节。临时5186验证服务已停止。下一步仅手机覆盖安装与真实封面/三页PNG/系统分享验收；无待完成代码或发布步骤。

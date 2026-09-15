@@ -42,3 +42,11 @@
 - 包内验证：release/codex_v29_package_verification.json；构建日志release/codex_v29_build.log；样张release/codex_v29_rank_qa/。
 - Git/发布：将代码、最终预览及本次设计过程提交main，推送origin；v2.9标签和Release使用同一提交。发布完成状态见codex_status.txt。
 - 下一步：手机覆盖安装，检查现有专辑封面、三页榜单和系统保存/分享；当前未真机安装。
+
+## GitHub发布完成
+- 实现提交：66bf196f7ef4d8b49d44f75e945d88bfc16cf3f5，已推送main。
+- v2.9附注标签解析到同一实现提交；后续交接提交仅补发布证据。
+- 发布页：https://github.com/Yvesyzy/xiaodongge/releases/tag/v2.9 ，非草稿、非预发布。
+- 两个附件均uploaded；GitHub服务端APK大小及SHA256与本地验证结果一致。
+- 自动审批初次要求核实目的地；只读核对origin、原README链接、既有v2.8发布和Yvesyzy的ADMIN权限后，同一操作获准并成功执行。
+- 临时Vite 5186服务已关闭；真实手机尚未安装验收。
