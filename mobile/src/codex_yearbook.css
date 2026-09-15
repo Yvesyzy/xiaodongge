@@ -1,5 +1,9 @@
 .journal { --journal-green: #245448; color: #202724; background: #fafaf7; font: 16px/1.65 "PingFang SC", "Microsoft YaHei", system-ui, sans-serif; overflow-wrap: anywhere; }
 .journal-page { padding: 22px 20px 36px; min-height: 80vh; }
+/* The tab panel slides in with a transform, which would otherwise widen the document by the travel
+   distance on a narrow screen. `clip` confines that to the page's own box without creating a scroll
+   container, so sticky headers and vertical scrolling keep working. */
+.journal-page:has(> .journal-tab-panel) { overflow-x: clip; }
 .journal h1 { font: 650 28px/1.35 "PingFang SC", "Microsoft YaHei", system-ui, sans-serif; margin: 24px 0 8px; color: #202724; }
 .journal h2 { font-size: 19px; line-height: 1.5; margin: 24px 0 8px; }
 .journal h3 { font-size: 17px; }

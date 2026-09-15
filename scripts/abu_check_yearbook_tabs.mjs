@@ -72,6 +72,55 @@ try {
   assert.ok(Math.abs(monthsShift - halfWidth) < 3, `月度下划线应位移约 ${halfWidth.toFixed(1)}px，实际 ${monthsShift.toFixed(1)}px`);
   await page.screenshot({ path: `${output}/02-tabs-months.png` });
 
+  // —— 2b) 面板滑入不得把文档撑宽（回归锁：滑入用 translateX，必须被裁掉）——
+  // 只能在动画进行中观测：页面内点击触发切换，并在随后每一帧采样文档宽度与面板位移取最大值。
+  const slide = await page.evaluate(async () => {
+    const settle = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+    const tab = (n) => document.querySelector(`.journal-tabs a:nth-child(${n})`);
+    const panelOffset = () => {
+      const panel = document.querySelector('.journal-tab-panel');
+      return panel ? Math.abs(new DOMMatrixReadOnly(getComputedStyle(panel).transform).m41) : 0;
+    };
+    // 先回到年度，让下一次切换真的产生滑入动画。
+    tab(1).click();
+    await settle(420);
+    const read = () => document.documentElement.scrollWidth;
+    const before = { scrollWidth: read(), innerWidth, offset: panelOffset() };
+    const worst = { scrollWidth: 0, innerWidth, offset: 0 };
+    tab(2).click();
+    const deadline = performance.now() + 340;
+    await new Promise((resolve) => {
+      const tick = () => {
+        worst.scrollWidth = Math.max(worst.scrollWidth, read());
+        worst.innerWidth = innerWidth;
+        worst.offset = Math.max(worst.offset, panelOffset());
+        if (performance.now() < deadline) requestAnimationFrame(tick); else resolve();
+      };
+      requestAnimationFrame(tick);
+    });
+    return { before, worst, active: document.querySelector('.journal-tabs').dataset.active };
+  });
+  results.push(['月度面板滑入时的最大文档宽度', `${slide.worst.scrollWidth} / ${slide.worst.innerWidth}`]);
+  results.push(['滑入期间观测到的最大面板位移', Number(slide.worst.offset.toFixed(1))]);
+  // 自证有效：采样窗口内面板确实在位移、标签确实切到了月度，否则这条断言等于没测。
+  assert.equal(slide.active, 'months', `滑入后应切到月度，实际 ${slide.active}`);
+  assert.ok(slide.worst.offset > 0.5, `采样期间未观测到面板位移（最大 ${slide.worst.offset}px），滑入动画没有真正触发`);
+  assert.ok(slide.before.scrollWidth <= slide.before.innerWidth, `静止时文档已横向溢出：${slide.before.scrollWidth}px`);
+  assert.ok(slide.worst.scrollWidth <= slide.worst.innerWidth, `月度面板滑入把文档撑到 ${slide.worst.scrollWidth}px（视口 ${slide.worst.innerWidth}px）`);
+  // 横向越界必须被裁掉；若退化成 visible，滑入位移就会变成可横向滚动的空白。
+  const overflowX = await page.evaluate(() => getComputedStyle(document.querySelector('.journal-page')).overflowX);
+  assert.equal(overflowX, 'clip', `.journal-page 应以 overflow-x: clip 约束滑入位移，实测 ${overflowX}`);
+  // 裁切规则不能把页面变成内部滚动容器。
+  const scrollable = await page.evaluate(async () => {
+    window.scrollTo(0, 300);
+    await new Promise((resolve) => requestAnimationFrame(resolve));
+    return window.scrollY;
+  });
+  assert.ok(scrollable > 0, '页面纵向滚动失效');
+  results.push(['纵向滚动位移', scrollable]);
+  await page.goto(`${origin}/#/summary?year=2026&view=cover`);
+  await page.waitForSelector('.journal-tabs');
+
   // —— 3) 标签栏内横向拖拽也应切换（跟手位移的落点判定）——
   await page.click('.journal-tabs a:nth-child(1)');
   await page.waitForSelector('.journal-tabs[data-active="cover"]', { timeout: 3000 });
@@ -86,6 +135,20 @@ try {
   await page.waitForSelector('.journal-tabs[data-active="months"]', { timeout: 3000 });
   results.push(['拖拽落点切换', '切换到月度回顾']);
   await page.screenshot({ path: `${output}/03-tabs-drag.png` });
+
+  // —— 3b) 封面页榜单入口：文案精简后两按钮应同排等高，不再折行 ——
+  await page.goto(`${origin}/#/summary?year=2026&view=cover`);
+  await page.waitForSelector('.journal-rank-preview .journal-rank-item', { timeout: 5000 });
+  // 用兄弟选择器定位：`section:has(...)` 会同时命中外层页面 <section>，取 .first() 会拿错行。
+  const entry = page.locator('.journal-rank-preview ~ .journal-actions .journal-button');
+  assert.equal(await entry.count(), 2, '榜单入口应为「完整榜单」与「编辑榜单」两个按钮');
+  const labels = [(await entry.nth(0).innerText()).trim(), (await entry.nth(1).innerText()).trim()];
+  const [left, right] = [await entry.nth(0).boundingBox(), await entry.nth(1).boundingBox()];
+  results.push(['榜单入口按钮', labels.join(' / ')]);
+  results.push(['榜单入口按钮高度', `${left.height.toFixed(0)} / ${right.height.toFixed(0)}`]);
+  assert.deepEqual(labels, ['完整榜单', '编辑榜单'], `榜单入口文案应精简，实际 ${labels.join(' / ')}`);
+  assert.ok(Math.abs(left.y - right.y) <= 1, '两个入口按钮应同排');
+  assert.ok(Math.abs(left.height - right.height) <= 1 && left.height < 56, `入口按钮高度不一致或已折行：${left.height}x${right.height}`);
 
   // —— 4) 榜单导出：应产出可渲染的多页 ——
   await page.goto(`${origin}/#/summary?year=2026&view=rank`);
