@@ -11,6 +11,6 @@ zcode 状态文件 · 小懂哥
 - release 构建: 已签名验签通过（v2.5 生产证书）
   - release/codex_xiaodongge-v2.8.0.apk（脚本产物）
   - release/xiaodongge-v2.8.0.apk（上传命名副本）
-  - release/xiaodongge-v2.8.0.sha256.txt: 8868659078746607c34dcc0463d62e1fd8bf195ac31cbdfe0f354c9e0fd3609b
+  - release/xiaodongge-v2.8.0.sha256.txt: 2a3d8619da6dc672ac03212fc08aa035391eb90c397b4e18c16039566b619372
 - 已发布: https://github.com/Yvesyzy/xiaodongge/releases/tag/v2.8.0（APK + sha256 资产已验证 HTTP 200，README 下载链接已生效）
 - 详情: docs/session_summary_2026-09-13-zcode.md

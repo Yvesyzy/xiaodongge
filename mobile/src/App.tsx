@@ -31,8 +31,7 @@ import { DAILY_RESURFACING_KEY, dismissDailyResurfacing, parseDailyResurfacingSt
 import { entryCoverTarget, parseList, store } from "./store";
 import { clearStorageCorruption, readStorageCorruption, type StorageCorruption } from "./storageSafety";
 import { ENTRY_TYPE_LABELS, ENTRY_TYPES, type AlbumAggregate, type EntryInput, type ListeningMoment, type ListeningMomentInput, type MusicMetadata, type RatingModifier, type ReviewEntry, type SongAggregate, type YearStats } from "./types";
-
-const APP_VERSION = "2.7.5";
+import { version as APP_VERSION } from "../../package.json";
 
 const nav = [
   ["/", "首页"],

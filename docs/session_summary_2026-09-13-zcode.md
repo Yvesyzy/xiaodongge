@@ -41,7 +41,15 @@
   - `scripts/build-android-release.ps1` 的硬编码断言从遗留的 versionCode 22 / 2.7.1-test.3 更新为 25 / 2.8.0（否则构建会在元数据校验步抛错），产物命名同步 `codex_xiaodongge-v2.8.0.apk`
   - README：标题、简介、当前版本行（升级链补 v2.7.5）、下载链接、发布页、安装包文件名共六处更新；签名证书 SHA-256 不变
   - 构建输出：`release/codex_xiaodongge-v2.8.0.apk`（67.9MB，脚本已 apksigner 验签 + 断言证书与 versionCode/Name）+ 上传命名副本 `release/xiaodongge-v2.8.0.apk` + `release/xiaodongge-v2.8.0.sha256.txt`
-  - APK SHA-256：`8868659078746607c34dcc0463d62e1fd8bf195ac31cbdfe0f354c9e0fd3609b`
+  - APK SHA-256：`2a3d8619da6dc672ac03212fc08aa035391eb90c397b4e18c16039566b619372`（2026-09-14 重传版，见下）
+
+## 追加修复（2026-09-14）
+
+- **问题**：首版 v2.8.0 APK 的 UI 版本标注（顶栏「小懂哥 v2.7.5」与更多页「版本 2.7.5」）没有随发布更新——版本字符串硬编码在 `mobile/src/App.tsx:35` 的 `APP_VERSION` 常量里，bump 时被遗漏。
+- **根因修复**：改为 `import { version as APP_VERSION } from "../../package.json"`，以后 bump 只改 package.json 一处即可；typecheck + mobile:build 通过。
+- versionCode/versionName 保持 25 / 2.8.0 不变（同签名同 versionCode 可直接覆盖安装）。
+- 重签构建后 `gh release upload --clobber` 替换了 Release 上的 APK 与 sha256 资产，发布说明中的 APK SHA-256 同步更新为新值；线上 sha256.txt 已验证为新哈希。
+- 模拟器实机验证按 Yves 指示跳过；release 构建脚本内部的签名/版本断言已通过。
 
 ## 下一步（供 Yves 决策）
 
