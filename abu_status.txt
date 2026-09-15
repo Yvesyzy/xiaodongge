@@ -115,3 +115,82 @@
 - 修 .git 引用写入异常（复核 core.fscache 与 packed-refs 过期副本的相互作用）；在此之前，判断"是否已推送"一律用 git ls-remote / gh api。
 阻塞项（如有）:
 - 无阻塞。上述两项为待修的既有缺陷，不影响 v2.8.0 已发布状态。
+
+第九轮（年度榜单纳入 PNG 导出 + 标签滑动切换 + .git 事故恢复）:
+时间: 2026-09-15 09:05
+作者: abu
+做了什么:
+- 任务 3 —— 年度专辑榜单纳入 1080x1680 PNG 导出：复用 planJournalPages/renderJournalPage 管线新增 rank kind（未另起一套），
+  槽位 5 行（标题/meta/2 行理由/间隔）行距 42px，页容量由正文实测高度推导（floor(1240/210)=5），15 张满榜 3 页；
+  榜单自包含不占年度记录池，原记录已删除时评分回退「原记录已删除」；理由导出截断 2 行、屏上保留全文。
+  改动：codex_yearbookPages.ts / codex_JournalExport.tsx / codex_YearbookPage.tsx / README.md。
+- 标签滑动切换：.journal-tabs 下划线改绝对定位滑块（--journal-tab-base + --journal-tab-drag）+ 260ms 过渡；
+  pointer 跟手拖拽（阈 8px 判定、min(72px, 半宽x0.4) 落点、首尾 1/3 阻尼）；内容面板按方向滑入 28px；
+  prefers-reduced-motion 下降级为淡入。修 <a> 原生拖拽吞掉 pointermove 导致拖拽失效的真缺陷。
+- 顺带修既有深色缺陷：深色下 .journal-stack 内 .journal-primary 未覆盖（规则只写 .journal-actions），
+  白字浅绿底 1.69:1；作用域改 :is(.journal-actions, .journal-stack) 后深浅各十页面 0 对比度失败。
+  已用 git show b1ffdfc: 对比基线确认该缺陷非本轮引入。
+- **事故与恢复（重要）**：为测基线执行 git stash push，被 SIGTERM 中断后仓库报 not a git repository。
+  .git/refs/ 整个消失、.git/objects/ 0 松散对象且 .pack 数据文件丢失（只剩 .idx）。
+  工作区全部文件完好、本轮改动一字未失；.git/logs/HEAD（121 行）完好可定位 HEAD=b1ffdfc。
+  用 git clone --no-checkout 从远端取回对象库（b1ffdfc 远端完好），搬回 objects/refs/packed-refs 后恢复，
+  main = b1ffdfc = origin/main。教训：本环境勿用 git stash；定期 push 是唯一可靠兜底。
+验证结果:
+- tsc --noEmit 通过；node --test 32/32；vite build 通过（产物清空后仅 3 个新 hash 文件）。
+- scripts/abu_check_yearbook_tabs.mjs PASS：年度滑块位移 0px、月度 174px（半宽 175px，证明过渡正确）；
+  拖拽跟手 -120px 且落点切换成功；榜单 15 条、导出 3 页、续页可达；运行时报错 0。
+- scripts/abu_a11y_check.mjs：深色与浅色各 10 页面，0 contrast failures。
+- 人工目检 release/abu_yearbook_tabs_qa/rank-page-{1,2,3}.png：分页边界干净、长理由正确截断、页脚无重叠。
+- 交接文档 docs/session_summary_2026-09-15-abu-rank-export.md。
+当前状态: 完成。提交 cf730d4（main 已同步远端，服务端 refs/heads/main = cf730d4）。
+下一步:
+- 可选：榜单导出暴露深色主题入口；封面页「查看完整榜单（N 张）」文案精简。
+- 待办（沿用）：修 build-android-release.ps1 构建前清理缺口；本仓库 .git 引用异常与本次损坏建议交 codex 复核是否同源。
+阻塞项（如有）:
+- 无。但 .git 曾损毁一次，虽已无损恢复，建议四方留意本仓库 git 稳定性。
+== 第十轮（年度榜单海报专属设计 + 入口文案精简 + 滑入溢出修复）==
+时间: 2026-09-15
+作者: abu
+做了什么:
+- Yves 要求榜单图片单独设计一套视觉（不再只是浅色/深色两套），并精简封面页「查看完整榜单（N 张）」文案。
+- codex_yearbookPages.ts：榜单导出改为专属海报，不再走 paper/dark 主题（其余导出类型不受影响）。
+  * 新增结构化 JournalRankSlot(rank/name/meta/notes/entry)，替换原先用 lines 字符串拼名次前缀的隐式做法；
+    JournalImagePage.ranks 移除，kind=rank 时 lines 恒为空。
+  * 海报视觉：深绿黑竖向渐变底 + 右上琥珀径向辉光 + 130px 年份水印 + 字距眉标 ANNUAL TOP ALBUMS +
+    54px 米白主标题 + 金头标尺（132px 实心金条 + 通栏淡金细线）+ 奖牌色名次刻度（1/2/3 金银铜，其余暗绿）+
+    116px 圆角封面（arcTo 圆角裁切 + 发丝金描边）+ 3 行入选理由 + 页脚分隔线与页码。
+  * 槽位 228px × 5 恰好覆盖正文区 420..1560，容量仍由实测高度推导；理由容量由 2 行放宽到 3 行。
+  * 专辑名与「艺人·评分」改 clipped() 单行省略号截断，且截断发生在分页阶段（决定内容），绘制阶段只画。
+  * 新增 coverCache（planJournalPages 开头 clear），避免同批封面在分页与缩略图中重复取图。
+  * drawJournalCover 的 theme 参数改为显式调色板 CoverPalette，并新增 radius 圆角参数；三处调用点同步。
+  * 隐私开关补齐：hideContent 隐藏入选理由、hideRating 隐藏评分（此前 rank 忽略这两项）。
+  * 记录已删除的专辑不再构造 20 字段伪 ReviewEntry，改由 drawRankCover 直接画首字占位方块。
+- codex_YearbookPage.tsx：「查看完整榜单（N 张）」→「完整榜单」，与「编辑榜单」同排等高（实测均 48px），折行消失。
+  张数信息仍由下一行「保存榜单图片（N 张）」呈现，未丢失。
+- codex_JournalExport.tsx：rank 标题改「年度榜单海报」，说明文案补上 hideRating/hideContent 影响。
+- codex_yearbook.css（修上一轮引入的回归）：滑入面板 translateX(28px) 把文档撑到 398px（视口 390px），
+  加 .journal-page:has(> .journal-tab-panel) { overflow-x: clip }。选 clip 而非 hidden 是因为 clip 可与
+  overflow-y: visible 并存，不会把 .journal-page 变成内部滚动容器，sticky 与纵向滚动均正常。
+- README.md：补榜单海报视觉与滑入切换说明。
+- scripts/abu_check_rank_poster.mjs（新）：像素级断言（直接读渲染 ImageData）底色/金标尺/奖牌刻度/封面区块/
+  页脚/分页/截断，并落盘 release/abu_rank_poster_qa/rank-poster-{1,2,3}.png 供人工目检。
+- scripts/abu_check_yearbook_tabs.mjs：新增滑入溢出回归锁与入口按钮断言。
+验证结果:
+- tsc --noEmit 干净；node --test 32/32；vite build 通过。
+- scripts/abu_check_rank_poster.mjs ALL PASS：15 张 3 页（5+5+5）；底色亮度 <40；金标尺三页均在；
+  前三名奖牌色、4/5 名暗绿、第一名暖金像素 846；15 个槽位均有封面区块；前三名输出真实封面；运行时报错 0。
+- scripts/abu_check_yearbook_tabs.mjs PASS：滑块位移 0/174px；滑入期最大文档宽度 390/390 且观测到面板位移 28px；
+  纵向滚动 300；拖拽跟手 -120px；入口按钮 完整榜单/编辑榜单 48/48；榜单导出 3 页。
+- scripts/abu_a11y_check.mjs 浅色与深色各 10 页面 0 contrast failures；codex_check_review_share.mjs PASS。
+- 守卫有效性验证：把 overflow-x: clip 选择器改成永不匹配，自检立刻报「面板滑入把文档撑到 398px」；恢复后 PASS。
+- 人工目检 release/abu_rank_poster_qa/rank-poster-{1,2,3}.png。
+- 交接文档 docs/session_summary_2026-09-15-abu-rank-poster.md。
+当前状态: 完成。提交见下条（main 已同步远端）。
+下一步:
+- 待办（沿用）：修 build-android-release.ps1 构建前清理缺口；.git 引用异常与本次损坏建议交 codex 复核是否同源。
+- 建议：scripts/codex_check_simple_yearbook.mjs 已失修（与本轮无关）。第 49 行期望「下一篇 →」但 v2.7 起文案已改「下一篇」；
+  修掉箭头后第 89 行仍失败（期望「已展开 5 篇」，实际「已展开 71 篇 / 匹配 128 篇 / 全年 128 篇」）。
+  两处都无法通过，故未留下改动，仅记录待 codex 处理。
+- 可选：如需要海报浅色版本，可把 RANK_* 常量提成两套调色板；当前按 Yves 要求只做一套专属设计。
+阻塞项（如有）:
+- 无。
