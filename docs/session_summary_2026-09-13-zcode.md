@@ -49,7 +49,7 @@
 - **根因修复**：改为 `import { version as APP_VERSION } from "../../package.json"`，以后 bump 只改 package.json 一处即可；typecheck + mobile:build 通过。
 - versionCode/versionName 保持 25 / 2.8.0 不变（同签名同 versionCode 可直接覆盖安装）。
 - 重签构建后 `gh release upload --clobber` 替换了 Release 上的 APK 与 sha256 资产，发布说明中的 APK SHA-256 同步更新为新值；线上 sha256.txt 已验证为新哈希。
-- 模拟器实机验证按 Yves 指示跳过；release 构建脚本内部的签名/版本断言已通过。
+- 模拟器实机验证（2026-09-14 补做）：安装重传版 release APK，顶栏显示「小懂哥 v2.8.0」、更多页显示「版本 2.8.0」，确认修复生效（截图 docs/shots/22、23）。
 
 ## 下一步（供 Yves 决策）
 
