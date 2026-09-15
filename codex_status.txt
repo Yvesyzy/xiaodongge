@@ -102,3 +102,25 @@ ADB 当前未发现连接设备。安装 debug APK 后，分别用 JSON/TXT/CSV 
 - .claude/ 为用户文件，未修改、未暂存。
 - 实现代码已提交为 2fd6711；分支尚未推送。
 - 正式 APK 已使用原长期 keystore 生成；release/ 受 .gitignore 保护，不进入 Git 提交。
+
+2026-09-15 榜单唱片内页 HTML 预览完成：docs/designs/codex_rank_letterpress_preview.html 与同名 PNG。五条演示内容、四项隐私开关、PNG下载、390/768/1440px视口与文字边界检查通过，已目检样张。仅独立预览，产品代码未改；等待 Yves 审阅后再实现正式 Canvas 导出。交接 docs/codex_session_summary_2026-09-15_rank_preview.md。
+
+2026-09-15 榜单收藏册三页预览完成：docs/designs/codex_rank_collector_preview.html，按11–15/4–10/前三名分5/7/3条；封面176/144/256px。三张PNG已生成并目检，codex_check_rank_collector_preview.mjs分档/边界/开关/下载/视口检查通过。原稿保留，产品代码未改，等待Yves审阅。交接docs/codex_session_summary_2026-09-15_rank_collector.md。
+
+2026-09-15 最新榜单预览改为5/5/5酒红典藏版：docs/designs/codex_rank_edition_preview.html；11–15、6–10、1–5名，196px封面，酒红拼色页眉、宋体专辑名、名次移右。三张PNG生成，codex_check_rank_edition_preview.mjs通过，已目检第1/3页。此前版本保留，产品源码未改。等待Yves审阅；交接docs/codex_session_summary_2026-09-15_rank_edition.md。
+
+2026-09-15 青金配色对照完成：docs/designs/codex_rank_lapis_preview.html及三张同前缀PNG。青金石蓝页眉+浅金标题+暗金名次，保持5/5/5与196px封面。复用codex_check_rank_edition_preview.mjs lapis通过，已目检第3页。酒红版保留，产品未改。交接补记于docs/codex_session_summary_2026-09-15_rank_edition.md；等待Yves选择配色。
+
+2026-09-15 最新：Yves澄清为主页青绿+金色，并允许渐变、鎏金及字体自由设计。新预览docs/designs/codex_rank_jade_preview.html，主页#274D50/#17483E/#143C32全页渐变，行楷年度题字+中宋标题，鎏金字与封面金边；5/5/5及196px封面。三页PNG/JPEG已生成，检查脚本jade参数通过，最终第3页已目检。仅预览，产品未改；正式Android字体待落实。交接追加于docs/codex_session_summary_2026-09-15_rank_edition.md。
+
+2026-09-15 最新字体修订：Yves否决行楷/中宋。codex_rank_jade_preview.html已改现代无衬线：主标题100px粗黑体、专辑名34px中等字重、名次64px细体，字距收紧；青绿鎏金与5/5/5保持。三页PNG/JPEG更新、jade检查通过、已目检。产品未改，等待确认。旧行楷方向已失效。
+
+2026-09-15 标题案例研究完成：Yves要求先看网上真实年度回顾。已查Spotify2025/AppleReplay2025/网易云2024，参考板docs/designs/codex_rank_reference_board.html及.jpg，三图加载并目检。来源与判断记录docs/codex_rank_reference_research_2026-09-15.md。当前榜单预览未改；建议重做标题层级与图文权重，避免继续只换字体。
+
+2026-09-15 最新：Yves要求两个方向都做，已完成docs/designs/codex_rank_duo_preview.html（A年份主视觉列表/B五封面拼贴）。两版各三页，5/5/5；保留青绿鎏金与全部演示理由。六张PNG及codex_rank_duo_comparison.jpg已生成；node scripts/codex_check_rank_duo_preview.mjs全部通过，已目检对照图。仅预览，产品未改；等待Yves选定视觉方向。交接追加docs/codex_session_summary_2026-09-15_rank_edition.md。
+
+2026-09-15 B版冠军封面调整完成：Yves认可B版并要求第一名更大。codex_rank_duo_preview.html的1–5名页改为左侧460px冠军封面、右侧四张224px封面；其他页保持原排布，打开默认B版1–5名。现有检查脚本更新尺寸和不重叠断言后全部通过，六张PNG与对照JPEG已更新并目检。仍为演示预览，正式产品未改。
+
+2026-09-15 B版字体更新：Yves希望接近Spotify字体。核实官方Spotify Mix介绍后，采用已安装Arial Black年份/名次＋Noto Sans SC中文；B版年份140px/900、字距-7px，年度专辑70px/900、字距-2px，专辑名30px/800。使用近似字形，并非Spotify Mix原版字体。冠军460px与5/5/5保留；六页检查通过，已目检更新样张。仅独立预览，未接入产品。
+
+2026-09-15 v2.9正式实现与打包完成：B版青绿鎏金拼贴已接入codex_yearbookPages.ts；5/5/5倒序分组、460px冠军封面、离线Noto Sans SC与Montserrat数字、已删记录封面复用。根与mobile类型检查、32项基础测试、1–15张共30页场景、年度标签和分享回归通过。release/codex_xiaodongge-v2.9.apk，79,453,121字节，SHA256 f8923da74bb59af85bf5c86fee582e6890f4327f8091ce28c5154247fa0968c0；Android2.9(26)，沿用v2.8签名，11个网页构建资源逐字节核验通过。当前无ADB设备，未真机安装。交接docs/codex_v2.9_release.md；开始提交main并推送origin、发布v2.9。

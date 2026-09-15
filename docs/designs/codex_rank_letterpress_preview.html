@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>年度专辑榜单 · 版式预览</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #deddd8; color: #14110e; font: 14px/1.6 "Microsoft YaHei", "PingFang SC", system-ui; }
+  header { max-width: 1080px; margin: 0 auto; padding: 24px 20px 18px; }
+  h1 { font-size: 18px; margin: 0 0 4px; font-weight: 600; }
+  p { margin: 0 0 14px; }
+  .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; }
+  label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; min-height: 32px; }
+  input { accent-color: #14110e; width: 16px; height: 16px; }
+  button { color: inherit; background: transparent; border: 1px solid #14110e; padding: 7px 14px; font: inherit; cursor: pointer; }
+  :focus-visible { outline: 2px solid #14110e; outline-offset: 4px; }
+  main { max-width: 1120px; padding: 0 20px 32px; margin: auto; }
+  canvas { display: block; width: 100%; height: auto; background: #f2efe6; }
+  @media print { header { display: none; } body { background: #f2efe6; } main { padding: 0; } }
+</style>
+<header>
+  <h1>年度专辑榜单 · 版式预览</h1>
+  <p>1080 × 1680 · 专辑、评分、理由和封面均为演示内容，展示第 1 / 3 页。</p>
+  <div class="controls" aria-label="预览选项">
+    <label><input id="hideBrand" type="checkbox">隐藏应用名</label>
+    <label><input id="hideDate" type="checkbox">隐藏日期</label>
+    <label><input id="hideRating" type="checkbox">隐藏评分</label>
+    <label><input id="hideContent" type="checkbox">隐藏理由</label>
+    <button id="save" type="button">保存这张 PNG</button>
+  </div>
+</header>
+<main><canvas id="poster" width="1080" height="1680" role="img" aria-label="暖纸白底、砖红名次的年度专辑榜单。五条演示专辑：夜行列车、潮汐记、未完成的夏天、房间里的回声、最后一班渡轮。"></canvas></main>
+<script>
+  const canvas = document.querySelector('#poster');
+  const ctx = canvas.getContext('2d');
+  const paper = '#F2EFE6', ink = '#14110E', accent = '#B23A2E';
+  const serif = '"Noto Serif SC", "Songti SC", "SimSun", "Microsoft YaHei", "PingFang SC", system-ui';
+  const sans = '"Microsoft YaHei", "PingFang SC", system-ui';
+  const bodyTop = 420, bodyBottom = 1560, slotHeight = 228;
+  const capacity = (bodyBottom - bodyTop) / slotHeight;
+  // ponytail: 固定五条演示内容；接入产品时复用 planRankPages，不在预览中另写分页器。
+  const albums = [
+    { name: '夜行列车', artist: '林一', rating: '9 / 10', notes: ['最常在回家路上点开的一张。鼓声收得很轻，', '贝斯一直往前走，听到最后一首才舍得摘耳机。'], cover: 'train' },
+    { name: '潮汐记', artist: '海边的房间', rating: '8 / 10', notes: ['第一次听只记住了吉他，后来开始留意人声后面', '那些细碎的声音。适合从头听完，不急着切歌。'], cover: 'sea' },
+    { name: '未完成的夏天', artist: '午后电台', rating: '9 / 10', notes: ['录音里留着一点房间的声音，像朋友在旁边弹琴。', '第三首反复听了很多次。不是每首都喜欢，', '但这一年想起夏天，总会先想到它。'], cover: 'summer' },
+    { name: '房间里的回声', artist: '慢速行星', rating: '8 / 10', notes: ['编曲很少，却没有一处显得空。低音进来的时候，', '整首歌忽然有了重量；小音量听也能听见细节。'], cover: 'room' },
+    { name: '最后一班渡轮', artist: '陈禾', rating: '8 / 10', notes: ['在旅途中听完，回来后又听了一遍。', '最喜欢结尾没有唱完的那半句话。'], cover: null },
+  ];
+  function text(value, x, y, size, weight = 400, color = ink, family = sans) {
+    ctx.font = `${weight} ${size}px ${family}`;
+    ctx.fillStyle = color;
+    ctx.fillText(value, x, y);
+  }
+  function line(x, y, width, color) {
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y, width, 1);
+  }
+  function cover(kind, y) {
+    ctx.save();
+    ctx.translate(160, y + 16);
+    ctx.beginPath(); ctx.rect(0, 0, 128, 128); ctx.clip();
+    const rect = (color, x, top, width, height) => { ctx.fillStyle = color; ctx.fillRect(x, top, width, height); };
+    // 原创几何示意封面，颜色属于封面图像，不属于榜单版式用墨。
+    if (kind === 'train') {
+      rect('#1E3037', 0, 0, 128, 128); rect('#52646A', 9, 0, 3, 128);
+      rect('#B8C7C3', 22, 19, 84, 62); rect('#617B7E', 22, 57, 84, 24);
+      rect('#1E3037', 61, 19, 5, 62); rect('#87928D', 0, 99, 128, 1);
+      text('夜行列车', 16, 117, 12, 400, '#F2EFE6');
+    } else if (kind === 'sea') {
+      rect('#CAD5CB', 0, 0, 128, 128); rect('#739B9D', 0, 52, 128, 76);
+      rect('#3D727C', 0, 81, 128, 47); rect('#E9E5D4', 0, 77, 86, 2);
+      rect('#E9E5D4', 45, 103, 83, 1); text('潮汐记', 12, 30, 16, 700, '#203A43', serif);
+    } else if (kind === 'summer') {
+      rect('#D9C69D', 0, 0, 128, 128); rect('#BC6849', 14, 0, 5, 128);
+      rect('#486557', 48, 38, 54, 61); rect('#DFD9B7', 55, 45, 40, 54);
+      rect('#486557', 73, 45, 3, 54); rect('#486557', 55, 68, 40, 3);
+      text('未完成的夏天', 28, 119, 12, 400, '#3D3D2C');
+    } else if (kind === 'room') {
+      rect('#C5BEB5', 0, 0, 128, 128); rect('#484A4B', 0, 0, 38, 128);
+      rect('#92857B', 38, 92, 90, 36); rect('#DDD6CA', 64, 16, 41, 59);
+      rect('#484A4B', 69, 57, 23, 2); text('回声', 59, 115, 14, 400, '#292725', serif);
+    } else {
+      ctx.strokeStyle = ink; ctx.lineWidth = 1; ctx.strokeRect(.5, .5, 127, 127);
+      text('暂无封面', 24, 70, 20);
+    }
+    ctx.restore();
+  }
+  function draw() {
+    ctx.fillStyle = paper; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    text(document.querySelector('#hideBrand').checked ? '2026' : '小懂哥 · 2026', 72, 132, 24);
+    line(72, 160, 936, accent);
+    text('年度专辑榜单', 72, 280, 64, 700, ink, serif);
+    albums.forEach((album, index) => {
+      const top = bodyTop + index * slotHeight;
+      const rank = String(index + 1).padStart(2, '0');
+      [...rank].forEach((digit, i) => text(digit, 72 + i * 32, top + 48, 56, 700, accent));
+      cover(album.cover, top);
+      text(album.name, 316, top + 48, 32, 700);
+      text(album.artist + (document.querySelector('#hideRating').checked ? '' : ` · ${album.rating}`), 316, top + 86, 24);
+      if (!document.querySelector('#hideContent').checked) {
+        album.notes.forEach((note, i) => text(note, 316, top + 126 + i * 34, 28));
+      }
+      if (index < albums.length - 1) line(316, top + slotHeight, 692, accent);
+    });
+    line(72, 1590, 936, ink);
+    if (!document.querySelector('#hideDate').checked) text('整理于 2026.09.15', 72, 1632, 22);
+    ctx.textAlign = 'right'; text(`第 1 / ${Math.ceil(15 / capacity)} 页`, 1008, 1632, 22);
+  }
+  document.querySelectorAll('input').forEach(input => input.addEventListener('change', draw));
+  document.querySelector('#save').addEventListener('click', () => {
+    const link = document.createElement('a');
+    link.download = 'codex_rank_letterpress_preview.png'; link.href = canvas.toDataURL('image/png'); link.click();
+  });
+  draw();
+</script>
+</html>

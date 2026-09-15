@@ -1,6 +1,9 @@
 import type { ReviewEntry } from "./types";
 import type { JournalEdition, YearTopAlbum, YearTopAlbums } from "../../shared/backupAppData";
 import { ENTRY_TYPE_LABELS } from "./types";
+import { store } from "./store";
+const rankTextFontUrl = new URL("./assets/fonts/codex_noto_sans_sc.woff", import.meta.url).href;
+const rankNumberFontUrl = new URL("./assets/fonts/codex_montserrat_black_digits.woff", import.meta.url).href;
 import { journalCover, journalDate, journalEntries, journalFuture, journalMonths, journalRating, journalTitle } from "./codex_yearbookModel";
 
 export type JournalExportKind = "cover" | "overview" | "index" | "works" | "rank";
@@ -23,6 +26,7 @@ export type JournalRankSlot = {
   name: string;
   meta: string;
   notes: string[];
+  coverTarget: Pick<YearTopAlbum, "albumName" | "artistName">;
   /** Resolved review, used for the album art; absent when the record was deleted. */
   entry?: ReviewEntry;
 };
@@ -80,7 +84,7 @@ export async function planJournalPages(year: number, input: ReviewEntry[], kind:
   // Album art is cached per export; clearing here keeps an edited cover from going stale between exports.
   coverCache.clear();
   // The ranking is self-contained (an album may outlive its review), so it never consumes the annual entry pool.
-  if (kind === "rank") return planRankPages(year, input, options);
+  if (kind === "rank") { await loadRankFonts(); return planRankPages(year, input, options); }
   // The review flag is deliberately explicit so a month/year reflection cannot enter annual exports by accident.
   const entries = options.review ? input.slice() : journalEntries(input, year);
   if (!entries.length) throw new Error("这一年没有可导出的正式音乐记录");
@@ -122,32 +126,27 @@ export async function planJournalPages(year: number, input: ReviewEntry[], kind:
   return pages;
 }
 
-/* ---- 年度榜单海报 ----------------------------------------------------------
- * The ranking gets its own poster identity instead of the paper/dark theme pair:
- * a deep green-black wash, a soft amber glow, a gold headed rule and medal-tinted
- * rank ticks. Every colour lives here so the whole look is retuned in one place.
- * ---------------------------------------------------------------------------- */
-const RANK_BG_TOP = "#16291f";
-const RANK_BG_BOTTOM = "#08120f";
-const RANK_CREAM = "#f2eee3";
-const RANK_SAGE = "#9cb2a5";
-const RANK_NOTE = "#cfd8d0";
-const RANK_GOLD = "#d8a94b";
-const RANK_LINE = "#22463a";
-const RANK_WATERMARK = "#1b352c";
-/** Podium colours for ranks 1-3; everything below falls back to the quiet rule colour. */
-const RANK_MEDALS = ["#e3b455", "#c8d0d2", "#c98b5a"];
+// Approved jade collage: five albums per page, with the top five revealed last.
+const RANK_CREAM = "#F2F1EB";
+const RANK_GOLD = "#D6B879";
 const RANK_MARGIN = 72;
 const RANK_RIGHT = 1008;
-const RANK_BODY_TOP = 420;
-const RANK_BODY_BOTTOM = 1560;
-const RANK_SLOT = 228;
-const RANK_COVER = 116;
-const RANK_TEXT_X = 316;
+const RANK_TEXT_X = 148;
 const RANK_TEXT_WIDTH = RANK_RIGHT - RANK_TEXT_X;
-const RANK_NOTE_LINES = 3;
-// Capacity comes from the measured body area, so a slot can never overrun the footer rule.
-const RANK_PAGE_ITEMS = Math.floor((RANK_BODY_BOTTOM - RANK_BODY_TOP) / RANK_SLOT);
+const RANK_NOTE_LINES = 2;
+const RANK_PAGE_ITEMS = 5;
+const RANK_FONT = '"Codex Rank Sans", sans-serif';
+const RANK_NUMBERS = '"Codex Rank Numbers", sans-serif';
+let rankFonts: Promise<void> | undefined;
+
+function loadRankFonts() {
+  // Bundled fonts make measuring and drawing identical offline on Android and desktop.
+  return rankFonts ??= Promise.all([
+    new FontFace("Codex Rank Sans", `url("${rankTextFontUrl}")`, { weight: "100 900" }).load(),
+    new FontFace("Codex Rank Numbers", `url("${rankNumberFontUrl}")`, { weight: "900" }).load(),
+  ]).then((fonts) => { fonts.forEach((font) => document.fonts.add(font)); })
+    .catch(() => { rankFonts = undefined; throw new Error("榜单字体加载失败，请重新打开图片预览"); });
+}
 
 function planRankPages(year: number, entries: ReviewEntry[], options: JournalImageOptions): JournalImagePage[] {
   const list = options.topAlbums?.albums ?? [];
@@ -161,20 +160,21 @@ function planRankPages(year: number, entries: ReviewEntry[], options: JournalIma
       const entry = rankEntryFor(album, yearly);
       // A reason longer than the slot is clipped here; the on-screen ranking keeps the full text.
       const cap = options.hideContent ? 0 : RANK_NOTE_LINES;
-      ctx.font = `28px ${FONT}`;
+      ctx.font = `400 22px ${RANK_FONT}`;
       const wrapped = cap ? wrapJournalText(ctx, album.note.trim(), RANK_TEXT_WIDTH) : [];
-      if (wrapped.length > cap) wrapped[cap - 1] = clipped(ctx, wrapped[cap - 1], RANK_TEXT_WIDTH);
+      if (wrapped.length > cap) wrapped[cap - 1] = clipped(ctx, wrapped[cap - 1] + "…", RANK_TEXT_WIDTH);
       // Name and meta are single-line labels, so they are measured and clipped at their own sizes.
-      ctx.font = `700 34px ${FONT}`;
+      ctx.font = `800 30px ${RANK_FONT}`;
       const name = clipped(ctx, album.albumName, RANK_TEXT_WIDTH);
-      ctx.font = `26px ${FONT}`;
+      ctx.font = `400 22px ${RANK_FONT}`;
       const meta = clipped(ctx, [album.artistName || "未填写音乐人", options.hideRating ? "" : rankRatingLabel(entry)].filter(Boolean).join(" · "), RANK_TEXT_WIDTH);
-      return { rank: index + offset + 1, name, meta, notes: wrapped.slice(0, cap), entry } satisfies JournalRankSlot;
+      return { rank: index + offset + 1, name, meta, notes: wrapped.slice(0, cap), coverTarget: { albumName: album.albumName, artistName: album.artistName }, entry } satisfies JournalRankSlot;
     });
-    pages.push({ kind: "rank", title: pages.length ? "年度专辑榜单 · 续" : "我的年度专辑榜单", lines: [], entryIds: [], rankSlots: slots });
+    pages.push({ kind: "rank", title: `年度专辑 · 第 ${slots[0].rank}—${slots[slots.length - 1].rank} 名`, lines: [], entryIds: [], rankSlots: slots });
     index += RANK_PAGE_ITEMS;
   }
-  return pages;
+  ctx.canvas.width = 0;
+  return pages.reverse();
 }
 
 // A ranking album may outlive its review, so the rating falls back to a dash instead of failing the export.
@@ -187,16 +187,10 @@ function rankRatingLabel(entry: ReviewEntry | undefined) {
   return entry ? journalRating(entry) : "原记录已删除";
 }
 
-function rankSubtitle(yearly: ReviewEntry[], options: JournalImageOptions) {
-  const albums = options.topAlbums?.albums ?? [];
-  const graded = albums.filter((album) => rankEntryFor(album, yearly)).length;
-  return `名次由你排序 · 共 ${albums.length} 张专辑${graded ? ` · ${graded} 张有评分记录` : ""}`;
-}
-
 export async function renderJournalPage(year: number, entries: ReviewEntry[], page: JournalImagePage, index: number, total: number, now = new Date(), options: JournalImageOptions = {}) {
   const ctx = canvasContext();
   // The ranking paints its own poster; it never mixes with the shared paper/dark furniture.
-  if (page.kind === "rank") return drawRankPage(ctx, year, entries, page, index, total, now, options);
+  if (page.kind === "rank") return drawRankPage(ctx, year, page, index, total, now, options);
   const dark = options.theme === "dark";
   const color = dark ? "#9bd4bf" : "#245448";
   const background = dark ? "#142a24" : "#fafaf7";
@@ -278,79 +272,85 @@ export async function renderJournalPage(year: number, entries: ReviewEntry[], pa
   } finally { ctx.canvas.width = 0; }
 }
 
-// The ranking poster: its own background, header hierarchy, cover art and footer.
-async function drawRankPage(ctx: CanvasRenderingContext2D, year: number, entries: ReviewEntry[], page: JournalImagePage, index: number, total: number, now: Date, options: JournalImageOptions) {
+// Coordinates match the approved B preview. A shorter final group stays centered.
+function rankCoverBoxes(slots: JournalRankSlot[]) {
+  const count = slots.length;
+  if (slots[0]?.rank === 1 && count === 5) return [[76, 332, 460], [548, 332, 224], [784, 332, 224], [548, 568, 224], [784, 568, 224]];
+  if (count === 5) return [[190, 272, 344], [546, 272, 344], [192, 628, 224], [428, 628, 224], [664, 628, 224]];
+  if (count === 1) return [[310, 332, 460]];
+  if (count === 2) return [[190, 390, 344], [546, 390, 344]];
+  if (count === 3) return [[160, 344, 416], [592, 304, 264], [592, 584, 264]];
+  return [[136, 312, 400], [548, 312, 284], [548, 608, 224], [784, 608, 224]];
+}
+
+async function drawRankPage(ctx: CanvasRenderingContext2D, year: number, page: JournalImagePage, index: number, total: number, now: Date, options: JournalImageOptions) {
   try {
-    // Deep green-black wash plus an amber glow that the oversized year sits inside.
-    const wash = ctx.createLinearGradient(0, 0, 0, JOURNAL_HEIGHT);
-    wash.addColorStop(0, RANK_BG_TOP); wash.addColorStop(1, RANK_BG_BOTTOM);
+    await loadRankFonts();
+    const wash = ctx.createLinearGradient(0, 0, JOURNAL_WIDTH, JOURNAL_HEIGHT);
+    wash.addColorStop(0, "#274D50"); wash.addColorStop(.46, "#17483E"); wash.addColorStop(1, "#143C32");
     ctx.fillStyle = wash; ctx.fillRect(0, 0, JOURNAL_WIDTH, JOURNAL_HEIGHT);
-    const glow = ctx.createRadialGradient(980, 90, 0, 980, 90, 680);
-    glow.addColorStop(0, "rgba(216,169,75,.15)"); glow.addColorStop(1, "rgba(216,169,75,0)");
-    ctx.fillStyle = glow; ctx.fillRect(0, 0, JOURNAL_WIDTH, 460);
-
-    const text = (value: string, x: number, y: number, size = 28, fill = RANK_CREAM, weight = 400) => {
-      ctx.font = `${weight} ${size}px ${FONT}`; ctx.fillStyle = fill; ctx.fillText(value, x, y);
+    const text = (value: string, x: number, y: number, size: number, fill: string | CanvasGradient = RANK_CREAM, weight = 400, family = RANK_FONT) => {
+      ctx.font = `${weight} ${size}px ${family}`; ctx.fillStyle = fill; ctx.fillText(value, x, y);
     };
-    // The year is set as a watermark, not a data label; keeping it right of x=720 leaves the title clear.
-    ctx.textAlign = "right";
-    text(String(year), RANK_RIGHT, 250, 130, RANK_WATERMARK, 700);
-    ctx.textAlign = "left";
-    if (!options.hideBrand) text("小懂哥", RANK_MARGIN, 100, 26, RANK_GOLD, 600);
-    text("ANNUAL TOP ALBUMS".split("").join(" "), RANK_MARGIN, 168, 24, RANK_SAGE, 600);
-    text(page.title, RANK_MARGIN, 262, 54, RANK_CREAM, 700);
-    text(rankSubtitle(journalEntries(entries, year), options), RANK_MARGIN, 314, 26, RANK_SAGE);
-    // The rule is a hairline carrying a solid gold head; that head is the poster's strongest accent.
-    ctx.lineWidth = 3; ctx.strokeStyle = RANK_GOLD;
-    ctx.beginPath(); ctx.moveTo(RANK_MARGIN, 372); ctx.lineTo(RANK_MARGIN + 132, 372); ctx.stroke();
-    ctx.lineWidth = 1; ctx.strokeStyle = "rgba(216,169,75,.28)";
-    ctx.beginPath(); ctx.moveTo(RANK_MARGIN, 372); ctx.lineTo(RANK_RIGHT, 372); ctx.stroke();
-
+    ctx.save();
+    ctx.letterSpacing = "-7px";
+    const gold = ctx.createLinearGradient(66, 42, 450, 217);
+    ["#BB914A", "#F2D99A", "#C6A05B", "#F9E9BB", "#D6B879", "#B58A43"].forEach((color, i) => gold.addColorStop([0, .22, .45, .57, .78, 1][i], color));
+    text(String(year), 66, 182, 140, gold, 900, RANK_NUMBERS);
+    ctx.letterSpacing = "-2px";
+    text("年度专辑", 540, 174, 70, RANK_CREAM, 900);
+    ctx.restore();
     const slots = page.rankSlots ?? [];
+    ctx.textAlign = "right";
+    if (!options.hideBrand) text("小懂哥", RANK_RIGHT, 94, 22);
+    text(`个人榜单 · 第 ${slots[0]?.rank ?? 0}—${slots.at(-1)?.rank ?? 0} 名`, RANK_RIGHT, 224, 22);
+    ctx.textAlign = "left";
+    const boxes = rankCoverBoxes(slots);
     for (const [i, slot] of slots.entries()) {
-      const top = RANK_BODY_TOP + i * RANK_SLOT;
-      const medal = RANK_MEDALS[slot.rank - 1] ?? null;
-      // A coloured tick opens every slot: medal tones for the podium, the quiet rule tone below it.
-      ctx.fillStyle = medal ?? RANK_LINE;
-      clipRounded(ctx, RANK_MARGIN, top + 62, 6, 46, 3); ctx.fill();
-      text(String(slot.rank).padStart(2, "0"), RANK_MARGIN + 20, top + 96, medal ? 46 : 40, medal ?? RANK_SAGE, 700);
-      await drawRankCover(ctx, slot, top + 44);
-      text(slot.name, RANK_TEXT_X, top + 52, 34, RANK_CREAM, 700);
-      text(slot.meta, RANK_TEXT_X, top + 92, 26, RANK_SAGE);
-      slot.notes.forEach((line, n) => text(line, RANK_TEXT_X, top + 134 + n * 38, 28, RANK_NOTE));
-      if (i < slots.length - 1) {
-        ctx.strokeStyle = RANK_LINE; ctx.beginPath();
-        ctx.moveTo(RANK_MARGIN, top + RANK_SLOT); ctx.lineTo(RANK_RIGHT, top + RANK_SLOT); ctx.stroke();
-      }
+      const [x, y, size] = boxes[i];
+      await drawRankCover(ctx, slot, x, y, size);
+      ctx.fillStyle = RANK_CREAM; ctx.fillRect(x + size - 46, y + size - 36, 46, 36);
+      ctx.textAlign = "center";
+      text(String(slot.rank).padStart(2, "0"), x + size - 23, y + size - 9, 22, "#143C32", 900, RANK_NUMBERS);
+      ctx.textAlign = "left";
+      const top = 900 + i * 132;
+      text(String(slot.rank).padStart(2, "0"), RANK_MARGIN, top + 30, 32, RANK_GOLD, 900, RANK_NUMBERS);
+      text(slot.name, RANK_TEXT_X, top + 30, 30, RANK_CREAM, 800);
+      text(slot.meta, RANK_TEXT_X, top + 59, 22);
+      slot.notes.forEach((line, n) => text(line, RANK_TEXT_X, top + 90 + n * 27, 22));
+      if (i < slots.length - 1) { ctx.fillStyle = "#F2F1EB20"; ctx.fillRect(RANK_TEXT_X, top + 132, 860, 1); }
     }
-
-    ctx.strokeStyle = RANK_LINE; ctx.beginPath(); ctx.moveTo(RANK_MARGIN, 1590); ctx.lineTo(RANK_RIGHT, 1590); ctx.stroke();
+    ctx.fillStyle = "#F2F1EB30"; ctx.fillRect(RANK_MARGIN, 1590, 936, 1);
     const date = `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, "0")}.${String(now.getDate()).padStart(2, "0")}`;
-    if (!options.hideDate) text(`整理于 ${date}`, RANK_MARGIN, 1638, 24, RANK_SAGE);
-    ctx.textAlign = "right"; text(`第 ${index + 1} / ${total} 页`, RANK_RIGHT, 1638, 24, RANK_SAGE); ctx.textAlign = "left";
-
+    if (!options.hideDate) text(`整理于 ${date}`, RANK_MARGIN, 1632, 22);
+    ctx.textAlign = "right"; text(`第 ${index + 1} / ${total} 页`, RANK_RIGHT, 1632, 22);
     return await new Promise<Blob>((resolve, reject) => ctx.canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("图片生成失败")), "image/png"));
   } finally { ctx.canvas.width = 0; }
 }
 
-// Album art is the poster's anchor image and the same covers are reused across pages and thumbnails,
-// so each one is fetched once per export. planJournalPages clears the cache before every run.
+// Cache only within an export; a new plan clears it so changed covers are reloaded.
 const coverCache = new Map<string, HTMLImageElement | null>();
 
-async function drawRankCover(ctx: CanvasRenderingContext2D, slot: JournalRankSlot, y: number) {
-  if (slot.entry) await drawJournalCover(ctx, slot.entry, 168, y, RANK_COVER, true, COVER_RANK, 10);
-  else {
-    // A review that has been deleted still gets a tile, lettered with the album's first character.
+async function drawRankCover(ctx: CanvasRenderingContext2D, slot: JournalRankSlot, x: number, y: number, size: number) {
+  // Resolve by the saved album identity even if its review was deleted.
+  const key = JSON.stringify(["rank", slot.coverTarget.albumName, slot.coverTarget.artistName]);
+  let image = coverCache.get(key);
+  if (image === undefined) {
+    const source = await store.getCover("album", slot.coverTarget);
+    image = source?.startsWith("data:image/") ? await loadCoverImage(source) : null;
+    coverCache.set(key, image);
+  }
+  if (image) {
+    const crop = Math.min(image.naturalWidth, image.naturalHeight);
+    ctx.drawImage(image, (image.naturalWidth - crop) / 2, (image.naturalHeight - crop) / 2, crop, crop, x, y, size, size);
+  } else {
     ctx.save();
-    clipRounded(ctx, 168, y, RANK_COVER, RANK_COVER, 10); ctx.clip();
-    ctx.fillStyle = COVER_RANK.background; ctx.fillRect(168, y, RANK_COVER, RANK_COVER);
-    ctx.fillStyle = COVER_RANK.ink; ctx.font = `600 ${Math.round(RANK_COVER / 4)}px ${FONT}`;
-    ctx.textAlign = "center"; ctx.fillText(Array.from(slot.name)[0] || "音", 168 + RANK_COVER / 2, y + RANK_COVER * .6); ctx.textAlign = "left";
+    ctx.fillStyle = "#295348"; ctx.fillRect(x, y, size, size);
+    ctx.fillStyle = RANK_CREAM; ctx.font = `800 ${Math.round(size / 4)}px ${RANK_FONT}`;
+    ctx.textAlign = "center";
+    ctx.fillText(Array.from(slot.name)[0] || "音", x + size / 2, y + size * .6);
     ctx.restore();
   }
-  // A hairline ring keeps dark album art from bleeding into the poster background.
-  ctx.lineWidth = 1; ctx.strokeStyle = "rgba(216,169,75,.22)";
-  clipRounded(ctx, 168.5, y + .5, RANK_COVER - 1, RANK_COVER - 1, 10); ctx.stroke();
 }
 
 // Rounded clip built from arcTo so WebViews without roundRect still render the poster covers.
@@ -367,9 +367,9 @@ function clipRounded(ctx: CanvasRenderingContext2D, x: number, y: number, width:
 // Single-line labels clip with an ellipsis instead of wrapping; ctx.font must already be set.
 function clipped(ctx: CanvasRenderingContext2D, value: string, width: number) {
   if (ctx.measureText(value).width <= width) return value;
-  let out = value;
-  while (out && ctx.measureText(out + "…").width > width) out = out.slice(0, -1);
-  return out + "…";
+  const parts = wrapJournalText(ctx, value, 0);
+  while (parts.length && ctx.measureText(parts.join("") + "…").width > width) parts.pop();
+  return parts.join("") + "…";
 }
 
 function loadCoverImage(source: string) {
@@ -394,7 +394,6 @@ async function journalCoverImage(entry: ReviewEntry) {
 type CoverPalette = { background: string; ink: string };
 const COVER_PAPER: CoverPalette = { background: "#e6ece7", ink: "#245448" };
 const COVER_DARK: CoverPalette = { background: "#24463b", ink: "#9bd4bf" };
-const COVER_RANK: CoverPalette = { background: "#1d3a30", ink: "#d8a94b" };
 
 async function drawJournalCover(ctx: CanvasRenderingContext2D, entry: ReviewEntry, x: number, y: number, size: number, placeholder = true, palette: CoverPalette = COVER_PAPER, radius = 0) {
   if (placeholder) {

@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>年度专辑榜单 · 唱片收藏册</title>
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #deddd8; color: #14110e; font: 14px/1.6 "Microsoft YaHei", "PingFang SC", system-ui; }
+  header { max-width: 1080px; margin: 0 auto; padding: 24px 20px 18px; }
+  h1 { font-size: 18px; margin: 0 0 4px; font-weight: 600; }
+  p { margin: 0 0 14px; }
+  .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px; }
+  label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; min-height: 32px; }
+  input { accent-color: #14110e; width: 16px; height: 16px; }
+  button { color: inherit; background: transparent; border: 1px solid #14110e; padding: 7px 14px; font: inherit; cursor: pointer; }
+  .pages { margin: 18px 0; } button[aria-pressed="true"] { background: #14110e; color: #f2efe6; }
+  :focus-visible { outline: 2px solid #14110e; outline-offset: 4px; }
+  main { max-width: 1120px; padding: 0 20px 32px; margin: auto; }
+  canvas { display: block; width: 100%; height: auto; background: #f2efe6; }
+  @media print { header { display: none; } body { background: #f2efe6; } main { padding: 0; } }
+</style>
+<header>
+  <h1>年度专辑榜单 · 唱片收藏册</h1>
+  <p>三张画面，依次呈现 11–15 名、4–10 名和前三名。专辑、评分、理由及封面均为演示内容。</p>
+  <nav class="controls pages" aria-label="切换榜单画面"><button type="button" data-page="0" aria-pressed="true">11–15 名</button><button type="button" data-page="1" aria-pressed="false">4–10 名</button><button type="button" data-page="2" aria-pressed="false">前三名</button></nav><div class="controls" aria-label="预览选项">
+    <label><input id="hideBrand" type="checkbox">隐藏应用名</label>
+    <label><input id="hideDate" type="checkbox">隐藏日期</label>
+    <label><input id="hideRating" type="checkbox">隐藏评分</label>
+    <label><input id="hideContent" type="checkbox">隐藏理由</label>
+    <button id="save" type="button">保存这张 PNG</button>
+  </div>
+</header>
+<main><canvas id="poster" width="1080" height="1680" role="img" aria-label="暖纸白底、砖红名次的年度专辑榜单。五条演示专辑：夜行列车、潮汐记、未完成的夏天、房间里的回声、最后一班渡轮。"></canvas></main>
+<script>
+  const canvas = document.querySelector('#poster');
+  const ctx = canvas.getContext('2d');
+  const paper = '#F2EFE6', ink = '#14110E', accent = '#B23A2E';
+  const serif = '"Noto Serif SC", "Songti SC", "SimSun", "Microsoft YaHei", "PingFang SC", system-ui';
+  const sans = '"Microsoft YaHei", "PingFang SC", system-ui';
+  const bodyTop = 420, bodyBottom = 1560;
+  let activePage = 0;
+  // ponytail: 仅演示完整15张榜单的三档布局；接入产品时在原分页器处理不足15张等实际数据。
+  const albums = [
+    { name: '夜行列车', artist: '林一', rating: '9 / 10', notes: ['最常在回家路上点开的一张。', '鼓声很轻，贝斯一直往前走。', '听到最后一首才舍得摘耳机。'], cover: 'train' },
+    { name: '潮汐记', artist: '海边的房间', rating: '9 / 10', notes: ['后来才听见人声后面的细节。', '适合从头听完，不急着切歌。', '每次重听，都多喜欢一点。'], cover: 'sea' },
+    { name: '未完成的夏天', artist: '午后电台', rating: '9 / 10', notes: ['录音里留着一点房间的声音。', '第三首反复听了很多次。', '这一年的夏天，就留在这里。'], cover: 'summer' },
+    { name: '房间里的回声', artist: '慢速行星', rating: '8 / 10', notes: ['编曲很少，却没有一处显得空。', '小音量听，也能听见细节。'], cover: 'room' },
+    { name: '最后一班渡轮', artist: '陈禾', rating: '8 / 10', notes: ['在旅途中听完，回来后又听了一遍。', '最喜欢结尾没有唱完的那半句话。'], cover: 'sea' },
+    { name: '沿街的树', artist: '白昼散步', rating: '8 / 10', notes: ['木吉他的音色很干净。', '每首都不长，很适合步行时听。'], cover: 'summer' },
+    { name: '低空飞行', artist: '远山', rating: '8 / 10', notes: ['开头的鼓点一下就把人拉进去。', '现场录音里的呼吸声也保留了。'], cover: 'train' },
+    { name: '蓝色星期日', artist: '小岛乐队', rating: '8 / 10', notes: ['有几首旋律，听完一天还在脑中。', '不用集中注意力，也不会错过它。'], cover: 'sea' },
+    { name: '空房间练习', artist: '周末排练', rating: '8 / 10', notes: ['喜欢键盘和人声之间的距离。', '像隔着门听朋友排练。'], cover: 'room' },
+    { name: '雨停以前', artist: '许岸', rating: '8 / 10', notes: ['钢琴没有弹满，留了许多停顿。', '最后一首的尾音尤其舍不得跳过。'], cover: 'train' },
+    { name: '慢慢经过', artist: '清晨五点', rating: '8 / 10', notes: ['没有特别抢耳的开场，却越听越顺。', '这几个月一直留在播放列表里。'], cover: 'room' },
+    { name: '岛屿来信', artist: '南方窗口', rating: '8 / 10', notes: ['和声一层层叠进来，很耐听。', '喜欢它明亮却不热闹的样子。'], cover: 'sea' },
+    { name: '一小段晴天', artist: '叶青', rating: '8 / 10', notes: ['把平常的一天唱得很具体。', '午休时听完，下午的心情会好一点。'], cover: 'summer' },
+    { name: '窗外的声音', artist: '静物组合', rating: '8 / 10', notes: ['环境声和乐器衔接得很自然。', '雨声进来的那一段，值得戴耳机听。'], cover: 'room' },
+    { name: '远处还有灯', artist: '林间小路', rating: '8 / 10', notes: ['节奏放得慢，歌词也不急着说完。', '适合睡前听，音量不用开得很大。'], cover: null },
+  ];
+  const layouts = [
+    { first: 11, last: 15, label: '第 11—15 名', coverSize: 176, coverX: 144, textX: 360, coverTop: 22, titleTop: 56, titleSize: 32, metaTop: 94, noteTop: 140, noteSize: 26, noteLeading: 36 },
+    { first: 4, last: 10, label: '第 4—10 名', coverSize: 144, coverX: 160, textX: 344, coverTop: 8, titleTop: 35, titleSize: 30, metaTop: 68, noteTop: 106, noteSize: 24, noteLeading: 32 },
+    { first: 1, last: 3, label: '前三名', coverSize: 256, coverX: 152, textX: 456, coverTop: 42, titleTop: 92, titleSize: 38, metaTop: 136, noteTop: 194, noteSize: 28, noteLeading: 40 },
+  ];
+  function text(value, x, y, size, weight = 400, color = ink, family = sans) {
+    ctx.font = `${weight} ${size}px ${family}`;
+    ctx.fillStyle = color;
+    ctx.fillText(value, x, y);
+  }
+  function line(x, y, width, color) {
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y, width, 1);
+  }
+  function cover(kind, x, y, size, name) {
+    ctx.save();
+    ctx.translate(x, y); ctx.scale(size / 128, size / 128);
+    ctx.beginPath(); ctx.rect(0, 0, 128, 128); ctx.clip();
+    const rect = (color, x, top, width, height) => { ctx.fillStyle = color; ctx.fillRect(x, top, width, height); };
+    // 原创几何示意封面，颜色属于封面图像，不属于榜单版式用墨。
+    if (kind === 'train') {
+      rect('#1E3037', 0, 0, 128, 128); rect('#52646A', 9, 0, 3, 128);
+      rect('#B8C7C3', 22, 19, 84, 62); rect('#617B7E', 22, 57, 84, 24);
+      rect('#1E3037', 61, 19, 5, 62); rect('#87928D', 0, 99, 128, 1);
+      text(name, 12, 117, 12, 400, '#F2EFE6');
+    } else if (kind === 'sea') {
+      rect('#CAD5CB', 0, 0, 128, 128); rect('#739B9D', 0, 52, 128, 76);
+      rect('#3D727C', 0, 81, 128, 47); rect('#E9E5D4', 0, 77, 86, 2);
+      rect('#E9E5D4', 45, 103, 83, 1); text(name, 12, 30, 14, 700, '#203A43', serif);
+    } else if (kind === 'summer') {
+      rect('#D9C69D', 0, 0, 128, 128); rect('#BC6849', 14, 0, 5, 128);
+      rect('#486557', 48, 38, 54, 61); rect('#DFD9B7', 55, 45, 40, 54);
+      rect('#486557', 73, 45, 3, 54); rect('#486557', 55, 68, 40, 3);
+      text(name, 12, 119, 12, 400, '#3D3D2C');
+    } else if (kind === 'room') {
+      rect('#C5BEB5', 0, 0, 128, 128); rect('#484A4B', 0, 0, 38, 128);
+      rect('#92857B', 38, 92, 90, 36); rect('#DDD6CA', 64, 16, 41, 59);
+      rect('#484A4B', 69, 57, 23, 2); text(name, 12, 115, 12, 400, '#292725', serif);
+    } else {
+      ctx.strokeStyle = ink; ctx.lineWidth = 1; ctx.strokeRect(.5, .5, 127, 127);
+      text('暂无封面', 24, 70, 20);
+    }
+    ctx.restore();
+  }
+  function draw() {
+    const layout = layouts[activePage];
+    const pageAlbums = albums.slice(layout.first - 1, layout.last);
+    const slotHeight = (bodyBottom - bodyTop) / pageAlbums.length;
+    ctx.fillStyle = paper; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.textAlign = 'left'; ctx.textBaseline = 'alphabetic';
+    text(document.querySelector('#hideBrand').checked ? '2026' : '小懂哥 · 2026', 72, 132, 24);
+    line(72, 160, 936, accent);
+    text('年度专辑榜单', 72, 280, 64, 700, ink, serif);
+    text(layout.label, 72, 342, 24, 400);
+    pageAlbums.forEach((album, index) => {
+      const top = bodyTop + index * slotHeight;
+      const rank = String(layout.first + index).padStart(2, '0');
+      [...rank].forEach((digit, i) => text(digit, 72 + i * 23, top + layout.titleTop, 40, 400, accent));
+      cover(album.cover, layout.coverX, top + layout.coverTop, layout.coverSize, album.name);
+      text(album.name, layout.textX, top + layout.titleTop, layout.titleSize, 700);
+      text(album.artist + (document.querySelector('#hideRating').checked ? '' : ` · ${album.rating}`), layout.textX, top + layout.metaTop, 24);
+      if (!document.querySelector('#hideContent').checked) {
+        album.notes.forEach((note, i) => text(note, layout.textX, top + layout.noteTop + i * layout.noteLeading, layout.noteSize));
+      }
+      if (index < pageAlbums.length - 1) line(layout.textX, Math.round(top + slotHeight), 1008 - layout.textX, accent);
+    });
+    line(72, 1590, 936, ink);
+    if (!document.querySelector('#hideDate').checked) text('整理于 2026.09.15', 72, 1632, 22);
+    ctx.textAlign = 'right'; text(`第 ${activePage + 1} / ${layouts.length} 页`, 1008, 1632, 22);
+    canvas.setAttribute('aria-label', `年度专辑榜单，${layout.label}。${pageAlbums.map((album, i) => `第${layout.first + i}名：${album.name}`).join('；')}。示例内容。`);
+    document.querySelectorAll('[data-page]').forEach(button => button.setAttribute('aria-pressed', String(Number(button.dataset.page) === activePage)));
+  }
+  document.querySelectorAll('[data-page]').forEach(button => button.addEventListener('click', () => { activePage = Number(button.dataset.page); draw(); }));
+  document.querySelectorAll('input').forEach(input => input.addEventListener('change', draw));
+  document.querySelector('#save').addEventListener('click', () => {
+    const link = document.createElement('a');
+    link.download = `codex_rank_collector_page_${activePage + 1}.png`; link.href = canvas.toDataURL('image/png'); link.click();
+  });
+  draw();
+</script>
+</html>
