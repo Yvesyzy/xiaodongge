@@ -1,5 +1,6 @@
-时间: 2026-09-12 00:15
+时间: 2026-09-15 08:30（最新一轮，见文末「第八轮」）
 作者: abu
+说明: 以下「做了什么 / 验证结果」为历史轮次总述（截至 2026-09-12）；当前状态、下一步、阻塞项见文末第八轮。
 做了什么:
 - 新拟物 v2 改进（分支 abu-neumorphism-v2，未合并 main、未推送）：
   1. 光影基础：阴影色 #d4d8ce → #c8cfc2（与纸面 #f2f1eb 明度差 9% → 15%），高光 #ffffffa6 → #fffffff0，深色阅读阴影 #0e1713 → #0b1310。统一左上光源。
@@ -94,3 +95,23 @@
 - 可考虑合回 main（Yves 定时机）；底栏悬浮遮挡仍未动；build ps1 脚本未修（修时须带 -I abu_init_mirror.gradle）。
 阻塞项（如有）:
 - 无新增。git packed-refs 根因仍待 codex 复核（见早班记录）。
+
+第八轮（接手 zcode 未完成的 v2.8.0 发布收口）:
+时间: 2026-09-15 08:30
+作者: abu
+做了什么:
+- 背景: zcode 做 v2.8.0 更新与推送，在最后一步 git commit 后额度耗尽中断，未收尾。
+- 核实 main: 不以本地引用为准，改以服务端为权威 —— git ls-remote origin refs/heads/main 与 gh api repos/Yvesyzy/xiaodongge/commits/main 均为 17f9234，与本地 HEAD 一致；git push origin main 返回 Everything up-to-date（no-op）。结论: zcode 的推送在额度耗尽前已落地，无需补推。
+- 澄清本地假象（未修，不声称修）: .git/packed-refs（落盘 2026-09-13 00:58）中 refs/remotes/origin/main = 893252e 为过期副本，且 .git/refs/remotes/ 为空目录、无任何松散引用 → git rev-parse origin/main 只能读到过期值，误报"落后 6 个提交"（那 6 个提交实际都在远端）。尝试 update-ref 修复: 退出码 0 但引用未变、松散引用文件未落地，与本仓库既有 ref 写入异常（core.fscache 跨进程不可见、带斜杠分支名写不进 refs）同源。
+- release 资产验证（curl 在本沙箱对全域返回 HTTP 000，含 baidu，无法复现原计划的 HTTP 200 断言，改走已授权的 gh 通道）: APK 资产 digest sha256:2a3d8619…9372 = 本地 release/xiaodongge-v2.8.0.apk 实测 sha256；size 68141985 = 本地一致；线上 sha256.txt 与本地逐字节一致；isDraft=false / isPrerelease=false / 资产 state=uploaded。
+- APK 内容级验证（独立于 zcode 的模拟器截图）: 解包已发布包，assets/public/index.html 引用 index-G9xv5KbQ.js，该 bundle 内 var bf=`2.8.0`（bf 即压缩后的 APP_VERSION）→ 版本显示修复确在线上包内。
+- 非阻断发现: 同一 APK 内残留首轮构建（2026-09-13 02:52）的 index-CLIqca3n.js（bf=`2.7.5`）与 web-C56CkqOT.js / web-CjzINfgv.js，压缩共约 180 KB，均未被 index.html 引用，功能不受影响。根因线索: build-android-debug.ps1 构建前清空 mobile\dist 与 android\app\src\main\assets\public（第 44-45 行），build-android-release.ps1 无此两步、只靠 vite emptyOutDir，而 cap sync 不清理目标 assets/；确切触发条件未复现，标记待查。
+验证结果:
+- main 与服务端一致、release 两资产齐备正确、线上 APK 含 2.8.0 版本修复：三项均已确认。
+- 交接文档 docs/session_summary_2026-09-15-abu.md（含完整证据链与本沙箱限制说明）。
+当前状态: 完成（v2.8.0 发布链路逐环核对完毕）。
+下一步:
+- 修 scripts/build-android-release.ps1 的清理缺口（补清 mobile\dist 与 android\app\src\main\assets\public，对齐 debug 脚本做法）。
+- 修 .git 引用写入异常（复核 core.fscache 与 packed-refs 过期副本的相互作用）；在此之前，判断"是否已推送"一律用 git ls-remote / gh api。
+阻塞项（如有）:
+- 无阻塞。上述两项为待修的既有缺陷，不影响 v2.8.0 已发布状态。

@@ -53,7 +53,9 @@
 
 ## 下一步（供 Yves 决策）
 
-1. **发布上线（手动）**：push main 到 GitHub → 建 v2.8.0 release → 上传 `xiaodongge-v2.8.0.apk` 与 `xiaodongge-v2.8.0.sha256.txt`（README 下载链接已指向该 release，上传前链接 404）。
+> **2026-09-15 abu 注**：下列第 1 项已完成，由 zcode 于本轮推送落地（远端 `refs/heads/main` = `17f9234`，Release 两资产已验证），本条不再待办。核验证据见 `docs/session_summary_2026-09-15-abu.md`。第 2–4 项仍有效。
+
+1. ~~**发布上线（手动）**：push main 到 GitHub → 建 v2.8.0 release → 上传 `xiaodongge-v2.8.0.apk` 与 `xiaodongge-v2.8.0.sha256.txt`（README 下载链接已指向该 release，上传前链接 404）。~~ **已完成（2026-09-15）**
 2. 可选迭代：把年度榜单加入 1080×1680 PNG 导出体系（`codex_yearbookPages.ts` 加一种 kind）。
 3. 可选迭代：封面页预览「查看完整榜单」按钮文案精简（如「完整榜单」）避免折行。
 4. 旧版本 App 导入含 `top-albums:` 键的备份会报「不支持的键」；v2.8.0 覆盖安装后无此问题。
