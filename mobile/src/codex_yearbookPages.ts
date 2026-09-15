@@ -1,9 +1,9 @@
 import type { ReviewEntry } from "./types";
-import type { JournalEdition } from "../../shared/backupAppData";
+import type { JournalEdition, YearTopAlbum, YearTopAlbums } from "../../shared/backupAppData";
 import { ENTRY_TYPE_LABELS } from "./types";
 import { journalCover, journalDate, journalEntries, journalFuture, journalMonths, journalRating, journalTitle } from "./codex_yearbookModel";
 
-export type JournalExportKind = "cover" | "overview" | "index" | "works";
+export type JournalExportKind = "cover" | "overview" | "index" | "works" | "rank";
 export type JournalShareTheme = "paper" | "dark";
 export type JournalImageOptions = {
   hideContent?: boolean;
@@ -12,6 +12,8 @@ export type JournalImageOptions = {
   hideBrand?: boolean;
   edition?: JournalEdition;
   theme?: JournalShareTheme;
+  /** Annual top-albums ranking; required by the "rank" export kind. */
+  topAlbums?: YearTopAlbums;
   /** Explicit single review mode; annual exports keep their normal filtering. */
   review?: boolean;
 };
@@ -23,6 +25,8 @@ export type JournalImagePage = {
   entry?: ReviewEntry;
   continuation?: boolean;
   workLabel?: string;
+  /** 1-based ranking shown on each line of the "rank" export. */
+  ranks?: number[];
 };
 export const JOURNAL_WIDTH = 1080;
 export const JOURNAL_HEIGHT = 1680;
@@ -64,6 +68,8 @@ export function wrapJournalText(ctx: CanvasRenderingContext2D, text: string, wid
 
 export async function planJournalPages(year: number, input: ReviewEntry[], kind: JournalExportKind, options: JournalImageOptions = {}): Promise<JournalImagePage[]> {
   if (typeof document !== "undefined" && document.fonts) await document.fonts.ready;
+  // The ranking is self-contained (an album may outlive its review), so it never consumes the annual entry pool.
+  if (kind === "rank") return planRankPages(year, input, options.topAlbums);
   // The review flag is deliberately explicit so a month/year reflection cannot enter annual exports by accident.
   const entries = options.review ? input.slice() : journalEntries(input, year);
   if (!entries.length) throw new Error("这一年没有可导出的正式音乐记录");
@@ -105,6 +111,62 @@ export async function planJournalPages(year: number, input: ReviewEntry[], kind:
   return pages;
 }
 
+// Each ranked album occupies a fixed 6-line slot (1 title + 1 meta + up to 3 note lines + 1 gap).
+// The slot uses a tighter 42px leading than the body's 46px; capacity is derived from the measured
+// body area so a slot can never overrun the footer rule. No album is ever split across pages.
+const RANK_ITEM_LINES = 5;
+const RANK_LINE_HEIGHT = 42;
+const RANK_NOTE_LINES = 2;
+const RANK_BODY_TOP = 320;
+const RANK_BODY_BOTTOM = 1560;
+// Capacity is derived from the measured body area, so a slot can never overrun the footer rule.
+const RANK_PAGE_ITEMS = Math.floor((RANK_BODY_BOTTOM - RANK_BODY_TOP) / (RANK_ITEM_LINES * RANK_LINE_HEIGHT));
+
+function planRankPages(year: number, entries: ReviewEntry[], albums: YearTopAlbums | undefined): JournalImagePage[] {
+  const list = albums?.albums ?? [];
+  if (!list.length) throw new Error("还没有年度专辑榜单可导出；先创建榜单并保存");
+  const ctx = canvasContext();
+  const pages: JournalImagePage[] = [];
+  let index = 0;
+  while (index < list.length) {
+    const slice = list.slice(index, index + RANK_PAGE_ITEMS);
+    const lines: string[] = [];
+    const ranks: number[] = [];
+    for (const [offset, album] of slice.entries()) {
+      const rank = index + offset + 1;
+      const entry = rankEntryFor(album, entries, year);
+      ranks.push(rank);
+      lines.push(`${String(rank).padStart(2, "0")}　${album.albumName}`);
+      lines.push(`${album.artistName || "未填写音乐人"} · ${rankRatingLabel(entry)}`);
+      // A note longer than two lines is clipped here; the on-screen ranking keeps the full text.
+      const noteLines = wrapJournalText(ctx, album.note.trim(), TEXT_WIDTH - 62);
+      noteLines.slice(0, RANK_NOTE_LINES).forEach((line) => lines.push(line));
+      if (noteLines.length > RANK_NOTE_LINES) lines[lines.length - 1] = lines[lines.length - 1].slice(0, -1) + "…";
+      for (let pad = Math.min(noteLines.length, RANK_NOTE_LINES); pad < RANK_NOTE_LINES; pad++) lines.push("");
+      lines.push("");
+    }
+    pages.push({ kind: "rank", title: pages.length ? "我的年度专辑榜单 · 续" : "我的年度专辑榜单", lines, entryIds: [], ranks });
+    index += RANK_PAGE_ITEMS;
+  }
+  return pages;
+}
+
+// A ranking album may outlive its review, so the rating falls back to a dash instead of failing the export.
+function rankEntryFor(album: YearTopAlbum, entries: ReviewEntry[], year: number) {
+  const key = JSON.stringify([album.albumName, album.artistName ?? ""]);
+  return journalEntries(entries, year).find((entry) => entry.type === "album" && JSON.stringify([entry.albumName, entry.artistName ?? ""]) === key);
+}
+
+function rankRatingLabel(entry: ReviewEntry | undefined) {
+  return entry ? journalRating(entry) : "原记录已删除";
+}
+
+function rankSubtitle(year: number, entries: ReviewEntry[], options: JournalImageOptions) {
+  const albums = options.topAlbums?.albums ?? [];
+  const graded = albums.filter((album) => rankEntryFor(album, entries, year)).length;
+  return `名次由你排序 · 共 ${albums.length} 张专辑${graded ? ` · ${graded} 张有评分记录` : ""}`;
+}
+
 export async function renderJournalPage(year: number, entries: ReviewEntry[], page: JournalImagePage, index: number, total: number, now = new Date(), options: JournalImageOptions = {}) {
   const ctx = canvasContext();
   const dark = options.theme === "dark";
@@ -120,14 +182,35 @@ export async function renderJournalPage(year: number, entries: ReviewEntry[], pa
   };
   text([!options.hideBrand && "小懂哥", !(options.review && options.hideDate) && String(year)].filter(Boolean).join(" · "), 72, 90, 28, color, 600);
   text(page.title, 72, 180, 54, ink, 700);
-  text(page.kind === "works" && page.entry ? `记录 ${entries.findIndex((entry) => entry.id === page.entry!.id) + 1} / ${entries.length}${options.hideDate ? "" : ` · ${journalDate(page.entry)}`}` : `按首次正式保存时间 · ${entries.length} 篇正式音乐记录`, 72, 235, 26, muted);
+  text(page.kind === "rank" ? rankSubtitle(year, entries, options) : page.kind === "works" && page.entry ? `记录 ${entries.findIndex((entry) => entry.id === page.entry!.id) + 1} / ${entries.length}${options.hideDate ? "" : ` · ${journalDate(page.entry)}`}` : `按首次正式保存时间 · ${entries.length} 篇正式音乐记录`, 72, 235, 26, muted);
   if (page.kind === "works" && page.continuation && page.workLabel) {
     ctx.font = `600 28px ${FONT}`;
     const labelLines = wrapJournalText(ctx, `继续：${page.workLabel}`);
     if (labelLines.length > 2) labelLines[1] = labelLines[1].slice(0, -1) + "…";
     labelLines.slice(0, 2).forEach((line, lineIndex) => text(line, 72, 280 + lineIndex * 34, 28, color, 600));
   }
-  if (page.kind === "cover") {
+  if (page.kind === "rank") {
+    page.lines.forEach((line, i) => {
+      const slot = Math.floor(i / RANK_ITEM_LINES);
+      const within = i % RANK_ITEM_LINES;
+      const rank = page.ranks?.[slot];
+      const y = RANK_BODY_TOP + i * RANK_LINE_HEIGHT;
+      // The rank number doubles as the visual anchor, so the album title is the only bold line in a slot.
+      if (within === 0 && rank) {
+        text(String(rank).padStart(2, "0"), 72, y, 30, color, 700);
+        text(line.slice(3), 134, y, 34, ink, 700);
+      } else if (within === 1) {
+        text(line, 134, y, 26, muted);
+      } else if (line) {
+        text(line, 134, y, 28, ink);
+      }
+      // The slot's trailing gap carries the hairline, so the rule never touches a note line.
+      if (within === RANK_ITEM_LINES - 1 && i < page.lines.length - 1) {
+        const ruleY = y - RANK_LINE_HEIGHT / 2;
+        ctx.strokeStyle = rule; ctx.beginPath(); ctx.moveTo(72, ruleY); ctx.lineTo(1008, ruleY); ctx.stroke();
+      }
+    });
+  } else if (page.kind === "cover") {
     if (page.entry) {
       const loaded = await drawJournalCover(ctx, page.entry, 270, 300, 540, false, options.theme);
       if (!loaded) {

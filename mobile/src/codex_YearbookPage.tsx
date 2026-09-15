@@ -2,7 +2,7 @@ import { EMPTY_EDITION, JournalEditor, journalQuote } from "./codex_JournalEdito
 import { EMPTY_TOP_ALBUMS, TopAlbumsEditor, topAlbumCandidates } from "./codex_TopAlbumsEditor";
 import { JOURNAL_EDITION_PREFIX, TOP_ALBUMS_PREFIX, readJournalEdition, readYearTopAlbums, type JournalEdition, type YearTopAlbum, type YearTopAlbums } from "../../shared/backupAppData";
 import { analyzeListeningEntries, applySemanticOverrides, type SemanticOverride } from "../../shared/listeningAnalysis";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { excerpt } from "./format";
 import { listEntryDrafts } from "./entryDraft";
@@ -29,6 +29,13 @@ export default function SimpleYearbookPage() {
   const rawYear = Number(params.get("year") ?? now.getFullYear());
   const year = Number.isInteger(rawYear) && rawYear >= 1 && rawYear <= 9999 ? rawYear : now.getFullYear();
   const view = params.get("view") ?? "cover";
+  // Track the previous tab so the incoming panel slides in from the side the user moved toward.
+  const previous = useRef(view === "months" ? "months" : "cover");
+  const slide = useRef<"forward" | "back">("forward");
+  if (previous.current !== (view === "months" ? "months" : "cover")) {
+    slide.current = view === "months" ? "forward" : "back";
+    previous.current = view === "months" ? "months" : "cover";
+  }
   useEffect(() => {
     let active = true;
     setAll(null); setError("");
@@ -43,10 +50,53 @@ export default function SimpleYearbookPage() {
     if (nextView === "months") next.delete("entry");
     return `/summary?${next.toString()}`;
   };
+  // Horizontal drag on the tab bar commits a tab change past a threshold, so the control also responds to swiping.
+  const drag = useRef({ id: -1, startX: 0, offset: 0, axis: "" as "" | "x" | "y" });
+  const track = useRef<HTMLElement>(null);
+  const activeTab = view === "months" ? "months" : "cover";
+  const swipeHandlers = {
+    onPointerDown: (event: React.PointerEvent<HTMLElement>) => {
+      if (event.pointerType === "mouse" && event.button !== 0) return;
+      drag.current = { id: event.pointerId, startX: event.clientX, offset: 0, axis: "" };
+    },
+    // Links and text inside the tab bar would otherwise start a native drag and starve pointermove.
+    onDragStart: (event: React.DragEvent<HTMLElement>) => event.preventDefault(),
+    onPointerMove: (event: React.PointerEvent<HTMLElement>) => {
+      if (drag.current.id !== event.pointerId) return;
+      const dx = event.clientX - drag.current.startX;
+      if (!drag.current.axis) {
+        if (Math.abs(dx) < 8) return;
+        drag.current.axis = "x";
+        (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+        track.current?.classList.add("journal-tabs-dragging");
+      }
+      // Clamp at the ends so the first/last tab resists rather than moving the highlight off the bar.
+      const atStart = activeTab === "cover" && dx > 0;
+      const atEnd = activeTab === "months" && dx < 0;
+      drag.current.offset = atStart || atEnd ? dx / 3 : dx;
+      track.current?.style.setProperty("--journal-tab-drag", `${drag.current.offset}px`);
+    },
+    onPointerUp: (event: React.PointerEvent<HTMLElement>) => {
+      if (drag.current.id !== event.pointerId) return;
+      const { offset, axis } = drag.current;
+      drag.current.id = -1;
+      track.current?.style.removeProperty("--journal-tab-drag");
+      track.current?.classList.remove("journal-tabs-dragging");
+      if (axis !== "x") return;
+      const width = (event.currentTarget as HTMLElement).getBoundingClientRect().width / 2;
+      if (Math.abs(offset) > Math.min(72, width * 0.4)) {
+        const next = new URLSearchParams(params);
+        next.set("year", String(year)); next.set("view", offset < 0 ? "months" : "cover");
+        if (offset < 0) next.delete("entry");
+        setParams(next);
+      }
+    },
+    onPointerCancel: () => { drag.current.id = -1; track.current?.style.removeProperty("--journal-tab-drag"); track.current?.classList.remove("journal-tabs-dragging"); },
+  };
   return <section className="journal journal-page">
     <div className="journal-nav"><Link to={view === "cover" ? "/" : `/summary?year=${year}`}>{view === "cover" ? "← 首页" : "← 我的音乐年记"}</Link><label className="journal-year"><span className="journal-sr-only">年度总结年份</span><select aria-label="年度总结年份" value={year} onChange={(e) => { const next = new URLSearchParams(params); next.set("year", e.target.value); setParams(next); }}>{years.map((y) => <option value={y} key={y}>{y}</option>)}</select></label></div>
-    <nav className="journal-tabs" aria-label="年度与月度回顾"><Link className={view === "months" ? "" : "active"} aria-current={view === "months" ? undefined : "page"} to={tabHref("cover")}>年度回顾</Link><Link className={view === "months" ? "active" : ""} aria-current={view === "months" ? "page" : undefined} to={tabHref("months")}>月度回顾</Link></nav>
-    {error ? <div role="alert"><p className="journal-error">{error}</p><button onClick={() => setReload((n) => n + 1)}>重新读取</button></div> : all === null ? <p role="status">正在读取年度记录…</p> : <JournalContent key={year} year={year} all={all} />}
+    <nav ref={track} className="journal-tabs" data-active={activeTab} aria-label="年度与月度回顾" {...swipeHandlers}><Link className={view === "months" ? "" : "active"} aria-current={view === "months" ? undefined : "page"} to={tabHref("cover")}>年度回顾</Link><Link className={view === "months" ? "active" : ""} aria-current={view === "months" ? "page" : undefined} to={tabHref("months")}>月度回顾</Link></nav>
+    {error ? <div role="alert"><p className="journal-error">{error}</p><button onClick={() => setReload((n) => n + 1)}>重新读取</button></div> : all === null ? <p role="status">正在读取年度记录…</p> : <div className={`journal-tab-panel journal-tab-${slide.current}`} key={`${year}:${activeTab}`}><JournalContent year={year} all={all} /></div>}
   </section>;
 }
 
@@ -115,7 +165,7 @@ function JournalContent({ year, all }: { year: number; all: ReviewEntry[] }) {
   const now = new Date();
   const cutoff = year < now.getFullYear() ? `${year}.12.31` : `${now.getFullYear()}.${String(now.getMonth() + 1).padStart(2, "0")}.${String(now.getDate()).padStart(2, "0")}`;
   const secondary = <JournalSecondaryNav year={year} />;
-  const exportDialog = exportKind ? <JournalExport year={year} entries={exportEntries} kind={exportKind} edition={edition} onClose={() => setExportKind(null)} /> : null;
+  const exportDialog = exportKind ? <JournalExport year={year} entries={exportEntries} kind={exportKind} edition={edition} topAlbums={topAlbums} onClose={() => setExportKind(null)} /> : null;
   const quoteEntries = [...edition.entryIds.map((id) => entries.find((entry) => entry.id === id)).filter((entry): entry is ReviewEntry => !!entry), ...entries.filter((entry) => !edition.entryIds.includes(entry.id))];
 
   if (view === "months") return <>
@@ -142,7 +192,7 @@ function JournalContent({ year, all }: { year: number; all: ReviewEntry[] }) {
       {topError && <p className="journal-error" role="alert">{topError}；榜单展示暂不可用，重新打开本页可重试。</p>}
       <div className="journal-actions journal-curation-actions"><Link className="journal-button" to={href("edit")}>编辑年度精选</Link>{edition.entryIds.length > 0 ? <span className="journal-muted">已选 {edition.entryIds.length} 篇代表作品</span> : null}</div>
       {edition.entryIds.length > 0 ? <section><h2>我的年度代表作品</h2>{edition.entryIds.map((id) => { const entry = entries.find((item) => item.id === id); return entry ? <Link className="journal-quote journal-representative" key={id} to={href("work", id)}><JournalCover entry={entry} /><div><small>{journalTitle(entry)} · {journalRating(entry)}</small><p>{journalQuote(entry, edition) ?? excerpt(entry.content, 100)}</p></div></Link> : null; })}</section> : <RecommendationSection entries={recommendations} href={href} />}
-      {topAlbums.albums.length > 0 ? <section><h2>我的年度专辑榜单</h2><div className="journal-rank-preview">{topAlbums.albums.slice(0, 5).map((album, index) => <Link className="journal-rank-item" key={topAlbumKey(album)} to={href("rank")}><span className="journal-rank-number" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span><JournalCover entry={rankCoverEntry(album, year)} /><div className="journal-rank-info"><strong>{album.albumName}</strong><small>{album.artistName || "未填写音乐人"} · {rankMeta(album)}</small></div></Link>)}</div><div className="journal-actions"><Link className="journal-button" to={href("rank")}>查看完整榜单（{topAlbums.albums.length} 张）</Link><Link className="journal-button" to={href("rank-edit")}>编辑榜单</Link></div></section> : <section><h2>我的年度专辑榜单</h2><div className="journal-empty"><span aria-hidden="true" className="journal-empty-icon">♪</span><p>选出这一年你最中意的 15 张专辑，排下名次、写下入选理由。</p><div className="journal-stack"><Link className="journal-primary" to={href("rank-edit")}>创建年度榜单</Link></div></div></section>}
+      {topAlbums.albums.length > 0 ? <section><h2>我的年度专辑榜单</h2><div className="journal-rank-preview">{topAlbums.albums.slice(0, 5).map((album, index) => <Link className="journal-rank-item" key={topAlbumKey(album)} to={href("rank")}><span className="journal-rank-number" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span><JournalCover entry={rankCoverEntry(album, year)} /><div className="journal-rank-info"><strong>{album.albumName}</strong><small>{album.artistName || "未填写音乐人"} · {rankMeta(album)}</small></div></Link>)}</div><div className="journal-actions"><Link className="journal-button" to={href("rank")}>查看完整榜单（{topAlbums.albums.length} 张）</Link><Link className="journal-button" to={href("rank-edit")}>编辑榜单</Link></div><div className="journal-actions"><button onClick={() => setExportKind("rank")}>保存榜单图片（{topAlbums.albums.length} 张）</button></div></section> : <section><h2>我的年度专辑榜单</h2><div className="journal-empty"><span aria-hidden="true" className="journal-empty-icon">♪</span><p>选出这一年你最中意的 15 张专辑，排下名次、写下入选理由。</p><div className="journal-stack"><Link className="journal-primary" to={href("rank-edit")}>创建年度榜单</Link></div></div></section>}
       <h2>这一年的记录</h2><div className="journal-contents"><Link to={href("overview")}>作品与记录日历 <span>{entries.length} 篇 →</span></Link><Link to={href("quotes")}>年度摘录 <span>查看 →</span></Link></div>
       <div className="journal-quote"><small>原文摘录 · {journalTitle(cover)}</small><p>{journalQuote(cover, edition) ?? excerpt(cover.content, 100)}</p></div>
     </>}
@@ -164,7 +214,8 @@ function JournalContent({ year, all }: { year: number; all: ReviewEntry[] }) {
       {topError ? <p className="journal-error" role="alert">{topError}；重新打开本页可重试。</p> : !topReady ? <p role="status">正在读取年度榜单…</p> : topAlbums.albums.length ? <>
         <p className="journal-stat"><strong>{topAlbums.albums.length}</strong> 张专辑 <span>最多 15 张</span></p>
         <ol className="journal-rank-list">{topAlbums.albums.map((album, index) => <li className="journal-rank-item" key={topAlbumKey(album)}><span className="journal-rank-number" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span><JournalCover entry={rankCoverEntry(album, year)} /><div className="journal-rank-info"><strong>{album.albumName}</strong><small>{album.artistName || "未填写音乐人"} · {rankMeta(album)}</small>{album.note.trim() && <p>{album.note}</p>}</div></li>)}</ol>
-        <div className="journal-actions"><Link className="journal-primary" to={href("rank-edit")}>编辑榜单</Link><Link className="journal-button" to={href("cover")}>返回年度封面</Link></div>
+        <div className="journal-actions"><button className="journal-primary" onClick={() => setExportKind("rank")}>保存榜单图片</button><Link className="journal-button" to={href("cover")}>返回年度封面</Link></div>
+        <div className="journal-actions"><Link className="journal-button" to={href("rank-edit")}>编辑榜单</Link></div>
       </> : <div className="journal-empty"><span aria-hidden="true" className="journal-empty-icon">♪</span><h2>还没有创建年度榜单</h2><p>从今年的专辑乐评里挑出你最中意的作品吧。</p><div className="journal-stack"><Link className="journal-primary" to={href("rank-edit")}>创建年度榜单</Link></div></div>}
     </>}
     {view === "rank-edit" && <>

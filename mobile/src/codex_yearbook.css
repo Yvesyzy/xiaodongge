@@ -13,9 +13,24 @@
 .journal-nav h2 { margin: 0; }
 .journal-nav > a { color: var(--journal-green); min-height: 44px; display: flex; align-items: center; }
 .journal-year select { border: 0; color: var(--journal-green); font-weight: 600; }
-.journal-tabs { display: grid; grid-template-columns: 1fr 1fr; margin: 18px 0 26px; border-bottom: 1px solid #bdc9c2; }
-.journal-tabs a { display: flex; justify-content: center; align-items: center; min-height: 44px; color: #606b64; border-bottom: 3px solid transparent; }
-.journal-tabs a.active { color: var(--journal-green); border-bottom-color: var(--journal-green); font-weight: 650; }
+.journal-tabs { --journal-tab-drag: 0px; position: relative; display: grid; grid-template-columns: 1fr 1fr; margin: 18px 0 26px; border-bottom: 1px solid #bdc9c2; touch-action: pan-y; user-select: none; }
+.journal-tabs a { -webkit-user-drag: none; }
+.journal-tabs a { display: flex; justify-content: center; align-items: center; min-height: 44px; color: #606b64; }
+.journal-tabs a.active { color: var(--journal-green); font-weight: 650; }
+/* The underline follows the finger while dragging, then settles onto the destination tab. */
+.journal-tabs::after { content: ""; position: absolute; bottom: -1px; left: 0; width: 50%; height: 3px; background: var(--journal-green); transform: translateX(calc(var(--journal-tab-drag) + var(--journal-tab-base, 0%))); transition: transform 260ms cubic-bezier(.22, .61, .36, 1); }
+.journal-tabs[data-active="months"] { --journal-tab-base: 100%; }
+.journal-tabs.journal-tabs-dragging::after { transition: none; }
+@media (prefers-reduced-motion: reduce) { .journal-tabs::after { transition: none; } }
+/* Panels slide in from the direction of travel; reduced-motion keeps the cross-fade only. */
+.journal-tab-panel { animation: journal-slide-in 280ms cubic-bezier(.22, .61, .36, 1); }
+.journal-tab-panel.journal-tab-back { animation-name: journal-slide-in-back; }
+@keyframes journal-slide-in { from { opacity: 0; transform: translateX(28px); } to { opacity: 1; transform: none; } }
+@keyframes journal-slide-in-back { from { opacity: 0; transform: translateX(-28px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) {
+  .journal-tab-panel, .journal-tab-panel.journal-tab-back { animation: journal-fade-in 160ms linear; }
+}
+@keyframes journal-fade-in { from { opacity: 0; } to { opacity: 1; } }
 .journal-muted, .journal small { color: #606b64; font-size: 13px; }
 .journal-stat { margin: 22px 0 !important; }
 .journal-stat strong { color: var(--journal-green); font-size: 23px; font-weight: 600; }

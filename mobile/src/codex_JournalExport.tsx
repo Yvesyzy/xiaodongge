@@ -3,7 +3,7 @@ import { Capacitor } from "@capacitor/core";
 import { NativeExport } from "./nativeExport";
 import { blobToBase64, downloadBlob } from "./shareCard";
 import { planJournalPages, renderJournalPage, type JournalExportKind, type JournalImagePage } from "./codex_yearbookPages";
-import type { JournalEdition } from "../../shared/backupAppData";
+import type { JournalEdition, YearTopAlbums } from "../../shared/backupAppData";
 import type { JournalImageOptions } from "./codex_yearbookPages";
 import type { ReviewEntry } from "./types";
 
@@ -12,20 +12,22 @@ export type JournalExportProps = {
   entries: ReviewEntry[];
   kind: JournalExportKind;
   edition?: JournalEdition;
+  /** Required when kind is "rank". */
+  topAlbums?: YearTopAlbums;
   onClose: () => void;
   /** Render the exporter inside another share surface instead of opening a dialog. */
   review?: boolean;
   imageOptions?: JournalImageOptions;
 };
 
-export function JournalExport({ year, entries, kind, edition, onClose, review = false, imageOptions }: JournalExportProps) {
+export function JournalExport({ year, entries, kind, edition, topAlbums, onClose, review = false, imageOptions }: JournalExportProps) {
   const dialog = useRef<HTMLDialogElement>(null);
   const lock = useRef(false);
   const [pages, setPages] = useState<JournalImagePage[]>([]);
   const [page, setPage] = useState(0);
   const [image, setImage] = useState<{ blob: Blob; url: string; page: number } | null>(null);
   const [privacy, setPrivacy] = useState({ hideContent: imageOptions?.hideContent ?? false, hideRating: imageOptions?.hideRating ?? false, hideDate: imageOptions?.hideDate ?? false, hideBrand: imageOptions?.hideBrand ?? false });
-  const options = useMemo(() => ({ ...privacy, ...imageOptions, edition: edition ?? imageOptions?.edition, review: review || imageOptions?.review }), [privacy, imageOptions, edition, review]);
+  const options = useMemo(() => ({ ...privacy, ...imageOptions, edition: edition ?? imageOptions?.edition, topAlbums: topAlbums ?? imageOptions?.topAlbums, review: review || imageOptions?.review }), [privacy, imageOptions, edition, topAlbums, review]);
   const [selected, setSelected] = useState<number[]>([]);
   const [saved, setSaved] = useState<number[]>([]);
   const [error, setError] = useState("");
@@ -159,8 +161,8 @@ export function JournalExport({ year, entries, kind, edition, onClose, review = 
   const nearby = pages.map((_, i) => i).slice(Math.max(0, page - 2), page + 3);
   const content = <>
     <div className="journal-export-scroll">
-      <div className="journal-nav"><h2 id="journal-export-title">{review ? "完整作品分页" : kind === "works" ? "作品全文分页" : kind === "index" ? "全部记录索引" : "图片预览"}</h2><button onClick={onClose} disabled={busy} aria-label={review ? "返回摘录预览" : "关闭图片预览"}>{review ? "返回摘录预览" : "关闭"}</button></div>
-      <p className="journal-muted">收录 {entries.length} 篇正式记录 · 共 {pages.length} 页。{review ? "完整正文自动续页。" : kind === "works" ? "长正文自动续页。" : kind === "index" ? "收录全年全部记录，不受筛选影响。" : "本图为概览，完整内容可另存作品页。"}导出与预览一致。</p>
+      <div className="journal-nav"><h2 id="journal-export-title">{review ? "完整作品分页" : kind === "works" ? "作品全文分页" : kind === "index" ? "全部记录索引" : kind === "rank" ? "年度专辑榜单" : "图片预览"}</h2><button onClick={onClose} disabled={busy} aria-label={review ? "返回摘录预览" : "关闭图片预览"}>{review ? "返回摘录预览" : "关闭"}</button></div>
+      <p className="journal-muted">{kind === "rank" ? <>收录 {topAlbums?.albums.length ?? 0} 张榜单专辑 · 共 {pages.length} 页。名次与入选理由导出与预览一致{privacy.hideRating ? "；已隐藏评分列" : ""}。</> : <>收录 {entries.length} 篇正式记录 · 共 {pages.length} 页。{review ? "完整正文自动续页。" : kind === "works" ? "长正文自动续页。" : kind === "index" ? "收录全年全部记录，不受筛选影响。" : "本图为概览，完整内容可另存作品页。"}导出与预览一致。</>}</p>
       {!review && <details className="journal-privacy"><summary>图片隐私设置</summary>{([['hideRating', '隐藏评分'], ['hideDate', '隐藏具体日期（保留年度和月份统计）'], ['hideContent', '隐藏正文、摘录、寄语与标签']] as const).map(([key, label]) => <label className="journal-check" key={key}><input type="checkbox" checked={privacy[key]} disabled={busy} onChange={(e) => { setImage(null); setPrivacy({ ...privacy, [key]: e.target.checked }); }} />{label}</label>)}</details>}
       {pages.length > 0 && <>
         <nav className="journal-page-controls" aria-label="导出分页"><button disabled={busy || page === 0} onClick={() => setPage(page - 1)}>上一页</button><label>第 <select aria-label="导出页码" disabled={busy} value={page} onChange={(e) => setPage(Number(e.target.value))}>{pages.map((_, i) => <option key={i} value={i}>{i + 1}</option>)}</select> / {pages.length} 页</label><button disabled={busy || page === pages.length - 1} onClick={() => setPage(page + 1)}>下一页</button></nav>

@@ -140,7 +140,9 @@
 [data-theme="dark"] .journal :is(span, em, b, i):not([class]) { color: var(--muted); }
 [data-theme="dark"] .journal-recommendation-box > div span { color: var(--neu-ink); }
 [data-theme="dark"] .home-entry-meta span { background: #2a3833; color: var(--neu-ink); }
-[data-theme="dark"] .journal-page .journal-actions .journal-primary {
+/* --journal-green is lightened for dark mode, so primary buttons must swap to the deeper gradient;
+   this has to cover every container, not just .journal-actions. */
+[data-theme="dark"] .journal-page :is(.journal-actions, .journal-stack) .journal-primary {
   border-color: #3d7365;
   background: linear-gradient(145deg, #356e5e, #27584a);
 }
@@ -158,6 +160,10 @@
 [data-theme="dark"] .journal :is(.journal-placeholder, .journal-recommendation-box > div span) { background: #232d28; color: var(--neu-ink); }
 [data-theme="dark"] .journal-type-cover strong { color: var(--neu-ink); }
 [data-theme="dark"] .journal .journal-rank-item { border-color: var(--line); background: var(--paper-soft); color: var(--ink); }
+/* The tab underline is painted with the light-mode brand green, which reads as near-black on a dark surface. */
+[data-theme="dark"] .journal-tabs::after { background: var(--amber-bright); }
+[data-theme="dark"] .journal-tabs { border-bottom-color: var(--line); }
+[data-theme="dark"] .journal-tabs a.active { color: var(--amber-bright); }
 [data-theme="dark"] .entry-save-actions { border-color: var(--line); background: #1f2622; }
 [data-theme="dark"] .bottom-sheet:has(.create-choice) .sheet-handle { background: #4a5a51; }
 [data-theme="dark"] .codex-reader .detail-hero .cover-art.large { box-shadow: 3px 3px 9px #0006; }
