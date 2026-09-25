@@ -793,6 +793,11 @@ button:disabled {
   overflow-wrap: anywhere;
 }
 
+.draft-card-recovery { cursor: default; }
+.draft-card-recovery .draft-meta, .draft-raw { overflow-wrap: anywhere; white-space: pre-wrap; }
+.draft-raw { max-height: 18rem; overflow: auto; }
+.draft-recovery-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
 .draft-meta {
   color: var(--muted);
   font-size: 13px;
@@ -2852,6 +2857,11 @@ textarea {
   -webkit-user-select: none;
   border-radius: 12px;
   margin: 0 4px;
+}
+
+.rating-track:focus-visible {
+  outline: 3px solid var(--amber-ink);
+  outline-offset: 3px;
 }
 
 .rating-track-bg {

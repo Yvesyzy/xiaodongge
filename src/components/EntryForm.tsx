@@ -36,22 +36,22 @@ export function EntryForm({ mode, entry }: EntryFormProps) {
       listenedAt: String(form.get("listenedAt") ?? ""),
     };
 
-    const endpoint = mode === "create" ? "/api/entries" : `/api/entries/${entry?.id}`;
-    const response = await fetch(endpoint, {
-      method: mode === "create" ? "POST" : "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const data = (await response.json().catch(() => null)) as { id?: string; error?: string } | null;
-
-    if (!response.ok || !data?.id) {
-      setError(data?.error ?? "保存失败");
+    try {
+      const endpoint = mode === "create" ? "/api/entries" : `/api/entries/${entry?.id}`;
+      const response = await fetch(endpoint, {
+        method: mode === "create" ? "POST" : "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = (await response.json().catch(() => null)) as { id?: string; error?: string } | null;
+      if (!response.ok || typeof data?.id !== "string" || !data.id.trim()) throw new Error(data?.error ?? "保存失败，服务器未返回有效记录");
+      router.push(`/entries/${data.id}`);
+      router.refresh();
+    } catch (error) {
+      setError(error instanceof Error ? `保存失败：${error.message}` : "保存失败，请重试");
+    } finally {
       setLoading(false);
-      return;
     }
-
-    router.push(`/entries/${data.id}`);
-    router.refresh();
   }
 
   return (

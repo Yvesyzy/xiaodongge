@@ -1,3 +1,4 @@
+# Historical v2.1.9 packaging check only. The v2.9+ release gate is build-android-release.ps1.
 param(
   [string]$SourceApk,
   [string]$BaselineApk,

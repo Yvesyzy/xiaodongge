@@ -2,8 +2,9 @@ import type { ReviewEntry } from "./types";
 import type { JournalEdition, YearTopAlbum, YearTopAlbums } from "../../shared/backupAppData";
 import { ENTRY_TYPE_LABELS } from "./types";
 import { store } from "./store";
-const rankTextFontUrl = new URL("./assets/fonts/codex_noto_sans_sc.woff", import.meta.url).href;
-const rankNumberFontUrl = new URL("./assets/fonts/codex_montserrat_black_digits.woff", import.meta.url).href;
+import { groupMusicEntries, normalizeMusicIdentityText } from "./musicIdentity";
+const rankTextFontUrl = new URL("./assets/fonts/codex_noto_sans_sc.woff2", import.meta.url).href;
+const rankNumberFontUrl = new URL("./assets/fonts/codex_montserrat_black_digits.woff2", import.meta.url).href;
 import { journalCover, journalDate, journalEntries, journalFuture, journalMonths, journalRating, journalTitle } from "./codex_yearbookModel";
 
 export type JournalExportKind = "cover" | "overview" | "index" | "works" | "rank";
@@ -13,6 +14,7 @@ export type JournalImageOptions = {
   hideRating?: boolean;
   hideDate?: boolean;
   hideBrand?: boolean;
+  includeFullRankNotes?: boolean;
   edition?: JournalEdition;
   theme?: JournalShareTheme;
   /** Annual top-albums ranking; required by the "rank" export kind. */
@@ -26,12 +28,17 @@ export type JournalRankSlot = {
   name: string;
   meta: string;
   notes: string[];
+  originalName: string;
+  originalMeta: string;
+  originalNote: string;
+  noteTruncated: boolean;
+  coverAvailable: boolean;
   coverTarget: Pick<YearTopAlbum, "albumName" | "artistName">;
   /** Resolved review, used for the album art; absent when the record was deleted. */
   entry?: ReviewEntry;
 };
 export type JournalImagePage = {
-  kind: JournalExportKind;
+  kind: JournalExportKind | "rank-appendix";
   title: string;
   lines: string[];
   entryIds: string[];
@@ -148,7 +155,7 @@ function loadRankFonts() {
     .catch(() => { rankFonts = undefined; throw new Error("榜单字体加载失败，请重新打开图片预览"); });
 }
 
-function planRankPages(year: number, entries: ReviewEntry[], options: JournalImageOptions): JournalImagePage[] {
+async function planRankPages(year: number, entries: ReviewEntry[], options: JournalImageOptions): Promise<JournalImagePage[]> {
   const list = options.topAlbums?.albums ?? [];
   if (!list.length) throw new Error("还没有年度专辑榜单可导出；先创建榜单并保存");
   const ctx = canvasContext();
@@ -162,29 +169,45 @@ function planRankPages(year: number, entries: ReviewEntry[], options: JournalIma
       const cap = options.hideContent ? 0 : RANK_NOTE_LINES;
       ctx.font = `400 22px ${RANK_FONT}`;
       const wrapped = cap ? wrapJournalText(ctx, album.note.trim(), RANK_TEXT_WIDTH) : [];
-      if (wrapped.length > cap) wrapped[cap - 1] = clipped(ctx, wrapped[cap - 1] + "…", RANK_TEXT_WIDTH);
+      const noteTruncated = wrapped.length > cap;
+      if (noteTruncated) wrapped[cap - 1] = clipped(ctx, wrapped[cap - 1] + "…", RANK_TEXT_WIDTH);
       // Name and meta are single-line labels, so they are measured and clipped at their own sizes.
       ctx.font = `800 30px ${RANK_FONT}`;
       const name = clipped(ctx, album.albumName, RANK_TEXT_WIDTH);
       ctx.font = `400 22px ${RANK_FONT}`;
-      const meta = clipped(ctx, [album.artistName || "未填写音乐人", options.hideRating ? "" : rankRatingLabel(entry)].filter(Boolean).join(" · "), RANK_TEXT_WIDTH);
-      return { rank: index + offset + 1, name, meta, notes: wrapped.slice(0, cap), coverTarget: { albumName: album.albumName, artistName: album.artistName }, entry } satisfies JournalRankSlot;
+      const originalMeta = [album.artistName || "未填写音乐人", options.hideRating ? "" : rankRatingLabel(entry)].filter(Boolean).join(" · ");
+      const meta = clipped(ctx, originalMeta, RANK_TEXT_WIDTH);
+      return { rank: index + offset + 1, name, meta, notes: wrapped.slice(0, cap), originalName: album.albumName,
+        originalMeta, originalNote: options.hideContent ? "" : album.note, noteTruncated, coverAvailable: false,
+        coverTarget: { albumName: album.albumName, artistName: album.artistName }, entry: entry ?? undefined } satisfies JournalRankSlot;
     });
     pages.push({ kind: "rank", title: `年度专辑 · 第 ${slots[0].rank}—${slots[slots.length - 1].rank} 名`, lines: [], entryIds: [], rankSlots: slots });
     index += RANK_PAGE_ITEMS;
   }
   ctx.canvas.width = 0;
-  return pages.reverse();
+  for (const page of pages) for (const slot of page.rankSlots ?? []) slot.coverAvailable = !!(await rankCoverImage(slot));
+  const ranked = pages.reverse();
+  if (!options.includeFullRankNotes || options.hideContent) return ranked;
+  const appendixContext = canvasContext();
+  const lines = list.flatMap((album, index) => wrapJournalText(appendixContext,
+    `${String(index + 1).padStart(2, "0")} · ${album.albumName} · ${album.artistName || "未填写音乐人"}\n${album.note || "（未写入选理由）"}\n`));
+  appendixContext.canvas.width = 0;
+  // ponytail: 26 lines fit the existing 350–1500px body area; increase only with matching renderer measurements.
+  for (let start = 0; start < lines.length; start += 26) ranked.push({ kind: "rank-appendix", title: "榜单完整理由", lines: lines.slice(start, start + 26), entryIds: [] });
+  return ranked;
 }
 
 // A ranking album may outlive its review, so the rating falls back to a dash instead of failing the export.
 function rankEntryFor(album: YearTopAlbum, yearly: ReviewEntry[]) {
-  const key = JSON.stringify([album.albumName, album.artistName ?? ""]);
-  return yearly.find((entry) => entry.type === "album" && JSON.stringify([entry.albumName, entry.artistName ?? ""]) === key);
+  const key = JSON.stringify([normalizeMusicIdentityText(album.albumName), normalizeMusicIdentityText(album.artistName)]);
+  const matches = yearly.filter(entry => entry.type === "album"
+    && JSON.stringify([normalizeMusicIdentityText(entry.albumName), normalizeMusicIdentityText(entry.artistName)]) === key);
+  const groups = groupMusicEntries(matches, "album");
+  return groups.length === 1 ? groups[0][0] : groups.length ? undefined : null;
 }
 
-function rankRatingLabel(entry: ReviewEntry | undefined) {
-  return entry ? journalRating(entry) : "原记录已删除";
+function rankRatingLabel(entry: ReviewEntry | null | undefined) {
+  return entry ? journalRating(entry) : entry === null ? "原记录已删除" : "同名来源不明确";
 }
 
 export async function renderJournalPage(year: number, entries: ReviewEntry[], page: JournalImagePage, index: number, total: number, now = new Date(), options: JournalImageOptions = {}) {
@@ -205,7 +228,7 @@ export async function renderJournalPage(year: number, entries: ReviewEntry[], pa
   };
   text([!options.hideBrand && "小懂哥", !(options.review && options.hideDate) && String(year)].filter(Boolean).join(" · "), 72, 90, 28, color, 600);
   text(page.title, 72, 180, 54, ink, 700);
-  text(page.kind === "works" && page.entry ? `记录 ${entries.findIndex((entry) => entry.id === page.entry!.id) + 1} / ${entries.length}${options.hideDate ? "" : ` · ${journalDate(page.entry)}`}` : `按首次正式保存时间 · ${entries.length} 篇正式音乐记录`, 72, 235, 26, muted);
+  text(page.kind === "rank-appendix" ? "年度专辑榜单 · 完整入选理由" : page.kind === "works" && page.entry ? `记录 ${entries.findIndex((entry) => entry.id === page.entry!.id) + 1} / ${entries.length}${options.hideDate ? "" : ` · ${journalDate(page.entry)}`}` : `按首次正式保存时间 · ${entries.length} 篇正式音乐记录`, 72, 235, 26, muted);
   if (page.kind === "works" && page.continuation && page.workLabel) {
     ctx.font = `600 28px ${FONT}`;
     const labelLines = wrapJournalText(ctx, `继续：${page.workLabel}`);
@@ -332,14 +355,7 @@ async function drawRankPage(ctx: CanvasRenderingContext2D, year: number, page: J
 const coverCache = new Map<string, HTMLImageElement | null>();
 
 async function drawRankCover(ctx: CanvasRenderingContext2D, slot: JournalRankSlot, x: number, y: number, size: number) {
-  // Resolve by the saved album identity even if its review was deleted.
-  const key = JSON.stringify(["rank", slot.coverTarget.albumName, slot.coverTarget.artistName]);
-  let image = coverCache.get(key);
-  if (image === undefined) {
-    const source = await store.getCover("album", slot.coverTarget);
-    image = source?.startsWith("data:image/") ? await loadCoverImage(source) : null;
-    coverCache.set(key, image);
-  }
+  const image = await rankCoverImage(slot);
   if (image) {
     const crop = Math.min(image.naturalWidth, image.naturalHeight);
     ctx.drawImage(image, (image.naturalWidth - crop) / 2, (image.naturalHeight - crop) / 2, crop, crop, x, y, size, size);
@@ -351,6 +367,18 @@ async function drawRankCover(ctx: CanvasRenderingContext2D, slot: JournalRankSlo
     ctx.fillText(Array.from(slot.name)[0] || "音", x + size / 2, y + size * .6);
     ctx.restore();
   }
+}
+
+async function rankCoverImage(slot: JournalRankSlot) {
+  // Resolve by the saved album identity even if its review was deleted.
+  const key = JSON.stringify(["rank", slot.coverTarget.albumName, slot.coverTarget.artistName]);
+  let image = coverCache.get(key);
+  if (image === undefined) {
+    const source = await store.getCover("album", slot.coverTarget);
+    image = source?.startsWith("data:image/") ? await loadCoverImage(source) : null;
+    coverCache.set(key, image);
+  }
+  return image;
 }
 
 // Rounded clip built from arcTo so WebViews without roundRect still render the poster covers.

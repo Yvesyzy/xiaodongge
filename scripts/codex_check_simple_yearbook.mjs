@@ -2,18 +2,28 @@ import { chromium } from 'playwright';
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 import { makeJournalFixtures } from '../mobile/codex_journal_fixtures.mjs';
+import { qaOptions } from './codex_qa_options.mjs';
 
-const origin = 'http://127.0.0.1:5173';
-const output = process.env.CODEX_QA_DIR || 'docs/designs/codex_yearbook_qa';
+const { origin, output, prototypeOrigin } = qaOptions({ output: 'release/codex_yearbook_qa' });
 await mkdir(output, { recursive: true });
 const browser = await chromium.launch({ headless: true, channel: 'chrome' });
 const errors = [];
 try {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 }, timezoneId: 'Asia/Shanghai' });
   page.on('pageerror', e => errors.push(e.message));
+  async function count(selector, expected, message) {
+    // Router/filter updates settle asynchronously; still require the exact fixture count.
+    await page.waitForFunction(({ selector, expected }) => document.querySelectorAll(selector).length === expected,
+      { selector, expected }, { timeout: 5000 }).catch(() => {});
+    assert.equal(await page.locator(selector).count(), expected, message);
+  }
   async function seed(entries) {
     await page.goto(origin);
-    await page.evaluate(items => localStorage.setItem('music-feelings-mobile-entries', JSON.stringify(items)), entries);
+    await page.evaluate(items => {
+      // Each fixture is a different archive; saved expansion belongs to the previous scenario.
+      sessionStorage.clear();
+      localStorage.setItem('music-feelings-mobile-entries', JSON.stringify(items));
+    }, entries);
     await page.goto(`${origin}/#/summary?year=2026`);
     await page.reload();
     await page.locator('.journal-page h1').waitFor();
@@ -46,23 +56,23 @@ try {
   await page.locator('.journal-body').waitFor();
   assert.equal(await page.locator('.journal-body > p').innerText(), six.at(-1).content);
   await screenshot('codex_work.png');
-  await page.getByRole('link', { name: '下一篇 →', exact: true }).click();
+  await page.getByRole('link', { name: '下一篇', exact: true }).click();
   assert.match(page.url(), /entry=codex-journal-4/);
   await page.reload(); assert.match(await page.locator('.journal-body > p').innerText(), /模拟记录 5/);
   await overview();
   assert.equal(await page.locator('.journal-bars button').count(), 12);
-  assert.equal(await page.locator('.journal-record').count(), 6);
+  await count('.journal-record', 6);
   await page.getByRole('button', { name: '5月：2篇记录', exact: true }).click();
-  assert.equal(await page.locator('.journal-record').count(), 2);
+  await count('.journal-record', 2);
   const search = page.getByRole('searchbox', { name: '搜索作品或感受' });
   await search.pressSequentially('模拟记录 1');
   assert.equal(await search.inputValue(), '模拟记录 1', 'Search keeps focus through URL updates');
-  assert.equal(await page.locator('.journal-record').count(), 1);
+  await count('.journal-record', 1);
   await search.fill('没有这个作品');
   await page.getByText('没有符合筛选条件的记录。可清除筛选查看全年。', { exact: true }).waitFor();
   await page.getByRole('button', { name: '清除筛选', exact: true }).click();
   await page.waitForFunction(() => document.querySelectorAll('.journal-record').length === 6);
-  assert.equal(await page.locator('.journal-record').count(), 6);
+  await count('.journal-record', 6);
   await noOverflow(); await screenshot('codex_overview.png');
 
   await page.getByRole('button', { name: '保存概览图片', exact: true }).click();
@@ -87,10 +97,19 @@ try {
 
   await seed(makeJournalFixtures('128')); await overview();
   assert.match(await page.locator('.journal-visible-count').innerText(), /已展开 5 篇.*全年 128 篇/);
-  assert.equal(await page.locator('.journal-record').count(), 5);
+  await count('.journal-record', 5);
+  await count('.journal-month-group', 3);
   await page.getByRole('button', { name: /8 月 · 20 篇/ }).click();
-  assert.equal(await page.locator('.journal-record').count(), 25);
+  await count('.journal-record', 25);
+  await page.locator('.journal-record').first().click();
+  await page.locator('.journal-body').waitFor();
+  await overview();
+  await count('.journal-record', 25, 'Returning from a review preserves expanded months');
   await page.getByRole('button', { name: /8 月 · 20 篇/ }).click();
+  await count('.journal-record', 5);
+  await page.getByRole('button', { name: '显示更多月份', exact: true }).click();
+  await count('.journal-month-group', 6);
+  await count('.journal-record', 5, 'Loading more month groups does not expand their reviews');
   await noOverflow(); await screenshot('codex_many.png');
   await page.getByLabel('记录月份').selectOption('9');
   await page.getByRole('button', { name: '保存全年记录索引', exact: true }).click(); await preview();
@@ -105,11 +124,11 @@ try {
   await page.getByRole('button', { name: '关闭图片预览', exact: true }).click();
 
   await seed(makeJournalFixtures('45')); await overview();
-  assert.equal(await page.locator('.journal-record').count(), 20);
+  await count('.journal-record', 20);
   await page.getByRole('button', { name: '再显示 20 篇（5 月）', exact: true }).click();
-  assert.equal(await page.locator('.journal-record').count(), 40);
+  await count('.journal-record', 40);
   await page.getByRole('button', { name: '再显示 5 篇（5 月）', exact: true }).click();
-  assert.equal(await page.locator('.journal-record').count(), 45);
+  await count('.journal-record', 45);
 
   const long = makeJournalFixtures('long');
   await seed(long);
@@ -149,13 +168,13 @@ try {
   await page.locator('.journal-body').waitFor(); await noOverflow();
   await page.setViewportSize({ width: 1280, height: 900 }); await overview(); await noOverflow();
   await page.screenshot({ path: `${output}/codex_desktop.png`, fullPage: true });
-  await page.goto('http://127.0.0.1:5174/codex-prototype.html');
+  await page.goto(`${prototypeOrigin}/codex-prototype.html`);
   const app = page.frameLocator('#app');
   await app.getByRole('heading', { name: '我的音乐年记', exact: true }).waitFor();
   await app.locator('.journal-cover img').waitFor();
   await app.locator('.journal-cover img').evaluate(img => img.decode());
   await page.screenshot({ path: `${output}/codex_prototype.png`, fullPage: true });
-  await app.getByRole('button', { name: '保存封面', exact: true }).click();
+  await app.getByRole('button', { name: '分享年记', exact: true }).click();
   await app.locator('.journal-export-preview').waitFor();
   await app.locator('.journal-export-preview').evaluate(img => img.decode());
   const coverDownload = page.waitForEvent('download');
@@ -163,7 +182,7 @@ try {
   await (await coverDownload).saveAs(`${output}/codex_cover_export.png`);
   await app.getByRole('button', { name: '关闭图片预览', exact: true }).click();
   await page.locator('#scenario').selectOption('128');
-  await app.getByText('128', { exact: true }).waitFor();
+  await app.locator('.journal-stat > strong').filter({ hasText: /^128$/ }).waitFor();
   await page.getByRole('button', { name: '年度总览', exact: true }).click();
   await app.getByRole('heading', { name: '年度总览', exact: true }).waitFor();
   await app.getByText(/已展开 5 篇.*全年 128 篇/).waitFor();
@@ -175,9 +194,9 @@ try {
   assert.equal(await page.evaluate(() => localStorage.getItem('music-feelings-mobile-entries')), '[{"id":"changed-data"}]');
   // A dedicated demo origin still refuses unmarked data; opening the prototype must not silently replace it.
   const guardContext = await browser.newContext(); const guard = await guardContext.newPage();
-  await guard.goto('http://127.0.0.1:5174');
+  await guard.goto(prototypeOrigin);
   await guard.evaluate(() => localStorage.setItem('music-feelings-mobile-entries', '[]'));
-  await guard.goto('http://127.0.0.1:5174/codex-prototype.html');
+  await guard.goto(`${prototypeOrigin}/codex-prototype.html`);
   await guard.getByText('此预览地址已存在非演示数据，未覆盖。请使用独立浏览器环境。', { exact: true }).waitFor();
   assert.equal(await guard.evaluate(() => localStorage.getItem('music-feelings-mobile-entries')), '[]');
   await guardContext.close();

@@ -1,12 +1,17 @@
 import { chromium } from 'playwright';
 import assert from 'node:assert/strict';
+import { mkdir } from 'node:fs/promises';
+import { qaOptions } from './codex_qa_options.mjs';
+
+const { origin, output } = qaOptions();
+await mkdir(output, { recursive: true });
 
 const browser = await chromium.launch({ headless: true, channel: 'chrome' });
 try {
   const page = await browser.newPage({ timezoneId: 'Asia/Shanghai' });
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
-  await page.goto('http://127.0.0.1:5173');
+  await page.goto(origin);
   const result = await page.evaluate(async () => {
     const { store } = await import('/src/store.ts');
     const { parseMonthlyListeningSnapshot, inRecordingPeriod } = await import('/src/listeningYearbook.ts');
@@ -51,13 +56,13 @@ try {
     may.analysisJson = JSON.stringify(snapshot);
     localStorage.setItem(key, JSON.stringify(summaries));
   });
-  await page.goto('http://127.0.0.1:5173/#/summary/2026/5');
+  await page.goto(`${origin}/#/summary/2026/5`);
   await page.getByText('已保存的月报无法读取，请重新生成。下方保留文字内容。', { exact: true }).waitFor();
-  await page.getByRole('button', { name: '重新生成', exact: true }).click();
+  await page.getByRole('button', { name: '更新月度报告', exact: true }).click();
   await page.locator('.monthly-artwork').waitFor();
   await page.reload();
   await page.locator('.monthly-artwork').waitFor();
-  await page.goto('http://127.0.0.1:5173/#/summary/analysis');
+  await page.goto(`${origin}/#/summary/analysis`);
   await page.locator('.yearbook-overview').waitFor();
   const preview = page.getByRole('img', { name: '2026 年度听感标本册海报预览' });
   await preview.waitFor();
@@ -72,23 +77,23 @@ try {
   assert.equal(png.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
   assert.equal(png.readUInt32BE(16), 1080);
   assert.equal(png.readUInt32BE(20), 1680);
-  if (process.env.CODEX_QA_DIR) await download.saveAs(`${process.env.CODEX_QA_DIR}/codex_yearbook-poster.png`);
+  await download.saveAs(`${output}/codex_yearbook-poster.png`);
   assert.equal(await page.locator('.yearbook-bars a').count(), 12);
-  if (process.env.CODEX_QA_DIR) {
+  {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.locator('.yearbook-overview').scrollIntoViewIfNeeded();
-    await page.screenshot({ path: `${process.env.CODEX_QA_DIR}/codex_yearbook-mobile.png` });
+    await page.screenshot({ path: `${output}/codex_yearbook-mobile.png` });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'No mobile horizontal overflow');
   }
   await page.getByText('查看本册全部 6 篇乐评', { exact: true }).click();
   assert.equal(await page.locator('.yearbook-sources a').count(), 6);
-  await page.goto('http://127.0.0.1:5173/#/');
-  if (process.env.CODEX_QA_DIR) {
+  await page.goto(`${origin}/#/`);
+  {
     await page.locator('.home-draft-link').waitFor();
     await page.evaluate(() => window.scrollTo(0, 0));
-    await page.screenshot({ path: `${process.env.CODEX_QA_DIR}/codex_home-mobile.png` });
+    await page.screenshot({ path: `${output}/codex_home-mobile.png` });
     await page.setViewportSize({ width: 1280, height: 900 });
-    await page.screenshot({ path: `${process.env.CODEX_QA_DIR}/codex_home-desktop.png` });
+    await page.screenshot({ path: `${output}/codex_home-desktop.png` });
   }
   await page.getByRole('button', { name: '新建记录', exact: true }).click();
   assert.equal(await page.locator('.create-choice-card').count(), 3);
@@ -116,7 +121,7 @@ try {
   await page.getByRole('button', { name: '保存正式乐评', exact: true }).click();
   assert.equal(await page.locator('textarea[name="content"]:invalid').count(), 1);
   await page.getByRole('button', { name: '保存草稿', exact: true }).click();
-  await page.goto('http://127.0.0.1:5173/#/capture');
+  await page.goto(`${origin}/#/capture`);
   await page.getByRole('button', { name: '保存草稿', exact: true }).click();
   await page.waitForURL('**/#/drafts');
   await page.locator('.draft-card').first().waitFor();

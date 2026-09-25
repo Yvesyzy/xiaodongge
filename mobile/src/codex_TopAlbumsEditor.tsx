@@ -23,7 +23,7 @@ export function topAlbumCandidates(entries: ReviewEntry[]): TopAlbumCandidate[] 
   }).sort((a, b) => (b.rating ?? -1) - (a.rating ?? -1) || b.entry.createdAt.localeCompare(a.entry.createdAt) || a.albumName.localeCompare(b.albumName));
 }
 
-export function TopAlbumsEditor({ entries, saved, onSave }: { entries: ReviewEntry[]; saved: YearTopAlbums; onSave: (value: YearTopAlbums) => Promise<void> }) {
+export function TopAlbumsEditor({ entries, saved, onSave, focusRank }: { entries: ReviewEntry[]; saved: YearTopAlbums; onSave: (value: YearTopAlbums) => Promise<void>; focusRank?: number }) {
   const [value, setValue] = useState(saved);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
@@ -31,6 +31,9 @@ export function TopAlbumsEditor({ entries, saved, onSave }: { entries: ReviewEnt
   const [limit, setLimit] = useState(20);
   useBackGuard(() => !busy && (JSON.stringify(value) === JSON.stringify(saved) || window.confirm("年度专辑榜单尚未保存，确认放弃修改并返回？")));
   useEffect(() => setValue(saved), [saved]);
+  useEffect(() => {
+    if (focusRank && focusRank >= 1 && focusRank <= saved.albums.length) document.getElementById(`codex-rank-note-${focusRank}`)?.focus();
+  }, [focusRank, saved]);
   const candidates = useMemo(() => topAlbumCandidates(entries), [entries]);
   const recommendations = candidates.filter((candidate) => candidate.rating !== null).slice(0, 15);
   const matches = candidates.filter((candidate) => `${candidate.albumName} ${candidate.artistName ?? ""}`.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()));
@@ -61,8 +64,8 @@ export function TopAlbumsEditor({ entries, saved, onSave }: { entries: ReviewEnt
     {!!candidates.length && <label>查找专辑<input value={query} onChange={(e) => { setQuery(e.target.value); setLimit(20); }} /></label>}
     {matches.slice(0, limit).map((candidate) => { const checked = value.albums.some((album) => albumKey(album.albumName, album.artistName) === candidate.key); return <label className="journal-check" key={candidate.key}><input type="checkbox" checked={checked} disabled={value.albums.length === 15 && !checked} onChange={(e) => toggle(candidate, e.target.checked)} /><span>{candidate.albumName}{candidate.artistName ? ` · ${candidate.artistName}` : ""} · {candidate.ratingLabel}</span></label>; })}
     {limit < matches.length && <button type="button" onClick={() => setLimit(limit + 20)}>显示更多专辑</button>}
-    {value.albums.length ? <div className="journal-selected-entries"><p>当前名次</p>{value.albums.map((album, index) => <div className="journal-selected-entry" key={albumKey(album.albumName, album.artistName)}><strong>{index + 1}. {album.albumName}{album.artistName ? ` · ${album.artistName}` : ""}</strong><span><button type="button" aria-label={`上移 ${album.albumName}`} disabled={index === 0} onClick={() => moveAlbum(index, -1)}>↑</button><button type="button" aria-label={`下移 ${album.albumName}`} disabled={index === value.albums.length - 1} onClick={() => moveAlbum(index, 1)}>↓</button></span></div>)}</div> : null}
-    {value.albums.map((album, index) => <label className="journal-rank-note" key={`${albumKey(album.albumName, album.artistName)}:note`}>{index + 1}. {album.albumName} · 入选理由（选填，最多 500 字）<textarea rows={3} maxLength={500} value={album.note} onChange={(e) => setValue((old) => ({ albums: old.albums.map((item, i) => i === index ? { ...item, note: e.target.value } : item) }))} placeholder="写下你将它选入年度榜单的理由…" /></label>)}
+    {value.albums.length ? <div className="journal-selected-entries"><p>当前名次</p>{value.albums.map((album, index) => <div className="journal-selected-entry" key={albumKey(album.albumName, album.artistName)}><strong>{index + 1}. {album.albumName}{album.artistName ? ` · ${album.artistName}` : ""}</strong><span><button type="button" aria-label={`上移 ${album.albumName}`} disabled={index === 0} onClick={() => moveAlbum(index, -1)}>↑</button><button type="button" aria-label={`下移 ${album.albumName}`} disabled={index === value.albums.length - 1} onClick={() => moveAlbum(index, 1)}>↓</button><button type="button" aria-label={`移除 ${album.albumName}`} onClick={() => setValue((old) => ({ albums: old.albums.filter((_, i) => i !== index) }))}>移除</button></span></div>)}</div> : null}
+    {value.albums.map((album, index) => <label className="journal-rank-note" key={`${albumKey(album.albumName, album.artistName)}:note`}>{index + 1}. {album.albumName} · 入选理由（选填，最多 500 字）<textarea id={`codex-rank-note-${index + 1}`} rows={3} maxLength={500} value={album.note} onChange={(e) => setValue((old) => ({ albums: old.albums.map((item, i) => i === index ? { ...item, note: e.target.value } : item) }))} placeholder="写下你将它选入年度榜单的理由…" /></label>)}
     <button className="journal-primary" type="button" onClick={() => void save()}>{busy ? "保存中…" : "保存年度专辑榜单"}</button>
   </fieldset>{notice && <p role="status">{notice}</p>}</details>;
 }

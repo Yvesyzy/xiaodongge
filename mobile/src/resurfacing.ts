@@ -16,7 +16,8 @@ export function resolveDailyResurfacing(
   if (saved?.date === today) {
     if (saved.dismissed || saved.entryId === null) return { entry: null, state: saved };
     const entry = entries.find((item) => item.id === saved.entryId);
-    if (entry?.type === "song" && !hasMomentOnDate(moments, entry.id, today)) return { entry, state: saved };
+    const valid = entry?.type === "song" ? !!entry.songName : entry?.type === "album" && !!entry.albumName;
+    if (entry && valid && !hasMomentOnDate(moments, entry.id, today)) return { entry, state: saved };
   }
   const entry = selectDailyResurfacing(entries, moments, today);
   return { entry, state: { date: today, entryId: entry?.id ?? null, dismissed: false } satisfies DailyResurfacingState };
@@ -38,7 +39,8 @@ export function selectDailyResurfacing(entries: ReviewEntry[], moments: Listenin
 
   const scored = entries.flatMap((entry) => {
     const firstDate = localDateOf(entry.listenedAt);
-    if (entry.type !== "song" || !entry.songName || !firstDate) return [];
+    const hasMusicIdentity = entry.type === "song" ? !!entry.songName : entry.type === "album" && !!entry.albumName;
+    if (!hasMusicIdentity || !firstDate) return [];
     const age = daysBetween(firstDate, today);
     if (age < 30) return [];
     const latestMoment = latestByEntry.get(entry.id);

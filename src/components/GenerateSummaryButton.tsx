@@ -16,17 +16,17 @@ export function GenerateSummaryButton({ year }: GenerateSummaryButtonProps) {
     setLoading(true);
     setMessage("");
 
-    const response = await fetch(`/api/yearly-summaries/${year}/generate`, { method: "POST" });
-    const data = (await response.json().catch(() => null)) as { error?: string } | null;
-    setLoading(false);
-
-    if (!response.ok) {
-      setMessage(data?.error ?? "生成失败");
-      return;
+    try {
+      const response = await fetch(`/api/yearly-summaries/${year}/generate`, { method: "POST" });
+      const data = (await response.json().catch(() => null)) as { error?: string; year?: number; content?: string } | null;
+      if (!response.ok || data?.year !== year || typeof data?.content !== "string" || !data.content.trim()) throw new Error(data?.error ?? "生成失败，服务器未返回有效总结");
+      setMessage("年度总结已保存");
+      router.refresh();
+    } catch (error) {
+      setMessage(error instanceof Error ? `生成失败：${error.message}` : "生成失败，请重试");
+    } finally {
+      setLoading(false);
     }
-
-    setMessage("年度总结已保存");
-    router.refresh();
   }
 
   return (

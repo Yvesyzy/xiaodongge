@@ -1,12 +1,12 @@
 import { FormEvent, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Capacitor } from "@capacitor/core";
-import { Directory, Filesystem } from "@capacitor/filesystem";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { MOOD_TAGS } from "../../shared/moods";
 import { formatDateOnly } from "./format";
 import { compareRelisten } from "./relistenComparison";
 import RatingSlider from "./RatingSlider";
 import { blobToBase64, buildRelistenMemoryCard, DEFAULT_PRIVACY, downloadBlob, renderMemoryCard, type MemoryCardPrivacy } from "./shareCard";
+import { NativeExport } from "./nativeExport";
 import { store } from "./store";
 import { useBackGuard } from "./codex_Navigation";
 import type { ListeningMoment, RatingModifier, ReviewEntry } from "./types";
@@ -32,6 +32,8 @@ export default function RelistenPage() {
   const [error, setError] = useState("");
   const [pendingHref, setPendingHref] = useState<string | null>(null);
   const acceptedBack = useRef(false);
+  const submitLock = useRef(false);
+  const exportLock = useRef(false);
 
   useBackGuard(() => {
     if (saving) return false;
@@ -106,7 +108,8 @@ export default function RelistenPage() {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!entry || saving) return;
+    if (!entry || submitLock.current) return;
+    submitLock.current = true;
     setSaving(true);
     setError("");
     try {
@@ -125,6 +128,7 @@ export default function RelistenPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : "追加听感保存失败");
     } finally {
+      submitLock.current = false;
       setSaving(false);
     }
   }
@@ -135,22 +139,58 @@ export default function RelistenPage() {
   }
 
   async function saveCard() {
-    if (!entry || !moment || !comparison) return;
+    if (!entry || !moment || !comparison || exportLock.current) return;
+    exportLock.current = true;
     setSaving(true);
     setError("");
+    setMessage("");
     try {
       const blob = await renderMemoryCard(buildRelistenMemoryCard(entry, moment, comparison, privacy), coverUrl);
-      const fileName = "xiaodongge-relisten-" + localToday().replaceAll("-", "") + ".png";
+      const fileName = relistenFileName(moment.id);
       if (Capacitor.isNativePlatform()) {
-        await Filesystem.writeFile({ path: fileName, data: await blobToBase64(blob), directory: Directory.Documents });
-        setMessage("已保存到 Documents/" + fileName);
+        const result = await NativeExport.saveFile({ fileName, mimeType: "image/png", encoding: "base64", content: await blobToBase64(blob) });
+        setMessage(result.status === "cancelled" ? "已取消保存重听对比卡" : `已保存重听对比卡：${fileName}`);
       } else {
         downloadBlob(blob, fileName);
-        setMessage("已生成重听对比卡");
+        setMessage(`已开始下载重听对比卡：${fileName}`);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "记忆卡保存失败");
     } finally {
+      exportLock.current = false;
+      setSaving(false);
+    }
+  }
+
+  async function shareCard() {
+    if (!entry || !moment || !comparison || exportLock.current) return;
+    exportLock.current = true;
+    setSaving(true);
+    setError("");
+    setMessage("");
+    try {
+      const blob = await renderMemoryCard(buildRelistenMemoryCard(entry, moment, comparison, privacy), coverUrl);
+      const fileName = relistenFileName(moment.id);
+      if (Capacitor.isNativePlatform()) {
+        await NativeExport.shareFile({ fileName, mimeType: "image/png", encoding: "base64", content: await blobToBase64(blob) });
+        setMessage("已打开系统分享，可发送这张重听对比卡");
+      } else {
+        const file = new File([blob], fileName, { type: "image/png" });
+        const shareAvailable = typeof navigator.share === "function"
+          && (typeof navigator.canShare !== "function" || navigator.canShare({ files: [file] }));
+        if (!shareAvailable) {
+          downloadBlob(blob, fileName);
+          setMessage("当前浏览器不支持直接分享，已改为下载重听对比卡");
+          return;
+        }
+        await navigator.share({ files: [file], title: "重听对比卡", text: "小懂哥重听对比卡" });
+        setMessage("已打开系统分享，可发送这张重听对比卡");
+      }
+    } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") setMessage("已取消分享，当前设置已保留");
+      else setError(err instanceof Error ? `分享失败：${err.message}` : "分享失败，请重试");
+    } finally {
+      exportLock.current = false;
       setSaving(false);
     }
   }
@@ -191,7 +231,10 @@ export default function RelistenPage() {
             ["hideBrand", "隐藏小懂哥名称"],
           ] as const).map(([key, label]) => <label key={key}><input type="checkbox" checked={privacy[key]} onChange={(event) => setPrivacy((current) => ({ ...current, [key]: event.target.checked }))} />{label}</label>)}
         </div>
-        <button type="button" className="primary-button full" onClick={saveCard} disabled={saving}>{saving ? "生成中" : "保存重听对比卡"}</button>
+        <div className="export-output-actions native-export-actions">
+          <button type="button" className="primary-button" onClick={() => void saveCard()} disabled={saving}>{saving ? "生成中" : Capacitor.isNativePlatform() ? "保存重听对比卡" : "下载重听对比卡"}</button>
+          <button type="button" className="secondary-button" onClick={() => void shareCard()} disabled={saving}>系统分享</button>
+        </div>
       </section>
       {message ? <p className="hint" role="status">{message}</p> : null}
       {error ? <p className="error">{error}</p> : null}
@@ -245,7 +288,7 @@ function TrackHero({ entry, coverUrl }: { entry: ReviewEntry; coverUrl: string |
   return (
     <section className="relisten-track">
       {coverUrl ? <img src={coverUrl} alt="" /> : <div className="quick-record-placeholder" aria-hidden="true"><span /></div>}
-      <div><strong>{entry.songName ?? entry.title}</strong><span>{[entry.artistName, entry.albumName].filter(Boolean).join(" · ") || "音乐信息未填写"}</span></div>
+      <div><strong>{entry.type === "album" ? entry.albumName ?? entry.title : entry.songName ?? entry.title}</strong><span>{(entry.type === "album" ? [entry.artistName] : [entry.artistName, entry.albumName]).filter(Boolean).join(" · ") || "音乐信息未填写"}</span></div>
     </section>
   );
 }
@@ -278,5 +321,9 @@ function localToday() {
   const date = new Date();
   const pad = (value: number) => String(value).padStart(2, "0");
   return String(date.getFullYear()) + "-" + pad(date.getMonth() + 1) + "-" + pad(date.getDate());
+}
+
+function relistenFileName(momentId: string) {
+  return "xiaodongge-relisten-" + localToday().replaceAll("-", "") + "-" + momentId + ".png";
 }
 

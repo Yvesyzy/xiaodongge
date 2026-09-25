@@ -141,6 +141,8 @@ export type YearStats = {
 };
 
 export type AlbumAggregate = {
+  representativeEntryId: string;
+  catalogId: string | null;
   albumName: string;
   artistName: string | null;
   coverDataUrl: string | null;
@@ -151,6 +153,8 @@ export type AlbumAggregate = {
 };
 
 export type SongAggregate = {
+  representativeEntryId: string;
+  catalogId: string | null;
   songName: string;
   artistName: string | null;
   albumName: string | null;

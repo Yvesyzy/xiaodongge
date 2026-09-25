@@ -1,10 +1,12 @@
 import { chromium } from 'playwright';
 import assert from 'node:assert/strict';
 import { makeJournalFixtures } from '../mobile/codex_journal_fixtures.mjs';
+import { qaOptions } from './codex_qa_options.mjs';
+const { origin } = qaOptions();
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 try {
   const page = await browser.newPage();
-  await page.goto('http://127.0.0.1:5173');
+  await page.goto(origin);
   const result = await page.evaluate(async entries => {
     const { store } = await import('/src/store.ts');
     const { buildMonthlyListeningSnapshot, parseMonthlyListeningSnapshot } = await import('/src/listeningYearbook.ts');
@@ -24,7 +26,7 @@ try {
   assert.match(result.mismatchedCurrent, /月度分析快照格式无效/);
   assert.equal(result.previewError, null);
   const errors = []; page.on('pageerror', error => errors.push(error.message));
-  await page.goto('http://127.0.0.1:5173/#/backup');
+  await page.goto(`${origin}/#/backup`);
   await page.locator('input[type="file"]').setInputFiles({ name: 'legacy.json', mimeType: 'application/json', buffer: Buffer.from(result.raw) });
   await page.getByText('已读取备份文件：legacy.json', { exact: true }).waitFor();
   const damaged = JSON.parse(result.raw); damaged.covers = [{ dataUrl: 'damaged' }];
@@ -32,6 +34,7 @@ try {
   const importButton = page.getByRole('button', { name: '导入并覆盖当前数据', exact: true });
   await page.waitForFunction(() => document.querySelector('button[type="submit"]').disabled);
   await page.getByLabel('跳过备份封面，保留当前封面', { exact: true }).check();
+  await page.getByRole('button', { name: '预演恢复并查看差异' }).click();
   await page.waitForFunction(() => !document.querySelector('button[type="submit"]').disabled);
   let confirmation = '';
   page.once('dialog', async dialog => { confirmation = dialog.message(); await dialog.accept(); });

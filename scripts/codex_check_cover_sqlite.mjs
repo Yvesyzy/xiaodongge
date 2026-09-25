@@ -3,8 +3,9 @@ import { readFile } from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { makeJournalFixtures } from '../mobile/codex_journal_fixtures.mjs';
+import { qaOptions } from './codex_qa_options.mjs';
 
-const origin = process.argv[2] || 'http://127.0.0.1:5180';
+const { origin } = qaOptions({ origin: 'http://127.0.0.1:5180' });
 const source = await readFile('mobile/src/store.ts', 'utf8');
 const schema = source.match(/const schemaSql = `([\s\S]*?)`;/)?.[1];
 assert.ok(schema);

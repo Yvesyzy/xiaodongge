@@ -1,6 +1,12 @@
 export { BACKUP_HEALTH_KEY } from "../../shared/backupAppData";
 
 export type BackupPreview = {
+  sourceVersion: number;
+  draftsPresence: "absent" | "present";
+  draftCount: number;
+  newDraftCount: number;
+  editDraftCount: number;
+  localDraftCount: number;
   exportedAt: string;
   entryCount: number;
   summaryCount: number;
@@ -9,9 +15,9 @@ export type BackupPreview = {
   listeningMomentCount: number;
 };
 
-export type BackupHealth = BackupPreview & {
+export type BackupHealth = Omit<BackupPreview, "sourceVersion" | "draftsPresence" | "draftCount" | "newDraftCount" | "editDraftCount" | "localDraftCount"> & Partial<Pick<BackupPreview, "draftCount">> & {
   version: 1;
-  backupVersion: 5;
+  backupVersion: 5 | 6;
   verifiedAt: string;
   byteLength: number;
   sha256: string;
@@ -21,12 +27,12 @@ export type BackupHealth = BackupPreview & {
 
 export async function inspectBackup(raw: string, preview: BackupPreview, verifiedAt = new Date().toISOString()): Promise<BackupHealth> {
   const parsed = JSON.parse(raw) as unknown;
-  if (!isRecord(parsed) || parsed.version !== 5) throw new Error("备份不是当前 SQLite v5 格式");
+  if (!isRecord(parsed) || parsed.version !== 6) throw new Error("备份不是当前 v6 格式");
   const bytes = new TextEncoder().encode(raw);
   const digest = await crypto.subtle.digest("SHA-256", bytes);
   return {
     version: 1,
-    backupVersion: 5,
+    backupVersion: 6,
     verifiedAt,
     byteLength: bytes.byteLength,
     sha256: Array.from(new Uint8Array(digest), (value) => value.toString(16).padStart(2, "0")).join(""),
@@ -40,7 +46,8 @@ export function parseBackupHealth(raw: string | null): BackupHealth | null {
     const value = JSON.parse(raw) as unknown;
     if (!isRecord(value)
       || value.version !== 1
-      || value.backupVersion !== 5
+      || (value.backupVersion !== 5 && value.backupVersion !== 6)
+      || (value.backupVersion === 6 && !isNonNegativeInteger(value.draftCount))
       || !isIsoDate(value.exportedAt)
       || !isIsoDate(value.verifiedAt)
       || !isNonNegativeInteger(value.byteLength)

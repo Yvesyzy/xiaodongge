@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type MouseEvent, type TouchEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type TouchEvent } from "react";
 import type { RatingModifier } from "./types";
 
 const MIN = 0.5;
@@ -85,6 +85,20 @@ export default function RatingSlider({ value, modifier, onChange, name = "rating
     onChange(null, null);
   }, [onChange]);
 
+  const handleKeyDown = useCallback((event: KeyboardEvent<HTMLDivElement>) => {
+    const current = value ?? localValue;
+    const next = event.key === "Home" ? MIN : event.key === "End" ? MAX
+      : event.key === "ArrowRight" || event.key === "ArrowUp" ? Math.max(MIN, current + STEP)
+      : event.key === "ArrowLeft" || event.key === "ArrowDown" ? Math.max(MIN, current - STEP)
+      : event.key === "PageUp" ? Math.max(MIN, current + 1)
+      : event.key === "PageDown" ? Math.max(MIN, current - 1) : null;
+    if (next === null) return;
+    event.preventDefault();
+    const rating = Math.min(MAX, next);
+    setLocalValue(rating);
+    onChange(rating, localModifier);
+  }, [value, localValue, localModifier, onChange]);
+
   // 拖动中显示 localValue（实时反馈），非拖动时显示 value（已提交值）
   const displayValue = dragging ? localValue : (value ?? localValue);
   const activeValue = value ?? localValue;
@@ -113,11 +127,13 @@ export default function RatingSlider({ value, modifier, onChange, name = "rating
         ref={trackRef}
         className={`rating-track${dragging ? " dragging" : ""}${hasValue ? " has-value" : ""}`}
         role="slider"
-        aria-label="评分滑块"
+        tabIndex={0}
+        aria-label={label}
         aria-valuemin={MIN}
         aria-valuemax={MAX}
-        aria-valuenow={hasValue ? displayValue : 0}
+        aria-valuenow={hasValue ? displayValue : MIN}
         aria-valuetext={hasValue ? `${displayValue}${displayModifier ?? ""}` : "未评分"}
+        onKeyDown={handleKeyDown}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
         onMouseUp={handleMouseUp}

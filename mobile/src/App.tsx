@@ -1,20 +1,19 @@
-import { ChangeEvent, FormEvent, useEffect, useId, useMemo, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, lazy, Suspense, useEffect, useId, useMemo, useRef, useState } from "react";
 import { Capacitor, registerPlugin } from "@capacitor/core";
 import { Link, NavLink, Route, Routes, useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { GENRE_TAGS, GENRE_TREE, findGenrePath, genreChildren, isKnownGenreTag, type GenreNode } from "../../shared/genres";
 import { MOOD_CATEGORIES, MOOD_TAGS } from "../../shared/moods";
 import { ABSTRACT_MAP_REGION_DEFS, UNCLASSIFIED_REGION_ID, UNIVERSE_GROUP_BY_OPTIONS, type AbstractMapRegion, type AbstractMapResult, type UniverseGroupBy, type VisualizationFilters, type VisualizationOptions, type VisualizationSong } from "../../shared/visualizations";
-import { canRestoreEditDraft, countNewDrafts, createNewDraftId, deleteEntryDraftByKey, listEntryDrafts, MAX_NEW_DRAFTS, readEntryDraft, removeEntryDraft, writeEntryDraft, type EntryDraft, type EntryDraftFields, type EntryDraftMeta } from "./entryDraft";
+import { canRestoreEditDraft, countNewDrafts, createNewDraftId, deleteEntryDraftByKey, listEntryDrafts, MAX_NEW_DRAFTS, readEntryDraft, readStoredEntryDraft, removeEntryDraft, writeEntryDraft, type EntryDraft, type EntryDraftFields, type EntryDraftMeta } from "./entryDraft";
 import { toAlbumFirstRecognition } from "./albumFirst";
-import { BACKUP_HEALTH_KEY, inspectBackup, parseBackupHealth, type BackupHealth } from "./backupHealth";
+import { BACKUP_HEALTH_KEY, inspectBackup, parseBackupHealth, type BackupHealth, type BackupPreview } from "./backupHealth";
+import { assertStorageWritable, getRestoreState, storageGeneration } from "./codex_restoreState";
 import { findSimilarEntry } from "./entryDuplicate";
 import { excerpt, formatDate, formatDateOnly, monthLabel } from "./format";
-import { buildInsights, type Insight } from "./insights";
-import { DailyListeningNote, MonthlyListeningPage, YearlyListeningPage } from "./ListeningYearbookView";
+import type { Insight } from "./insights";
 import { journalRating } from "./codex_yearbookModel";
-import SimpleYearbookPage from "./codex_YearbookPage";
 import { mergeMusicMetadata } from "./musicMetadata";
-import { sameMusicIdentity } from "./musicIdentity";
+import { groupMusicEntries, normalizeMusicIdentityText, sameAlbumIdentity, sameMusicIdentity } from "./musicIdentity";
 import { NowPlaying } from "./nativeNowPlaying";
 import { NativeExport } from "./nativeExport";
 import { parseSharedMusicPayload, rememberSharedMusic, SharedMusic } from "./nativeSharedMusic";
@@ -24,12 +23,11 @@ import QuickCapturePage from "./QuickCapturePage";
 import ReadingTools, { RouteScrollRestoration } from "./codex_ReadingTools";
 import { readThemeChoice, setThemeChoice, THEME_CHANGED_EVENT, type ThemeChoice } from "./abu_theme";
 import NavigationController, { requestBack, useBackGuard } from "./codex_Navigation";
-import ReviewShare from "./codex_ReviewShare";
 import RatingSlider from "./RatingSlider";
 import RelistenPage from "./RelistenPage";
 import { DAILY_RESURFACING_KEY, dismissDailyResurfacing, parseDailyResurfacingState, resolveDailyResurfacing, type DailyResurfacingState } from "./resurfacing";
-import { entryCoverTarget, parseList, store } from "./store";
-import { clearStorageCorruption, readStorageCorruption, type StorageCorruption } from "./storageSafety";
+import { entryCoverTarget, parseList, store, type RestoreRehearsal } from "./store";
+import { clearStorageCorruption, readStorageCorruptions, STORAGE_CORRUPTION_EVENT, type StorageCorruption } from "./storageSafety";
 import { ENTRY_TYPE_LABELS, ENTRY_TYPES, type AlbumAggregate, type EntryInput, type ListeningMoment, type ListeningMomentInput, type MusicMetadata, type RatingModifier, type ReviewEntry, type SongAggregate, type YearStats } from "./types";
 import { version as APP_VERSION } from "../../package.json";
 
@@ -41,7 +39,6 @@ const nav = [
   ["/summary", "总结"],
 ];
 
-type BackupPreview = { exportedAt: string; entryCount: number; summaryCount: number; monthlySummaryCount: number; coverCount: number; listeningMomentCount: number };
 type ExportKind = "json" | "txt" | "csv";
 type ExportedData = { kind: ExportKind; content: string; fileName: string; mimeType: string };
 type HomeEntry = ReviewEntry & { coverDataUrl: string | null };
@@ -68,6 +65,15 @@ const GROUP_BY_LABELS: Record<UniverseGroupBy, string> = {
 const MOOD_GROUPS = MOOD_CATEGORIES;
 
 const ScreenshotOcr = registerPlugin<ScreenshotOcrPlugin>("ScreenshotOcr");
+const DailyListeningNote = lazy(() => import("./ListeningYearbookView").then(module => ({ default: module.DailyListeningNote })));
+const MonthlyListeningPage = lazy(() => import("./ListeningYearbookView").then(module => ({ default: module.MonthlyListeningPage })));
+const YearlyListeningPage = lazy(() => import("./ListeningYearbookView").then(module => ({ default: module.YearlyListeningPage })));
+const SimpleYearbookPage = lazy(() => import("./codex_YearbookPage"));
+const ReviewShare = lazy(() => import("./codex_ReviewShare"));
+const AlbumTimelinePage = lazy(() => import("./codex_AlbumTimeline"));
+const DiagnosticsPage = lazy(() => import("./codex_DiagnosticsPage"));
+// ponytail: 12 MiB is above the measured 11.14 MB gallery fixture; raise it only after repeating low-memory device tests.
+const MAX_OCR_IMAGE_BYTES = 12 * 1024 * 1024;
 
 export default function App() {
   const [createSheetOpen, setCreateSheetOpen] = useState(false);
@@ -118,7 +124,8 @@ export default function App() {
         <Link to="/more" className="header-menu" aria-label="更多"><span /></Link>
       </header>
       <main className="app-main">
-        <Routes>
+        <StorageIntegrityNotice />
+        <Suspense fallback={<p role="status">正在打开页面…</p>}><Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/timeline" element={<TimelinePage />} />
           <Route path="/capture" element={<QuickCapturePage />} />
@@ -127,6 +134,7 @@ export default function App() {
           <Route path="/entries/:id/edit" element={<EntryFormPage mode="edit" />} />
           <Route path="/relisten/:entryId" element={<RelistenPage />} />
           <Route path="/albums" element={<AlbumsPage />} />
+          <Route path="/albums/timeline" element={<AlbumTimelinePage />} />
           <Route path="/albums/detail" element={<AggregateDetail kind="album" />} />
           <Route path="/songs" element={<SongsPage />} />
           <Route path="/songs/detail" element={<AggregateDetail kind="song" />} />
@@ -139,8 +147,9 @@ export default function App() {
           <Route path="/backup" element={<BackupPage />} />
           <Route path="/drafts" element={<DraftsPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
+          <Route path="/diagnostics" element={<DiagnosticsPage />} />
           <Route path="/more" element={<MorePage />} />
-        </Routes>
+        </Routes></Suspense>
       </main>
       {taskRoute ? null : (
         <nav className="bottom-nav">
@@ -181,10 +190,13 @@ export default function App() {
 }
 
 function HomePage() {
+  const generation = useRef(storageGeneration()).current;
   const [homeDrafts, setHomeDrafts] = useState(() => listEntryDrafts(localStorage));
-  const draftCount = homeDrafts.length;
+  const newDraftCount = countNewDrafts(localStorage);
+  const damagedDraftCount = homeDrafts.filter((draft) => draft.status === "invalid").length;
+  const editDraftCount = homeDrafts.filter((draft) => draft.status !== "invalid" && draft.mode === "edit").length;
   const latestDraft = homeDrafts[0];
-  const latestDraftResult = latestDraft ? readEntryDraft(localStorage, latestDraft.mode, latestDraft.entryId, latestDraft.draftId) : null;
+  const latestDraftResult = latestDraft?.status !== "invalid" && latestDraft ? readStoredEntryDraft(latestDraft.key, latestDraft.raw) : null;
   const [entries, setEntries] = useState<HomeEntry[]>([]);
   const [stats, setStats] = useState<YearStats | null>(null);
   const [resurfacingEntry, setResurfacingEntry] = useState<HomeEntry | null>(null);
@@ -212,18 +224,25 @@ function HomePage() {
       const today = localDateKey();
       const resolved = resolveDailyResurfacing(allEntries, moments, today, parseDailyResurfacingState(savedState));
       const nextState = JSON.stringify(resolved.state);
+      if (!active) return;
+      assertStorageWritable(generation);
       if (savedState !== nextState) await store.setStoredAppData(DAILY_RESURFACING_KEY, nextState);
       const nextResurfacing = resolved.entry ? await loadHomeCover(resolved.entry) : null;
       let currentMatches = false;
       if (nextResurfacing && Capacitor.isNativePlatform()) {
         try {
           const current = parseNowPlayingResult(await NowPlaying.getCurrentTrack());
-          currentMatches = !!current.fields && sameMusicIdentity(nextResurfacing, {
-            songName: current.fields.songName,
-            artistName: current.fields.artistName,
-            albumName: current.fields.albumName,
-            musicMetadata: current.musicMetadata,
-          });
+          if (current.fields) {
+            const currentIdentity = {
+              songName: current.fields.songName,
+              artistName: current.fields.artistName,
+              albumName: current.fields.albumName,
+              musicMetadata: current.musicMetadata,
+            };
+            currentMatches = nextResurfacing.type === "album"
+              ? sameAlbumIdentity(nextResurfacing, currentIdentity)
+              : sameMusicIdentity(nextResurfacing, currentIdentity);
+          }
         } catch {
           currentMatches = false;
         }
@@ -231,6 +250,7 @@ function HomePage() {
       if (!active) return;
       setEntries(recentWithCovers);
       setStats(yearStats);
+      setHomeDrafts(listEntryDrafts(localStorage, allEntries));
       setResurfacingEntry(nextResurfacing);
       setResurfacingState(resolved.state);
       setNowPlayingMatch(currentMatches);
@@ -247,6 +267,7 @@ function HomePage() {
 
   async function dismissResurfacing() {
     if (!resurfacingState) return;
+    assertStorageWritable(generation);
     const nextState = dismissDailyResurfacing(resurfacingState);
     await store.setStoredAppData(DAILY_RESURFACING_KEY, JSON.stringify(nextState));
     setResurfacingState(nextState);
@@ -260,7 +281,7 @@ function HomePage() {
         <div className="home-hero-copy">
           <h1>私人音乐档案</h1>
           <p>记录每一次听歌的心情与感受</p>
-          <Link to="/drafts" className="home-draft-link"><strong>草稿箱 · {draftCount} 条待完成 <span aria-hidden="true">→</span></strong>{latestDraft ? <><span className="home-draft-title">{latestDraft.title || "未命名草稿"}</span><span>{latestDraftResult?.status === "valid" ? excerpt(latestDraftResult.draft.fields.content, 70) || "正文还没写，随时继续。" : "打开草稿箱继续"}</span></> : <span>未写完的感受，留在这里继续。</span>}</Link>
+          <Link to="/drafts" className="home-draft-link"><strong>草稿箱 · {homeDrafts.length} 条（有效新建 {homeDrafts.filter(draft => draft.status !== "invalid" && draft.mode === "create").length} · 编辑 {editDraftCount} · 损坏 {damagedDraftCount}；新建占位 {newDraftCount}/5） <span aria-hidden="true">→</span></strong>{latestDraft ? <><span className="home-draft-title">{latestDraft.title || "未命名草稿"}</span><span>{latestDraft.status === "conflict" ? "编辑草稿与正式记录冲突，请先处理。" : latestDraft.status === "invalid" ? "原文已保留，可查看或导出。" : latestDraftResult ? excerpt(latestDraftResult.fields.content, 70) || "正文还没写，随时继续。" : "打开草稿箱继续"}</span></> : <span>未写完的感受，留在这里继续。</span>}</Link>
         </div>
         <div className="hero-record" aria-hidden="true" />
       </section>
@@ -283,10 +304,9 @@ function HomePage() {
           </div>
           <div className="daily-resurfacing-copy">
             <span className="page-eyebrow">今日重逢</span>
-            <h2>{resurfacingEntry.songName ?? resurfacingEntry.title}</h2>
+            <h2>{resurfacingEntry.type === "album" ? resurfacingEntry.albumName ?? resurfacingEntry.title : resurfacingEntry.songName ?? resurfacingEntry.title}</h2>
             <p>{[resurfacingEntry.artistName, resurfacingEntry.albumName].filter(Boolean).join(" · ")}</p>
-            <blockquote>{excerpt(resurfacingEntry.content, 86)}</blockquote>
-            {nowPlayingMatch ? <strong className="now-playing-match">此刻正在播放这首歌</strong> : null}
+            {nowPlayingMatch ? <strong className="now-playing-match">{resurfacingEntry.type === "album" ? "此刻正在播放这张专辑中的音乐" : "此刻正在播放这首歌"}</strong> : null}
             <div className="action-row">
               <Link className="primary-button" to={`/relisten/${resurfacingEntry.id}`}>先听，再揭晓</Link>
               <button className="secondary-button" type="button" onClick={() => void dismissResurfacing()}>今天略过</button>
@@ -389,6 +409,7 @@ function TimelinePage() {
 }
 
 function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
+  const generation = useRef(storageGeneration()).current;
   const { id } = useParams();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -418,6 +439,8 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
     setSearchParams(next, { replace: true });
   }, [draftId, mode, searchParams, setSearchParams]);
   const formRef = useRef<HTMLFormElement | null>(null);
+  const nowPlayingRequestRef = useRef(0);
+  const formRevisionRef = useRef(0);
   const draftTimerRef = useRef<number | null>(null);
   const pendingDraftRef = useRef<EntryDraft | null>(null);
   const draftReadyRef = useRef(false);
@@ -584,14 +607,14 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
     }
   }, [entry, entryCoverLoaded, id, mode, draftId]);
 
-  // ponytail: 多维度开启且4维都有值时，综合分=4维平均（0.5步进）。用户可手动拖主滑块覆盖并锁定；之后维度变化不再覆盖，改任一维度则重新解锁计算。
+  // ponytail: 四维仍用 0.5 步进，综合分保留一位小数；需要更高精度时再扩展展示与存储规则。
   useEffect(() => {
     if (!multiDimension) return;
     const dims = [ratingProduction, ratingSongwriting, ratingOriginality, ratingResonance];
     if (dims.some((d) => d === null)) return;
     if (compositeLockedRef.current) return;
     const avg = (dims as number[]).reduce((sum, d) => sum + d, 0) / dims.length;
-    setRating(Math.round(avg / 0.5) * 0.5);
+    setRating(Math.round(avg * 10) / 10);
   }, [multiDimension, ratingProduction, ratingSongwriting, ratingOriginality, ratingResonance]);
 
   useEffect(() => {
@@ -620,7 +643,8 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
 
   useEffect(() => {
     if (draftReady && Capacitor.isNativePlatform()) void readNowPlaying();
-  }, [draftReady, mode]);
+    return () => { nowPlayingRequestRef.current += 1; };
+  }, [draftReady, mode, id, draftId]);
 
   function createDraftSnapshot(): EntryDraft | null {
     if (!draftReadyRef.current || !formRef.current) return null;
@@ -667,6 +691,7 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
       draftTimerRef.current = null;
     }
     try {
+      assertStorageWritable(generation);
       writeEntryDraft(localStorage, draft);
       pendingDraftRef.current = null;
       if (showStatus) {
@@ -698,6 +723,7 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
 
   async function discardDraft() {
     if (!confirm("放弃这份未保存草稿？此操作无法撤销。")) return;
+    formRevisionRef.current += 1;
     let originalCover: string | null = null;
     if (entry) {
       try {
@@ -707,6 +733,7 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
       }
     }
     try {
+      assertStorageWritable(generation);
       removeEntryDraft(localStorage, mode, mode === "edit" ? id ?? null : null, draftId);
     } catch (err) {
       setDraftStatus(err instanceof Error ? `草稿清除失败：${err.message}` : "草稿清除失败");
@@ -737,10 +764,15 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
   }
 
   async function readNowPlaying() {
+    const requestId = ++nowPlayingRequestRef.current;
+    const revision = formRevisionRef.current;
+    const isCurrent = () => requestId === nowPlayingRequestRef.current && revision === formRevisionRef.current;
     setNowPlayingBusy(true);
+    setNowPlayingMessage("正在读取当前播放…");
     setError("");
     try {
       const result = parseNowPlayingResult(await NowPlaying.getCurrentTrack());
+      if (!isCurrent()) return;
       setNowPlayingAccessEnabled(result.accessEnabled);
       if (!result.accessEnabled) {
         setNowPlayingMessage("请先授予通知使用权；本应用只读取系统媒体会话中的歌曲信息。");
@@ -773,9 +805,11 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
       try {
         const options = { title: songName, artistName, ...(result.fields.albumName ? { albumName: result.fields.albumName } : {}) };
         const china = parseCatalogSearchResult(await NowPlaying.searchCatalog({ ...options, country: "CN" }));
+        if (!isCurrent()) return;
         let match = findAppleCatalogMatch(result.fields, china);
         if (!match) {
           const unitedStates = parseCatalogSearchResult(await NowPlaying.searchCatalog({ ...options, country: "US" }));
+          if (!isCurrent()) return;
           match = findAppleCatalogMatch(result.fields, unitedStates);
         }
         if (!match) {
@@ -791,13 +825,15 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
         if (catalogChanged) scheduleDraftSave();
         setNowPlayingMessage(`${recognitionNotice(finalResult.fields)}，联网补全完成`);
       } catch (catalogError) {
-        setNowPlayingMessage(`${recognitionNotice(result.fields)}，已保留原生信息；${catalogError instanceof Error ? catalogError.message : "联网补全失败"}，可重试`);
+        if (isCurrent()) setNowPlayingMessage(`${recognitionNotice(result.fields)}，已保留原生信息；${catalogError instanceof Error ? catalogError.message : "联网补全失败"}，可重试`);
       }
     } catch (err) {
-      setNowPlayingMessage("");
-      setError(err instanceof Error ? err.message : "当前播放读取失败");
+      if (isCurrent()) setNowPlayingMessage(err instanceof Error ? err.message : "当前播放读取失败，请重试");
     } finally {
-      setNowPlayingBusy(false);
+      if (requestId === nowPlayingRequestRef.current) {
+        setNowPlayingBusy(false);
+        if (revision !== formRevisionRef.current) setNowPlayingMessage("输入已修改，已保留当前内容；可重新读取当前播放。");
+      }
     }
   }
 
@@ -808,38 +844,44 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
       setNowPlayingAccessEnabled(null);
       setNowPlayingMessage("授权后返回小懂哥，点击“读取当前播放”。");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "通知使用权设置打开失败");
+      setNowPlayingMessage(err instanceof Error ? err.message : "通知使用权设置打开失败");
     }
   }
 
   async function chooseCover(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.currentTarget.files?.[0];
-    if (!file) return;
+    const input = event.currentTarget;
+    const file = input.files?.[0];
+    if (!file || input.disabled) return;
+    input.disabled = true;
     setError("");
     setNotice("");
     try {
       const dataUrl = await fileToCoverDataUrl(file);
+      if (!input.isConnected) return;
       setCoverDataUrl(dataUrl);
       setCoverChanged(true);
       setNotice("封面已选择，保存记录后生效");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "封面读取失败");
+      if (input.isConnected) setError(err instanceof Error ? err.message : "封面读取失败");
     } finally {
-      event.currentTarget.value = "";
+      input.value = "";
+      input.disabled = false;
     }
   }
 
   async function recognizeScreenshot(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.currentTarget.files?.[0];
+    const input = event.currentTarget;
+    const file = input.files?.[0];
     if (!file) return;
     setError("");
     setNotice("");
-    setOcrText("");
     setOcrBusy(true);
     try {
       if (!Capacitor.isNativePlatform()) throw new Error("截图识别请在 Android APK 中使用");
       const dataUrl = await fileToDataUrl(file);
+      if (!input.isConnected) return;
       const result = await ScreenshotOcr.recognize({ dataUrl });
+      if (!input.isConnected) return;
       const text = result.text.trim();
       if (!text) throw new Error("没有识别到文字");
       const fields = parseMusicInfoText(result);
@@ -847,10 +889,10 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
       setRecognizedFields(fields);
       setNotice(`${recognitionNotice(fields)}，请检查后应用到表单`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "截图识别失败");
+      if (input.isConnected) setError(err instanceof Error ? err.message : "截图识别失败");
     } finally {
-      setOcrBusy(false);
-      event.currentTarget.value = "";
+      if (input.isConnected) setOcrBusy(false);
+      input.value = "";
     }
   }
 
@@ -860,6 +902,7 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
 
   function applyRecognizedFields() {
     if (!recognizedFields) return;
+    formRevisionRef.current += 1;
     const result = prefersAlbumEntry(formRef.current, mode)
       ? toAlbumFirstRecognition(recognizedFields, musicMetadata)
       : { fields: recognizedFields, musicMetadata };
@@ -874,8 +917,9 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
   }
 
   function handleFormMutation(event: FormEvent<HTMLFormElement>) {
+    formRevisionRef.current += 1;
     const target = event.target;
-    if (musicMetadata && (target instanceof HTMLInputElement || target instanceof HTMLSelectElement)
+    if ((target instanceof HTMLInputElement || target instanceof HTMLSelectElement)
       && ["songName", "artistName", "albumName"].includes(target.name)) {
       setMusicMetadata(null);
       setNowPlayingMessage("音乐身份字段已修改，旧的补全信息已清除；可重新读取当前播放");
@@ -926,13 +970,16 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
       const coverTarget = coverChanged && coverDataUrl ? inputToCoverTarget(input) : null;
       if (coverChanged && coverDataUrl && !coverTarget) throw new Error("请先填写歌曲或专辑，再保存封面");
       const similar = findSimilarEntry(await store.listEntries(), input, mode === "edit" ? id : undefined);
+      assertStorageWritable(generation);
       if (similar && !confirm(`可能已经有相似记录：${similar.title}（${similar.year} / ${monthLabel(similar.month)}）。仍然保存吗？`)) {
         setNotice("已取消保存，现有记录未改变");
         return;
       }
       if (coverTarget) await store.setCover(coverTarget.kind, coverTarget.target, coverDataUrl as string);
+      assertStorageWritable(generation);
       const saved = mode === "create" ? await store.createEntry(input) : await store.updateEntry(id as string, input);
       try {
+        assertStorageWritable(generation);
         removeEntryDraft(localStorage, mode, mode === "edit" ? id ?? null : null, draftId);
       } catch (draftCleanupError) {
         alert(`记录已保存，但草稿清理失败：${draftCleanupError instanceof Error ? draftCleanupError.message : "未知错误"}`);
@@ -988,12 +1035,15 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
               {nowPlayingAccessEnabled === false ? (
                 <button className="secondary-button" type="button" onClick={openNotificationSettings}>打开系统设置</button>
               ) : (
-                <button className="secondary-button" type="button" onClick={readNowPlaying} disabled={nowPlayingBusy}>
+                <button className="secondary-button" type="button" onClick={(event) => {
+                  event.currentTarget.closest("section")?.scrollIntoView({ block: "center" });
+                  void readNowPlaying();
+                }} disabled={nowPlayingBusy}>
                   {nowPlayingBusy ? "读取中" : "读取当前播放"}
                 </button>
               )}
             </div>
-            <p>{nowPlayingMessage || "打开新建记录时会自动读取并联网补全，只填充空白字段，不会自动保存。"}</p>
+            <p role="status" aria-live="polite">{nowPlayingMessage || "打开新建记录时会自动读取并联网补全，只填充空白字段，不会自动保存。"}</p>
             <small>联网补全只会把当前歌曲名、歌手和专辑发送给 Apple 音乐目录。</small>
           </section>
         ) : null}
@@ -1364,11 +1414,13 @@ function EntryDetailPage() {
   const coverLabel = entry.albumName ?? entry.songName ?? entry.title;
 
   async function remove() {
+    const generation = storageGeneration();
     const current = entry;
     if (!current) return;
     if (!confirm("确认删除这条记录？")) return;
     try {
       await store.deleteEntry(current.id);
+      assertStorageWritable(generation);
       removeEntryDraft(localStorage, "edit", current.id);
       navigate("/timeline");
     } catch (err) {
@@ -1444,12 +1496,12 @@ function EntryDetailPage() {
         </div>
       </div>
       <div className="action-row">
-        {entry.type === "song" ? <Link className="primary-button" to={`/relisten/${entry.id}`}>再次听见</Link> : null}
+        {entry.type === "song" || entry.type === "album" ? <Link className="primary-button" to={`/relisten/${entry.id}`}>再次听见</Link> : null}
       </div>
       {error ? <p className="error">{error}</p> : null}
       {searchParams.get("draftCleanup") === "failed" ? <p className="hint">记录已保存，但原快速草稿未能清理；可稍后在草稿箱手动删除。</p> : null}
       <article className="content-card">{entry.content}</article>
-      <DailyListeningNote entry={entry} />
+      <Suspense fallback={<p role="status">正在整理当日听感…</p>}><DailyListeningNote entry={entry} /></Suspense>
       <div className="detail-card">
         <Meta label="专辑" value={entry.albumName} />
         <Meta label="歌曲" value={entry.songName} />
@@ -1556,7 +1608,7 @@ function EntryDetailPage() {
         </section>
       ) : null}
     </Page>
-    {sharing && <ReviewShare entry={entry} onClose={() => setSharing(false)} />}
+    {sharing && <Suspense fallback={<p role="status">正在准备分享…</p>}><ReviewShare entry={entry} onClose={() => setSharing(false)} /></Suspense>}
     </ReadingTools>
   );
 }
@@ -1575,17 +1627,19 @@ function SongsPage() {
 
 function AggregateList({ title, items, kind, emptyText }: { title: string; items: Array<AlbumAggregate | SongAggregate>; kind: "album" | "song"; emptyText: string }) {
   return (
-    <Page title={title} text={`按你填写过的${title}名称聚合。`}>
+    <Page title={title} text={`按作品身份聚合，同一作品的多篇记录合并展示。`}>
       {!items.length ? <Empty text={emptyText} /> : null}
       <div className="cover-list">
         {items.map((item) => {
           const isSong = kind === "song";
           const name = isSong ? (item as SongAggregate).songName : (item as AlbumAggregate).albumName;
           const params = new URLSearchParams(isSong ? { songName: name } : { albumName: name });
+          params.set("entryId", item.representativeEntryId);
+          if (item.catalogId) params.set("catalogId", item.catalogId);
           if (item.artistName) params.set("artistName", item.artistName);
           if (isSong && (item as SongAggregate).albumName) params.set("albumName", (item as SongAggregate).albumName as string);
           return (
-            <Link key={`${kind}-${name}-${item.artistName ?? ""}-${isSong ? (item as SongAggregate).albumName ?? "" : ""}`} to={`/${kind === "song" ? "songs" : "albums"}/detail?${params.toString()}`} className="cover-row">
+            <Link key={item.representativeEntryId} to={`/${kind === "song" ? "songs" : "albums"}/detail?${params.toString()}`} className="cover-row">
               <CoverArt src={item.coverDataUrl} label={name} />
               <div className="cover-copy">
                 <h2>{name}</h2>
@@ -1609,30 +1663,49 @@ function AggregateDetail({ kind }: { kind: "album" | "song" }) {
   const albumName = params.get("albumName");
   const songName = params.get("songName");
   const artistName = params.get("artistName");
+  const representativeEntryId = params.get("entryId");
+  const catalogId = params.get("catalogId");
   useEffect(() => {
     Promise.all([
       store.listEntries(),
       store.getCover(kind, { albumName, songName, artistName }),
-    ]).then(([all, nextCover]) => {
-      setEntries(all.filter((entry) => kind === "album" ? entry.albumName === albumName && entry.artistName === artistName : entry.songName === songName && entry.artistName === artistName && entry.albumName === albumName));
-      setCover(nextCover);
+      kind === "album" ? store.albumAggregates() : store.songAggregates(),
+    ]).then(([all, nextCover, aggregates]) => {
+      const identity = { albumName, songName, artistName };
+      const matchesLegacyUnknownArtist = (entry: ReviewEntry) => !artistName && !entry.artistName && (kind === "album"
+        ? !!normalizeMusicIdentityText(albumName) && normalizeMusicIdentityText(entry.albumName) === normalizeMusicIdentityText(albumName)
+        : !!normalizeMusicIdentityText(songName) && normalizeMusicIdentityText(entry.songName) === normalizeMusicIdentityText(songName)
+          && normalizeMusicIdentityText(entry.albumName) === normalizeMusicIdentityText(albumName));
+      const groups = groupMusicEntries(all, kind);
+      const group = groups.find(items => items.some(item => item.id === representativeEntryId))
+        ?? (catalogId ? groups.find(items => items.some(item => (kind === "album" ? item.musicMetadata?.catalogAlbumId : item.musicMetadata?.catalogTrackId)?.trim() === catalogId)) : undefined)
+        ?? groups.find(items => items.some(item => (kind === "album" ? sameAlbumIdentity(item, identity) : sameMusicIdentity(item, identity)) || matchesLegacyUnknownArtist(item)));
+      setEntries(group ?? []);
+      setCover(aggregates.find(item => group?.some(entry => entry.id === item.representativeEntryId))?.coverDataUrl ?? nextCover);
     });
-  }, [albumName, artistName, kind, songName]);
+  }, [albumName, artistName, catalogId, kind, representativeEntryId, songName]);
   const title = kind === "album" ? albumName ?? "专辑记录" : songName ?? "歌曲记录";
 
   async function chooseCover(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.currentTarget.files?.[0];
-    if (!file) return;
+    const input = event.currentTarget;
+    const file = input.files?.[0];
+    if (!file || input.disabled) return;
+    const generation = storageGeneration();
+    input.disabled = true;
     setMessage("");
     try {
       const dataUrl = await fileToCoverDataUrl(file);
+      if (!input.isConnected) return;
+      assertStorageWritable(generation);
       await store.setCover(kind, { albumName, songName, artistName }, dataUrl);
+      if (!input.isConnected) return;
       setCover(dataUrl);
       setMessage("封面已保存");
     } catch (err) {
-      setMessage(err instanceof Error ? err.message : "封面保存失败");
+      if (input.isConnected) setMessage(err instanceof Error ? err.message : "封面保存失败");
     } finally {
-      event.currentTarget.value = "";
+      input.value = "";
+      input.disabled = false;
     }
   }
 
@@ -1650,9 +1723,10 @@ function AggregateDetail({ kind }: { kind: "album" | "song" }) {
           {message ? <p className="hint">{message}</p> : null}
         </div>
       </div>
-      {kind === "song" && entries.length ? (
-        <Link className="primary-button full aggregate-relisten-link" to={`/relisten/${oldestEntry(entries).id}`}>再次听见这首歌</Link>
+      {entries.some(entry => entry.type === kind) ? (
+        <Link className="primary-button full aggregate-relisten-link" to={`/relisten/${oldestEntry(entries.filter(entry => entry.type === kind)).id}`}>再次听见这{kind === "album" ? "张专辑" : "首歌"}</Link>
       ) : null}
+      {kind === "album" && albumName ? <Link className="secondary-button full" to={`/albums/timeline?${new URLSearchParams({ albumName, artistName: artistName ?? "" }).toString()}`}>查看跨年轨迹</Link> : null}
       <EntryList entries={entries} />
     </Page>
   );
@@ -1778,36 +1852,86 @@ function DraftsPage() {
   const navigate = useNavigate();
   const [drafts, setDrafts] = useState<EntryDraftMeta[]>([]);
   const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
+  const [exporting, setExporting] = useState(false);
 
-  function refresh() {
+  async function exportRaw(draft: EntryDraftMeta) {
+    if (exporting) return;
+    setExporting(true);
+    setError("");
+    try { setMessage(await downloadRawDraft(draft)); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : "草稿原文导出失败，请重试"); }
+    finally { setExporting(false); }
+  }
+
+  async function refresh() {
     try {
-      setDrafts(listEntryDrafts(localStorage));
+      const entries = await store.listEntries();
+      setDrafts(listEntryDrafts(localStorage, entries));
       setError("");
     } catch (err) {
+      try {
+        // 无法读取正式记录时按冲突处理，避免编辑草稿绕过一致性检查直接提交。
+        setDrafts(listEntryDrafts(localStorage, []));
+      } catch { /* preserve the last rendered list when storage is unavailable */ }
       setError(err instanceof Error ? err.message : "草稿列表读取失败");
     }
   }
 
-  useEffect(() => { refresh(); }, []);
+  useEffect(() => {
+    void refresh();
+    const sync = () => { void refresh(); };
+    window.addEventListener("storage", sync);
+    window.addEventListener("focus", sync);
+    return () => { window.removeEventListener("storage", sync); window.removeEventListener("focus", sync); };
+  }, []);
 
   function continueDraft(draft: EntryDraftMeta) {
+    if (draft.status !== "valid" || !draft.mode) return;
     if (draft.mode === "create") {
       if (draft.draftId) {
         navigate(`${draft.captureMode === "quick" ? "/capture" : "/new"}?draft=${encodeURIComponent(draft.draftId)}`);
       } else {
         // legacy 草稿（v1:new 无 draftId）：迁移到新 key 后跳转
-        const result = readEntryDraft(localStorage, "create", null, null);
-        if (result.status === "valid") {
-          const newDraftId = createNewDraftId();
-          writeEntryDraft(localStorage, { ...result.draft, draftId: newDraftId });
+        const result = readStoredEntryDraft(draft.key, draft.raw);
+        if (!result) {
+          setError("草稿原文无法解析，已保留在草稿箱中");
+          return;
+        }
+        const newDraftId = createNewDraftId();
+        try {
+          writeEntryDraft(localStorage, { ...result, draftId: newDraftId });
           deleteEntryDraftByKey(localStorage, draft.key);
           navigate(`/new?draft=${encodeURIComponent(newDraftId)}`);
-        } else {
-          navigate("/new");
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "草稿迁移失败，原文已保留");
         }
       }
     } else if (draft.entryId) {
       navigate(`/entries/${draft.entryId}/edit`);
+    }
+  }
+
+  function transferConflictToNew(draft: EntryDraftMeta) {
+    if (draft.status !== "conflict") return;
+    if (countNewDrafts(localStorage) >= MAX_NEW_DRAFTS) {
+      setError(`新建草稿已达上限（${MAX_NEW_DRAFTS} 份），冲突草稿原文已保留。`);
+      return;
+    }
+    const source = readStoredEntryDraft(draft.key, draft.raw);
+    if (!source || source.mode !== "edit") {
+      setError("冲突草稿原文无法解析，已保留在草稿箱中");
+      return;
+    }
+    const newDraftId = createNewDraftId();
+    const converted: EntryDraft = { ...source, mode: "create", entryId: null, draftId: newDraftId, baseUpdatedAt: null };
+    try {
+      // ponytail: 先写新 key，再清除旧 key；任一步失败都保留冲突原文。
+      writeEntryDraft(localStorage, converted);
+      deleteEntryDraftByKey(localStorage, draft.key);
+      navigate(`/new?draft=${encodeURIComponent(newDraftId)}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "冲突草稿转存失败，原文已保留");
     }
   }
 
@@ -1835,16 +1959,18 @@ function DraftsPage() {
     if (!confirm(`删除草稿「${draft.title}」？此操作无法撤销。`)) return;
     try {
       deleteEntryDraftByKey(localStorage, draft.key);
-      refresh();
+      void refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "草稿删除失败");
     }
   }
 
-  const newCount = drafts.filter((d) => d.mode === "create").length;
+  const newCount = countNewDrafts(localStorage);
+  const editCount = drafts.filter((draft) => draft.status !== "invalid" && draft.mode === "edit").length;
+  const damagedCount = drafts.filter((draft) => draft.status === "invalid").length;
 
   return (
-    <Page title="草稿箱" text={`${drafts.length} 份未保存草稿（新建 ${newCount}/${MAX_NEW_DRAFTS}，编辑 ${drafts.length - newCount}），点击续写或删除。`}>
+    <Page title="草稿箱" text={`${drafts.length} 份未保存草稿（有效新建 ${drafts.filter(draft => draft.status !== "invalid" && draft.mode === "create").length}，编辑 ${editCount}，损坏 ${damagedCount}；新建占位 ${newCount}/${MAX_NEW_DRAFTS}），点击续写或处理。`}>
       {error ? <p className="error">{error}</p> : null}
       <div className="draft-actions">
         <button type="button" className="primary-button full draft-create" onClick={createNewDraft} disabled={newCount >= MAX_NEW_DRAFTS}>
@@ -1854,20 +1980,36 @@ function DraftsPage() {
           灵感速记
         </button>
       </div>
+      {message ? <p role="status" className="hint">{message}</p> : null}
       {drafts.length === 0 ? (
         <Empty text="没有草稿。点上方按钮或底部「+」开始新记录，输入内容会自动保存。" />
       ) : (
         <div className="draft-list">
           {drafts.map((draft) => (
-            <div key={draft.key} className={`draft-card${draft.inspiration ? " draft-inspiration" : ""}`}>
-              <button type="button" className="draft-card-main" onClick={() => continueDraft(draft)}>
-                <strong>{draft.title}</strong>
-                <span className="draft-meta">
-                  {draft.inspiration ? "灵感速记" : draft.captureMode === "quick" ? "快速记录" : draft.mode === "create" ? "新建草稿" : "编辑记录"}
-                  {draft.type ? ` · ${ENTRY_TYPE_LABELS[draft.type]}` : ""}
-                  {" · "}{formatDate(draft.savedAt)}
-                </span>
-              </button>
+            <div key={draft.key} className={`draft-card${draft.inspiration ? " draft-inspiration" : ""}${draft.status === "invalid" ? " draft-damaged" : draft.status === "conflict" ? " draft-conflict" : ""}`}>
+              {draft.status === "valid" ? (
+                <button type="button" className="draft-card-main" onClick={() => continueDraft(draft)}>
+                  <strong>{draft.title}</strong>
+                  <span className="draft-meta">
+                    {draft.inspiration ? "灵感速记" : draft.captureMode === "quick" ? "快速记录" : draft.mode === "create" ? "新建草稿" : "编辑记录"}
+                    {draft.type ? ` · ${ENTRY_TYPE_LABELS[draft.type]}` : ""}
+                    {" · "}{formatDate(draft.savedAt)}
+                  </span>
+                </button>
+              ) : (
+                <div className="draft-card-main draft-card-recovery">
+                  <strong>{draft.status === "conflict" ? `${draft.title}（编辑冲突）` : "损坏草稿"}</strong>
+                  <span className="draft-meta">原键：{draft.key}</span>
+                  <details>
+                    <summary>查看原文</summary>
+                    <pre className="draft-raw">{draft.raw}</pre>
+                  </details>
+                  <div className="draft-recovery-actions">
+                    <button type="button" className="secondary-button" disabled={exporting} onClick={() => void exportRaw(draft)}>导出原文</button>
+                    {draft.status === "conflict" ? <button type="button" className="primary-button" onClick={() => transferConflictToNew(draft)}>转为新建草稿</button> : null}
+                  </div>
+                </div>
+              )}
               <button type="button" className="danger-button draft-delete" onClick={() => deleteDraft(draft)}>删除</button>
             </div>
           ))}
@@ -1875,6 +2017,13 @@ function DraftsPage() {
       )}
     </Page>
   );
+}
+
+let backupResultNotice: { text: string; error: boolean } | null = null;
+const BACKUP_RESULT_EVENT = "codex-backup-result";
+function publishBackupResult(text: string, error = false) {
+  backupResultNotice = { text, error };
+  window.dispatchEvent(new Event(BACKUP_RESULT_EVENT));
 }
 
 function BackupPage() {
@@ -1885,25 +2034,49 @@ function BackupPage() {
   const [exportStatus, setExportStatus] = useState<{ tone: "success" | "error"; text: string } | null>(null);
   const [importText, setImportText] = useState("");
   const [preview, setPreview] = useState<BackupPreview | null>(null);
+  const [restoreRehearsal, setRestoreRehearsal] = useState<RestoreRehearsal | null>(null);
   const [undoPreview, setUndoPreview] = useState<BackupPreview | null>(null);
   useEffect(() => {
     let active = true;
     void store.previewImportUndo().then((preview) => {
       if (active) setUndoPreview(preview);
-    });
+    }).catch(reason => { if (active) setError(reason instanceof Error ? reason.message : "撤销快照读取失败，原文已保留"); });
     return () => {
       active = false;
     };
   }, []);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  useEffect(() => {
+    const generation = storageGeneration();
+    const receive = () => {
+      if (generation !== storageGeneration() || !backupResultNotice) return;
+      if (backupResultNotice.error) setError(backupResultNotice.text);
+      else setMessage(backupResultNotice.text);
+      backupResultNotice = null;
+    };
+    window.addEventListener(BACKUP_RESULT_EVENT, receive);
+    receive();
+    return () => window.removeEventListener(BACKUP_RESULT_EVENT, receive);
+  }, []);
   const [busy, setBusy] = useState(false);
   const [health, setHealth] = useState<BackupHealth | null>(null);
-  const [corruption, setCorruption] = useState<StorageCorruption | null>(() => readStorageCorruption(localStorage));
+  const [corruptions, setCorruptions] = useState<StorageCorruption[]>(() => readStorageCorruptions(localStorage));
+
+  useEffect(() => {
+    let active = true;
+    void store.exportBackup().catch((err) => {
+      if (!active) return;
+      setCorruptions(readStorageCorruptions(localStorage));
+      setError(err instanceof Error ? err.message : "本地数据完整性检查失败");
+    });
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     setError("");
     setPreview(null);
+    setRestoreRehearsal(null);
     if (!importText.trim()) return;
     try {
       setPreview(store.previewBackup(importText, { includeCovers: !skipCovers }));
@@ -1918,37 +2091,40 @@ function BackupPage() {
       if (active) setHealth(parseBackupHealth(raw));
     }).catch((err) => {
       if (active) {
-        setCorruption(readStorageCorruption(localStorage));
+        setCorruptions(readStorageCorruptions(localStorage));
         setError(err instanceof Error ? err.message : "备份健康记录读取失败");
       }
     });
     return () => { active = false; };
   }, []);
 
-  async function saveHealth(next: BackupHealth) {
+  async function saveHealth(next: BackupHealth, generation: number) {
+    assertStorageWritable(generation);
     await store.setStoredAppData(BACKUP_HEALTH_KEY, JSON.stringify(next));
     setHealth(next);
   }
 
   async function verifyBackup() {
+    const generation = storageGeneration();
     setMessage("");
     setError("");
     setBusy(true);
     try {
       const raw = await store.exportBackup();
       const next = await inspectBackup(raw, store.previewBackup(raw));
-      await saveHealth(next);
-      setMessage("备份健康检查通过：SQLite v5、记录数量和 SHA-256 已确认");
+      await saveHealth(next, generation);
+      setMessage("备份健康检查通过：v6、记录与草稿数量和 SHA-256 已确认");
     } catch (err) {
+      setCorruptions(readStorageCorruptions(localStorage));
       setError(err instanceof Error ? err.message : "备份健康检查失败");
     } finally {
       setBusy(false);
     }
   }
 
-  async function markJsonSaved(fileName: string, raw: string) {
+  async function markJsonSaved(fileName: string, raw: string, generation: number) {
     const sha = await inspectBackup(raw, store.previewBackup(raw));
-    await saveHealth({ ...sha, lastSavedAt: new Date().toISOString(), lastSavedFileName: fileName });
+    await saveHealth({ ...sha, lastSavedAt: new Date().toISOString(), lastSavedFileName: fileName }, generation);
   }
 
   async function exportData(kind: ExportKind) {
@@ -1962,11 +2138,13 @@ function BackupPage() {
       setExported({ kind, content, fileName, mimeType: meta.mimeType });
       setExportStatus({ tone: "success", text: `${EXPORT_LABELS[kind]} 已生成，可以保存、分享或复制` });
     } catch (err) {
+      setCorruptions(readStorageCorruptions(localStorage));
       setError(err instanceof Error ? err.message : "导出失败");
     }
   }
 
   async function saveExportFile() {
+    const generation = storageGeneration();
     if (!exported) return;
     setExportAction("save");
     setExportStatus({ tone: "success", text: Capacitor.isNativePlatform() ? "正在打开系统文件选择器……" : "正在保存文件……" });
@@ -1979,7 +2157,7 @@ function BackupPage() {
         }
         if (exported.kind === "json") {
           try {
-            await markJsonSaved(exported.fileName, exported.content);
+            await markJsonSaved(exported.fileName, exported.content, generation);
           } catch (healthError) {
             setExportStatus({ tone: "error", text: `文件已保存，但备份健康状态更新失败：${healthError instanceof Error ? healthError.message : "未知错误"}` });
             return;
@@ -2038,8 +2216,7 @@ function BackupPage() {
     }
   }
 
-  async function copyCorruption() {
-    if (!corruption) return;
+  async function copyCorruption(corruption: StorageCorruption) {
     try {
       await copyText(corruption.raw);
       setMessage("损坏数据原文已复制");
@@ -2048,16 +2225,36 @@ function BackupPage() {
     }
   }
 
-  function dismissCorruption() {
-    if (!corruption || !confirm("确认清除这份隔离副本？清除后无法从应用内恢复原文。")) return;
-    clearStorageCorruption(localStorage);
-    setCorruption(null);
+  function dismissCorruption(corruption: StorageCorruption) {
+    if (!confirm(`确认清除 ${corruption.key} 的隔离副本？清除后无法从应用内恢复原文。`)) return;
+    clearStorageCorruption(localStorage, corruption.key);
+    setCorruptions(readStorageCorruptions(localStorage));
     setMessage("隔离副本已清除");
   }
 
   function changeImportText(value: string) {
     setImportText(value);
     setMessage("");
+    setRestoreRehearsal(null);
+  }
+
+  async function rehearseImport() {
+    if (busy || !preview) return;
+    setBusy(true);
+    setError("");
+    setMessage("");
+    setRestoreRehearsal(null);
+    try {
+      const report = await store.rehearseRestore(importText, { includeCovers: !skipCovers });
+      setRestoreRehearsal(report);
+      setMessage(report.target === "android-isolated-sqlite"
+        ? "Android 隔离数据库写入及回读通过；正式数据未覆盖"
+        : "Web 隔离存储模拟恢复及回读通过；正式数据未覆盖");
+    } catch (err) {
+      setError(err instanceof Error ? `恢复预演失败：${err.message}` : "恢复预演失败");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function chooseImportFile(event: ChangeEvent<HTMLInputElement>) {
@@ -2097,25 +2294,36 @@ function BackupPage() {
   async function importData(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
+    if (!restoreRehearsal) { setError("请先完成隔离恢复预演"); return; }
     let nextPreview: BackupPreview;
     try {
       nextPreview = store.previewBackup(importText, { includeCovers: !skipCovers });
+      const currentDiff = await store.previewRestoreDiff(importText, { includeCovers: !skipCovers });
+      if (currentDiff.inputSha256 !== restoreRehearsal.inputSha256
+        || currentDiff.localSha256 !== restoreRehearsal.localSha256
+        || currentDiff.includeCovers !== restoreRehearsal.includeCovers) {
+        setRestoreRehearsal(null);
+        throw new Error("备份内容、封面选项或本机数据已变化，请重新预演");
+      }
       setPreview(nextPreview);
     } catch (err) {
       setError(err instanceof Error ? err.message : "备份预览失败");
       return;
     }
-    if (!confirm(`导入会覆盖当前手机本地数据。备份包含 ${nextPreview.entryCount} 条记录、${nextPreview.summaryCount} 个年度总结、${nextPreview.monthlySummaryCount} 个月度作品。${skipCovers ? "跳过备份封面，保留当前封面；缺少的封面可之后补充。" : `封面将替换为备份中的 ${nextPreview.coverCount} 张封面。`}确认继续？`)) return;
+    if (!confirm(`导入会覆盖当前手机本地数据。备份包含 ${nextPreview.entryCount} 条记录、${nextPreview.summaryCount} 个年度总结、${nextPreview.monthlySummaryCount} 个月度作品。${draftImportImpact(nextPreview)}${skipCovers ? "跳过备份封面，保留当前封面；草稿的待保存封面也会移除。" : `封面将替换为备份中的 ${nextPreview.coverCount} 张封面。`}确认继续？`)) return;
     setMessage("");
     setError("");
     setBusy(true);
     try {
-      await store.importBackup(importText, { includeCovers: !skipCovers });
+      await store.importBackup(importText, { includeCovers: !skipCovers }, restoreRehearsal.localSha256);
+      setRestoreRehearsal(null);
       setUndoPreview(await store.previewImportUndo());
-      setMessage(`导入完成：${nextPreview.entryCount} 条记录、${nextPreview.summaryCount} 个年度总结、${nextPreview.monthlySummaryCount} 个月度作品。${skipCovers ? "已保留当前封面，缺少的封面可重新添加。" : `已恢复 ${nextPreview.coverCount} 张封面。`}`);
+      publishBackupResult(`导入完成：${nextPreview.entryCount} 条记录、${nextPreview.summaryCount} 个年度总结、${nextPreview.monthlySummaryCount} 个月度作品。${skipCovers ? "已保留当前封面，缺少的封面可重新添加。" : `已恢复 ${nextPreview.coverCount} 张封面。`}`);
       setExported(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "导入失败");
+      const reason = err instanceof Error ? err.message : "导入失败";
+      if (getRestoreState().error) setError(reason);
+      else publishBackupResult(reason, true);
     } finally {
       setBusy(false);
     }
@@ -2123,7 +2331,7 @@ function BackupPage() {
 
   async function undoImport() {
     if (busy || !undoPreview) return;
-    if (!confirm(`撤销会恢复导入前快照：${undoPreview.entryCount} 条记录、${undoPreview.summaryCount} 个年度总结、${undoPreview.monthlySummaryCount} 个月度作品、${undoPreview.coverCount} 张封面。确认继续？`)) return;
+    if (!confirm(`撤销会恢复导入前快照：${undoPreview.entryCount} 条记录、${undoPreview.summaryCount} 个年度总结、${undoPreview.monthlySummaryCount} 个月度作品、${undoPreview.coverCount} 张封面。${draftImportImpact(undoPreview)}确认继续？`)) return;
     setMessage("");
     setError("");
     setBusy(true);
@@ -2131,9 +2339,11 @@ function BackupPage() {
       await store.restoreImportUndo();
       setUndoPreview(await store.previewImportUndo());
       setExported(null);
-      setMessage("已撤销上次导入");
+      publishBackupResult("已撤销上次导入");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "撤销失败");
+      const reason = err instanceof Error ? err.message : "撤销失败";
+      if (getRestoreState().error) setError(reason);
+      else publishBackupResult(reason, true);
     } finally {
       setBusy(false);
     }
@@ -2153,18 +2363,23 @@ function BackupPage() {
             <span>内容统计<strong>{health.entryCount} 条记录 · {health.listeningMomentCount} 次复听</strong></span>
             <span>校验摘要<strong title={health.sha256}>{health.sha256.slice(0, 12)}…</strong></span>
           </div>
-        ) : <p className="hint">尚未检查。检查会实际生成 SQLite v5 备份并计算 SHA-256，不会修改乐评。</p>}
+        ) : <p className="hint">尚未检查。检查会生成包含草稿的 v6 备份并计算 SHA-256。v6 需要支持草稿备份的新版本才能导入。</p>}
         {health?.lastSavedFileName ? <p className="hint">最近保存：{health.lastSavedFileName}</p> : null}
       </section>
-      {corruption ? (
+      {corruptions.length ? (
         <section className="form-card corruption-card">
           <strong>发现并隔离了损坏的本地数据</strong>
-          <p className="error">来源：{corruption.key} · {formatDate(corruption.detectedAt)}。应用没有用空数据覆盖它。</p>
-          <textarea readOnly rows={6} value={corruption.raw} />
-          <div className="export-output-actions">
-            <button className="secondary-button" type="button" onClick={copyCorruption}>复制原始内容</button>
-            <button className="danger-button" type="button" onClick={dismissCorruption}>清除隔离副本</button>
-          </div>
+          <p className="error">有 {corruptions.length} 份数据待处理。应用保留原文并阻止覆盖；当前备份不完整，请先复制原文。</p>
+          {corruptions.map((item) => (
+            <div className="corruption-item" key={`${item.key}:${item.detectedAt}`}>
+              <p className="error">来源：{item.key} · {formatDate(item.detectedAt)}</p>
+              <textarea readOnly rows={6} value={item.raw} />
+              <div className="export-output-actions">
+                <button className="secondary-button" type="button" onClick={() => copyCorruption(item)}>复制原始内容</button>
+                <button className="danger-button" type="button" onClick={() => dismissCorruption(item)}>清除隔离副本</button>
+              </div>
+            </div>
+          ))}
         </section>
       ) : null}
       <div className="backup-cover-options">
@@ -2196,13 +2411,13 @@ function BackupPage() {
       {undoPreview ? (
         <section className="form-card">
           <strong>可撤销的导入</strong>
-          <p className="hint">导入前快照：{undoPreview.entryCount} 条记录、{undoPreview.summaryCount} 个年度总结、{undoPreview.monthlySummaryCount} 个月度作品、{undoPreview.coverCount} 张封面；导出时间：{formatDate(undoPreview.exportedAt)}</p>
+          <p className="hint">导入前快照：{undoPreview.entryCount} 条记录、{undoPreview.summaryCount} 个年度总结、{undoPreview.monthlySummaryCount} 个月度作品、{undoPreview.coverCount} 张封面；{draftImportImpact(undoPreview)}导出时间：{formatDate(undoPreview.exportedAt)}</p>
           <button className="secondary-button" type="button" onClick={undoImport} disabled={busy}>{busy ? "处理中" : "撤销上次导入"}</button>
         </section>
       ) : null}
       <form className="form-card" onSubmit={importData}>
         <div className="backup-cover-options">
-          <label><input type="checkbox" checked={skipCovers} disabled={busy} onChange={(event) => { setSkipCovers(event.target.checked); setMessage(""); }} />跳过备份封面，保留当前封面</label>
+          <label><input type="checkbox" checked={skipCovers} disabled={busy} onChange={(event) => { setSkipCovers(event.target.checked); setMessage(""); setRestoreRehearsal(null); }} />跳过备份封面，保留当前封面</label>
           <p className="hint">封面损坏或暂时不需要恢复时可勾选，其他内容照常导入。</p>
         </div>
         <label className="secondary-button file-input-button">
@@ -2213,9 +2428,23 @@ function BackupPage() {
           粘贴备份 JSON
           <textarea rows={10} value={importText} disabled={busy} onChange={(event) => changeImportText(event.target.value)} />
         </label>
-        {preview ? <p className="hint">备份内容：{preview.entryCount} 条记录、{preview.summaryCount} 个年度总结、{preview.monthlySummaryCount} 个月度作品、{preview.coverCount} 张封面；导出时间：{formatDate(preview.exportedAt)}</p> : null}
+        {preview ? <p className="hint">格式校验通过；备份内容（v{preview.sourceVersion}）：{preview.entryCount} 条记录、{preview.summaryCount} 个年度总结、{preview.monthlySummaryCount} 个月度作品、{preview.coverCount} 张封面；{draftImportImpact(preview)}导出时间：{formatDate(preview.exportedAt)}</p> : null}
         {skipCovers ? <p className="hint">本次不导入备份中的封面；当前封面保留。</p> : null}
-        <button className="danger-button" type="submit" disabled={busy || !preview}>{busy ? "导入中" : "导入并覆盖当前数据"}</button>
+        <button className="secondary-button" type="button" onClick={() => void rehearseImport()} disabled={busy || !preview}>{busy ? "预演中" : "预演恢复并查看差异"}</button>
+        {restoreRehearsal ? (
+          <section className="backup-diff-report" aria-label="恢复差异报告">
+            <strong>{restoreRehearsal.target === "android-isolated-sqlite" ? "Android 隔离数据库恢复与回读通过" : "Web 隔离存储模拟恢复与回读通过"}</strong>
+            <p className="hint">报告绑定当前备份、封面选项和本机数据；任一变化后需重新预演。预演不能保证正式恢复时仍有足够存储空间。</p>
+            <ul>{([
+              ["正式记录", "entries"], ["年度总结", "summaries"], ["月度作品", "monthlySummaries"],
+              ["重听记录", "listeningMoments"], ["封面", "covers"], ["榜单与应用数据", "appData"], ["草稿", "drafts"],
+            ] as const).map(([label, key]) => {
+              const diff = restoreRehearsal.groups[key];
+              return <li key={key}>{label}：新增 {diff.added} · 更新 {diff.changed} · 相同 {diff.unchanged} · 本机将移除 {diff.removed}</li>;
+            })}</ul>
+          </section>
+        ) : null}
+        <button className="danger-button" type="submit" disabled={busy || !restoreRehearsal}>{busy ? "导入中" : "导入并覆盖当前数据"}</button>
       </form>
       {message ? <p className="hint">{message}</p> : null}
       {error ? <p className="error">{error}</p> : null}
@@ -2223,14 +2452,31 @@ function BackupPage() {
   );
 }
 
+function draftImportImpact(preview: BackupPreview) {
+  return preview.draftsPresence === "absent"
+    ? `来源未包含草稿，本机 ${preview.localDraftCount} 份草稿保持不变。`
+    : `本机 ${preview.localDraftCount} 份草稿将整体替换为 ${preview.draftCount} 份（新建 ${preview.newDraftCount}、编辑 ${preview.editDraftCount}）；${preview.draftCount === 0 ? "本次将清空草稿。" : ""}`;
+}
+
 function MorePage() {
-  const [draftCount] = useState(() => listEntryDrafts(localStorage).length);
+  const [moreDrafts, setMoreDrafts] = useState(() => listEntryDrafts(localStorage));
   const [theme, setTheme] = useState<ThemeChoice>(() => readThemeChoice());
+
+  const newDraftCount = countNewDrafts(localStorage);
+  const editDraftCount = moreDrafts.filter((draft) => draft.status !== "invalid" && draft.mode === "edit").length;
+  const damagedDraftCount = moreDrafts.filter((draft) => draft.status === "invalid").length;
 
   useEffect(() => {
     const sync = () => setTheme(readThemeChoice());
     window.addEventListener(THEME_CHANGED_EVENT, sync);
-    return () => window.removeEventListener(THEME_CHANGED_EVENT, sync);
+    const refreshDrafts = () => setMoreDrafts(listEntryDrafts(localStorage));
+    window.addEventListener("storage", refreshDrafts);
+    window.addEventListener("focus", refreshDrafts);
+    return () => {
+      window.removeEventListener(THEME_CHANGED_EVENT, sync);
+      window.removeEventListener("storage", refreshDrafts);
+      window.removeEventListener("focus", refreshDrafts);
+    };
   }, []);
 
   const items = [
@@ -2238,9 +2484,11 @@ function MorePage() {
     ["/abstract-map", "抽象地图", "按情绪把记录放进听歌大陆。"],
     ["/insights", "情绪洞察", "按天气和季节看你的听歌偏好。"],
     ["/albums", "专辑", "按专辑名称聚合记录。"],
+    ["/albums/timeline", "跨年专辑轨迹", "查看保存的榜单名次、当前乐评与重听来源。"],
     ["/songs", "歌曲", "按歌曲名称聚合记录。"],
-    ["/drafts", "草稿箱", `${draftCount} 份未保存草稿，可续写或删除。`],
+    ["/drafts", "草稿箱", `${moreDrafts.length} 份未保存草稿（有效新建 ${moreDrafts.filter(draft => draft.status !== "invalid" && draft.mode === "create").length}、编辑 ${editDraftCount}、损坏 ${damagedDraftCount}；新建占位 ${newDraftCount}/5），可续写或处理。`],
     ["/backup", "备份", "导出或导入本地 JSON 备份。"],
+    ["/diagnostics", "本机诊断", "查看版本、备份、草稿、存储与通知权限状态。"],
     ["/privacy", "隐私说明", "查看通知读取、天气联网与本地听感分析的数据范围。"],
   ];
   return (
@@ -2275,7 +2523,7 @@ function InsightsPage() {
     let active = true;
     (async () => {
       try {
-        const entries = await store.listEntries();
+        const [entries, { buildInsights }] = await Promise.all([store.listEntries(), import("./insights")]);
         const weather = await store.getWeatherForEntries(entries);
         if (!active) return;
         setInsights(buildInsights(entries, weather));
@@ -2615,6 +2863,18 @@ function downloadExportFile(file: File) {
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+async function downloadRawDraft(draft: Pick<EntryDraftMeta, "key" | "raw">) {
+  const safeKey = draft.key.replace(/[^a-z0-9_-]+/gi, "-").replace(/^-+|-+$/g, "").slice(-80) || "draft";
+  const fileName = `xiaodongge-draft-${safeKey}.json`;
+  const mimeType = "application/json;charset=utf-8";
+  if (Capacitor.isNativePlatform()) {
+    const result = await NativeExport.saveFile({ fileName, mimeType, content: draft.raw });
+    return result.status === "saved" ? "草稿原文已保存" : "已取消保存，草稿原文仍保留";
+  }
+  downloadExportFile(new File([draft.raw], fileName, { type: mimeType }));
+  return "已开始下载草稿原文";
+}
+
 function readGroupBy(value: string): UniverseGroupBy {
   return UNIVERSE_GROUP_BY_OPTIONS.includes(value as UniverseGroupBy) ? value as UniverseGroupBy : "year";
 }
@@ -2631,6 +2891,21 @@ function filterSummary(filters: VisualizationFilters, includeMonth: boolean, inc
     includeRating && filters.maxRating !== undefined && filters.maxRating !== null ? `≤ ${filters.maxRating} 分` : "",
   ].filter(Boolean);
   return parts.length ? parts.join(" / ") : "全部记录";
+}
+
+function StorageIntegrityNotice() {
+  const [damaged, setDamaged] = useState(() => readStorageCorruptions(localStorage).length > 0);
+  useEffect(() => {
+    const refresh = () => setDamaged(readStorageCorruptions(localStorage).length > 0);
+    refresh();
+    window.addEventListener(STORAGE_CORRUPTION_EVENT, refresh);
+    window.addEventListener("storage", refresh);
+    return () => {
+      window.removeEventListener(STORAGE_CORRUPTION_EVENT, refresh);
+      window.removeEventListener("storage", refresh);
+    };
+  }, []);
+  return damaged ? <p className="error" role="alert">部分本地数据损坏，当前显示可能不完整，已阻止覆盖和导出。<Link to="/backup">前往备份页抢救原文</Link></p> : null;
 }
 
 function Page({ title, text, children }: { title: string; text?: string; children: React.ReactNode }) {
@@ -2665,6 +2940,7 @@ function TimelineCover({ entry }: { entry: ReviewEntry }) {
     return () => { active = false; window.removeEventListener("codex:cover-changed", refresh); };
   }, [entry]);
   async function choose(event: ChangeEvent<HTMLInputElement>) {
+    const generation = storageGeneration();
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file || picking.current) return;
@@ -2673,6 +2949,7 @@ function TimelineCover({ entry }: { entry: ReviewEntry }) {
       const target = inputToCoverTarget(entry);
       if (!target) throw new Error("请先在乐评中填写专辑或歌曲名称");
       const dataUrl = await fileToCoverDataUrl(file);
+      assertStorageWritable(generation);
       await store.setCover(target.kind, target.target, dataUrl);
       setCover(dataUrl); setMessage("封面已更新");
     } catch (reason) {
@@ -2962,6 +3239,7 @@ async function fileToCoverDataUrl(file: File) {
 
 async function fileToDataUrl(file: File) {
   if (file.type && !file.type.startsWith("image/")) throw new Error("请选择图片文件");
+  if (file.size > MAX_OCR_IMAGE_BYTES) throw new Error("图片过大，请裁剪或更换不超过 12 MB 的图片");
   return new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("图片读取失败"));

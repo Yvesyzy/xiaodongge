@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Capacitor } from "@capacitor/core";
 import { NativeExport } from "./nativeExport";
 import { blobToBase64, downloadBlob } from "./shareCard";
@@ -21,13 +22,15 @@ export type JournalExportProps = {
 };
 
 export function JournalExport({ year, entries, kind, edition, topAlbums, onClose, review = false, imageOptions }: JournalExportProps) {
+  const navigate = useNavigate();
   const dialog = useRef<HTMLDialogElement>(null);
   const lock = useRef(false);
   const [pages, setPages] = useState<JournalImagePage[]>([]);
   const [page, setPage] = useState(0);
   const [image, setImage] = useState<{ blob: Blob; url: string; page: number } | null>(null);
   const [privacy, setPrivacy] = useState({ hideContent: imageOptions?.hideContent ?? false, hideRating: imageOptions?.hideRating ?? false, hideDate: imageOptions?.hideDate ?? false, hideBrand: imageOptions?.hideBrand ?? false });
-  const options = useMemo(() => ({ ...privacy, ...imageOptions, edition: edition ?? imageOptions?.edition, topAlbums: topAlbums ?? imageOptions?.topAlbums, review: review || imageOptions?.review }), [privacy, imageOptions, edition, topAlbums, review]);
+  const [includeFullRankNotes, setIncludeFullRankNotes] = useState(imageOptions?.includeFullRankNotes ?? false);
+  const options = useMemo(() => ({ ...imageOptions, ...privacy, includeFullRankNotes, edition: edition ?? imageOptions?.edition, topAlbums: topAlbums ?? imageOptions?.topAlbums, review: review || imageOptions?.review }), [privacy, imageOptions, includeFullRankNotes, edition, topAlbums, review]);
   const [selected, setSelected] = useState<number[]>([]);
   const [saved, setSaved] = useState<number[]>([]);
   const [error, setError] = useState("");
@@ -40,6 +43,15 @@ export function JournalExport({ year, entries, kind, edition, topAlbums, onClose
   const native = Capacitor.isNativePlatform();
   const selectedPages = selected.slice().sort((a, b) => a - b);
   const sharePages = selectedPages.slice(batch * 9, batch * 9 + 9);
+  const rankSlots = pages.flatMap(item => item.rankSlots ?? []);
+  const rankIssues = rankSlots.flatMap(slot => [
+    ...(slot.name !== slot.originalName ? [{ slot, reason: "专辑名过长，海报使用省略号", target: "source" as const }] : []),
+    ...(slot.meta !== slot.originalMeta ? [{ slot, reason: "艺人或评分行过长，海报使用省略号", target: "source" as const }] : []),
+    ...(slot.noteTruncated ? [{ slot, reason: "入选理由超过海报两行", target: "rank" as const }] : []),
+    ...(!slot.coverAvailable ? [{ slot, reason: "封面不可用，海报使用文字占位；可继续导出", target: "source" as const }] : []),
+  ]);
+  const privacySummary = [privacy.hideRating ? "评分已隐藏" : "评分可见", privacy.hideContent ? "入选理由已隐藏" : "入选理由可见",
+    privacy.hideDate ? "具体日期已隐藏" : "具体日期可见", privacy.hideBrand ? "应用名已隐藏" : "应用名可见"];
   const fileName = (index: number) => `${review ? "xiaodongge-review" : "xiaodongge"}-${year}-${kind}-${String(index + 1).padStart(3, "0")}-of-${pages.length}.png`;
   const render = (index: number) => renderJournalPage(year, entries, pages[index], index, pages.length, exportDate, options);
 
@@ -87,6 +99,16 @@ export function JournalExport({ year, entries, kind, edition, topAlbums, onClose
   }, [year, entries, page, pages, options, exportDate]);
 
   function choose(indexes: number[]) { setSelected(indexes); setBatch(0); setPrepared(null); setStatus(""); }
+  function editRankIssue(rank: number, entryId?: string) {
+    onClose();
+    navigate(entryId ? `/entries/${encodeURIComponent(entryId)}/edit` : `/summary?year=${year}&view=rank-edit&focusRank=${rank}`);
+  }
+  async function copyRankPreflight() {
+    const lines = [`${year} 年度专辑榜单 · ${pages.length} 页`, ...privacySummary,
+      ...rankIssues.map(({ slot, reason }) => `第 ${slot.rank} 名 · ${slot.originalName}：${reason}`)];
+    try { await navigator.clipboard.writeText(lines.join("\n")); setStatus("导出预检已复制"); }
+    catch { setError("复制导出预检失败，请检查剪贴板权限"); }
+  }
   function markSaved(indexes: number[]) { setSaved((old) => Array.from(new Set([...old, ...indexes]))); }
   async function saveImages(indexes: number[]) {
     if (!indexes.length || lock.current || !image) return;
@@ -162,8 +184,13 @@ export function JournalExport({ year, entries, kind, edition, topAlbums, onClose
   const content = <>
     <div className="journal-export-scroll">
       <div className="journal-nav"><h2 id="journal-export-title">{review ? "完整作品分页" : kind === "works" ? "作品全文分页" : kind === "index" ? "全部记录索引" : kind === "rank" ? "年度榜单海报" : "图片预览"}</h2><button onClick={onClose} disabled={busy} aria-label={review ? "返回摘录预览" : "关闭图片预览"}>{review ? "返回摘录预览" : "关闭"}</button></div>
-      <p className="journal-muted">{kind === "rank" ? <>收录 {topAlbums?.albums.length ?? 0} 张榜单专辑 · 共 {pages.length} 页。青绿拼贴海报（1080×1680），每页最多五张，第一名所在组最后展示；复用已保存封面，长理由以省略号收尾，完整文字保留在榜单页{privacy.hideRating ? "；已隐藏评分" : ""}{privacy.hideContent ? "；已隐藏入选理由" : ""}。</> : <>收录 {entries.length} 篇正式记录 · 共 {pages.length} 页。{review ? "完整正文自动续页。" : kind === "works" ? "长正文自动续页。" : kind === "index" ? "收录全年全部记录，不受筛选影响。" : "本图为概览，完整内容可另存作品页。"}导出与预览一致。</>}</p>
-      {!review && <details className="journal-privacy"><summary>图片隐私设置</summary>{([['hideRating', '隐藏评分'], ['hideDate', '隐藏具体日期（保留年度和月份统计）'], ['hideContent', '隐藏正文、摘录、寄语与标签']] as const).map(([key, label]) => <label className="journal-check" key={key}><input type="checkbox" checked={privacy[key]} disabled={busy} onChange={(e) => { setImage(null); setPrivacy({ ...privacy, [key]: e.target.checked }); }} />{label}</label>)}</details>}
+      <p className="journal-muted">{kind === "rank" ? <>收录 {topAlbums?.albums.length ?? 0} 张榜单专辑 · 共 {pages.length} 页。青绿拼贴海报（1080×1680），每页最多五张；缺封面使用文字占位{includeFullRankNotes && !privacy.hideContent ? "，末尾附完整理由页" : ""}。{privacy.hideRating ? "评分已隐藏。" : ""}{privacy.hideContent ? "入选理由已隐藏。" : ""}</> : <>收录 {entries.length} 篇正式记录 · 共 {pages.length} 页。{review ? "完整正文自动续页。" : kind === "works" ? "长正文自动续页。" : kind === "index" ? "收录全年全部记录，不受筛选影响。" : "本图为概览，完整内容可另存作品页。"}导出与预览一致。</>}</p>
+      {!review && <details className="journal-privacy"><summary>图片隐私设置</summary>{([['hideRating', '隐藏评分'], ['hideDate', '隐藏具体日期（保留年度和月份统计）'], ['hideContent', '隐藏正文、摘录、寄语与标签'], ['hideBrand', '隐藏应用名']] as const).map(([key, label]) => <label className="journal-check" key={key}><input type="checkbox" checked={privacy[key]} disabled={busy} onChange={(e) => { setPages([]); setImage(null); setPrivacy({ ...privacy, [key]: e.target.checked }); }} />{label}</label>)}</details>}
+      {kind === "rank" && <><label className="journal-check"><input type="checkbox" checked={includeFullRankNotes} disabled={busy || privacy.hideContent} onChange={event => { setPages([]); setImage(null); setIncludeFullRankNotes(event.target.checked); }} />附上完整入选理由分页</label>
+        {pages.length > 0 && <section className="journal-export-preflight" aria-label="导出预检"><h3>导出预检</h3><p className="journal-muted">按当前隐私设置与实际分页结果检查；调整后重新生成。{privacySummary.join(" · ")}</p>
+          {rankIssues.length ? <ul>{rankIssues.map(({ slot, reason, target }, index) => <li key={`${slot.rank}-${reason}-${index}`}><span>第 {slot.rank} 名 · {slot.originalName}：{reason}</span> <button type="button" disabled={busy} onClick={() => editRankIssue(slot.rank, target === "source" ? slot.entry?.id : undefined)}>定位编辑</button></li>)}</ul> : <p>没有文字截断或封面占位。</p>}
+          <button type="button" disabled={busy} onClick={() => void copyRankPreflight()}>复制导出预检</button>
+        </section>}</>}
       {pages.length > 0 && <>
         <nav className="journal-page-controls" aria-label="导出分页"><button disabled={busy || page === 0} onClick={() => setPage(page - 1)}>上一页</button><label>第 <select aria-label="导出页码" disabled={busy} value={page} onChange={(e) => setPage(Number(e.target.value))}>{pages.map((_, i) => <option key={i} value={i}>{i + 1}</option>)}</select> / {pages.length} 页</label><button disabled={busy || page === pages.length - 1} onClick={() => setPage(page + 1)}>下一页</button></nav>
         <div className="journal-thumbnails" aria-label="页面缩略图">{nearby.map((i) => <div key={i}><button aria-label={`预览第 ${i + 1} 页`} aria-current={i === page ? "page" : undefined} disabled={busy} onClick={() => setPage(i)}>{thumbs[i] ? <img src={thumbs[i]} alt="" /> : <span className="journal-thumb-placeholder">{i + 1}</span>}</button><label className="journal-check"><input type="checkbox" aria-label={`选择第 ${i + 1} 页`} checked={selected.includes(i)} disabled={busy} onChange={(e) => choose(e.target.checked ? [...selected, i] : selected.filter((n) => n !== i))} />{i + 1}{saved.includes(i) ? " ✓" : ""}</label></div>)}</div>

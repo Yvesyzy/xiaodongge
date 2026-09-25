@@ -4,9 +4,9 @@ import { chromium } from 'playwright';
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 import { makeJournalFixtures } from '../mobile/codex_journal_fixtures.mjs';
+import { qaOptions } from './codex_qa_options.mjs';
 
-const origin = process.argv[2] || 'http://127.0.0.1:5181';
-const output = process.env.ABU_QA_DIR || 'release/abu_yearbook_tabs_qa';
+const { origin, output } = qaOptions({ origin: 'http://127.0.0.1:5181', output: process.env.ABU_QA_DIR || 'release/abu_yearbook_tabs_qa' });
 await mkdir(output, { recursive: true });
 
 const albums = [

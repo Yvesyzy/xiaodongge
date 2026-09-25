@@ -1,0 +1,194 @@
+import assert from "node:assert/strict";
+import { mkdir, writeFile } from "node:fs/promises";
+import { join, resolve } from "node:path";
+import { chromium } from "playwright";
+import { createServer } from "vite";
+import { makeJournalFixtures } from "../mobile/codex_journal_fixtures.mjs";
+import { freeLoopbackPort, qaOptions } from "./codex_qa_options.mjs";
+
+let { origin, output: outputOption } = qaOptions({ output: `release/codex_t08_interaction_${Date.now()}` });
+const output = resolve(outputOption);
+let server;
+if (!process.argv.includes("--origin")) {
+  server = await createServer({ configFile: resolve("mobile/vite.config.ts"), cacheDir: join(output, "vite-cache"),
+    server: { host: "127.0.0.1", port: await freeLoopbackPort(), strictPort: true, forwardConsole: false } });
+  await server.listen();
+  origin = `http://127.0.0.1:${server.httpServer.address().port}`;
+}
+
+const entries = makeJournalFixtures("6").slice(0, 3).map((entry, index) => ({ ...entry, id: `t08-${index + 1}`, type: "album",
+  title: `榜单测试 ${index + 1}`, albumName: `榜单测试 ${index + 1}`, artistName: `艺人 ${index + 1}`, songName: null, year: 2026 }));
+const albums = entries.map(entry => ({ albumName: entry.albumName, artistName: entry.artistName, note: `理由 ${entry.id}` }));
+const report = { origin, passed: false, checks: [] };
+let browser;
+let page;
+let touchContext;
+try {
+  browser = await chromium.launch({ channel: "chrome", headless: true });
+  page = await browser.newPage({ viewport: { width: 390, height: 844 }, timezoneId: "Asia/Shanghai" });
+  const errors = [];
+  page.on("pageerror", error => errors.push(error.message));
+  await page.goto(`${origin}/#/privacy`);
+  await page.evaluate(({ entries, albums }) => {
+    localStorage.clear();
+    localStorage.setItem("music-feelings-mobile-entries", JSON.stringify(entries));
+    localStorage.setItem("music-feelings-mobile-app-data", JSON.stringify({ "top-albums:2026": JSON.stringify({ albums }) }));
+  }, { entries, albums });
+  await page.goto(`${origin}/#/summary?year=2026&view=rank-edit`);
+  await page.getByRole("heading", { name: "编辑年度专辑榜单" }).waitFor();
+  await page.getByRole("button", { name: "移除 榜单测试 2" }).click();
+  assert.equal(await page.locator(".journal-selected-entry").count(), 2);
+  await page.getByRole("button", { name: "上移 榜单测试 3" }).click();
+  assert.match(await page.locator(".journal-selected-entry").first().innerText(), /榜单测试 3/);
+  await page.getByRole("button", { name: "保存年度专辑榜单" }).click();
+  await page.getByRole("heading", { name: "我的年度专辑榜单" }).waitFor();
+  assert.deepEqual(await page.locator(".journal-rank-info strong").allInnerTexts(), ["榜单测试 3", "榜单测试 1"]);
+  await page.reload();
+  await page.locator(".journal-rank-info strong").first().waitFor();
+  assert.deepEqual(await page.locator(".journal-rank-info strong").allInnerTexts(), ["榜单测试 3", "榜单测试 1"]);
+  report.checks.push("Selected albums can be removed and reordered, then persist across reload");
+
+  const backup = await page.evaluate(async () => {
+    const { store } = await import("/src/store.ts");
+    return store.exportBackup();
+  });
+  assert.deepEqual(JSON.parse(JSON.parse(backup).appData["top-albums:2026"]).albums.map(item => item.albumName), ["榜单测试 3", "榜单测试 1"]);
+  await page.evaluate(async raw => {
+    const { store } = await import("/src/store.ts");
+    await store.setStoredAppData("top-albums:2026", JSON.stringify({ albums: [] }));
+    await store.importBackup(raw);
+    for (const id of ["t08-1", "t08-2", "t08-3"]) await store.deleteEntry(id);
+  }, backup);
+  const remaining = await page.evaluate(async () => (await (await import("/src/store.ts")).store.listEntries()).map(entry => entry.id));
+  assert.deepEqual(remaining, [], "source entries were deleted after backup round-trip");
+  await page.goto(`${origin}/#/summary?year=2026&view=rank`);
+  await page.reload();
+  await page.getByRole("heading", { name: "我的年度专辑榜单" }).waitFor();
+  await page.locator(".journal-rank-info strong").first().waitFor();
+  assert.deepEqual(await page.locator(".journal-rank-info strong").allInnerTexts(), ["榜单测试 3", "榜单测试 1"]);
+  await page.goto(`${origin}/#/summary?year=2026`);
+  await page.getByRole("heading", { name: "这一年还没有正式音乐记录" }).waitFor();
+  await page.getByRole("link", { name: "查看年度专辑榜单（2 张）" }).waitFor({ timeout: 5000 });
+  await page.getByRole("link", { name: "查看年度专辑榜单（2 张）" }).click();
+  assert.equal(await page.getByRole("button", { name: "保存榜单图片" }).count(), 1);
+  await page.getByRole("button", { name: "保存榜单图片" }).click();
+  await page.locator(".journal-export-preview").waitFor();
+  report.checks.push("Backup round-trip and deleted source records preserve an empty-year ranking and export");
+
+  await page.goto(`${origin}/#/new`);
+  await page.getByText("补充作品信息、评分与日期（选填）", { exact: true }).click();
+  const slider = page.getByRole("slider", { name: "评分" });
+  await slider.waitFor({ timeout: 5000 });
+  assert.equal(await slider.getAttribute("tabindex"), "0");
+  assert.equal(await slider.getAttribute("aria-valuetext"), "未评分");
+  assert.ok(Number(await slider.getAttribute("aria-valuenow")) >= Number(await slider.getAttribute("aria-valuemin")));
+  await page.keyboard.press("Tab");
+  await slider.focus();
+  await page.keyboard.press("Shift+Tab");
+  assert.equal(await slider.evaluate(element => document.activeElement === element), false);
+  await page.keyboard.press("Tab");
+  assert.equal(await slider.evaluate(element => document.activeElement === element), true);
+  assert.equal(await slider.evaluate(element => getComputedStyle(element).outlineStyle !== "none"), true);
+  await slider.press("ArrowRight");
+  assert.equal(await slider.getAttribute("aria-valuenow"), "0.5");
+  await slider.press("ArrowUp");
+  assert.equal(await slider.getAttribute("aria-valuenow"), "1");
+  await slider.press("PageUp");
+  assert.equal(await slider.getAttribute("aria-valuenow"), "2");
+  await slider.press("PageDown");
+  assert.equal(await slider.getAttribute("aria-valuenow"), "1");
+  await slider.press("ArrowDown");
+  assert.equal(await slider.getAttribute("aria-valuenow"), "0.5");
+  await slider.press("End");
+  assert.equal(await slider.getAttribute("aria-valuenow"), "10");
+  await slider.press("ArrowRight");
+  assert.equal(await slider.getAttribute("aria-valuenow"), "10");
+  await slider.press("Home");
+  assert.equal(await slider.getAttribute("aria-valuenow"), "0.5");
+  await slider.press("ArrowLeft");
+  assert.equal(await slider.getAttribute("aria-valuenow"), "0.5");
+  assert.equal(await page.locator('input[name="rating"]').inputValue(), "0.5");
+  await page.getByRole("button", { name: "清除评分" }).click();
+  assert.equal(await slider.getAttribute("aria-valuetext"), "未评分");
+  assert.equal(await page.locator('input[name="rating"]').inputValue(), "");
+  const bounds = await slider.boundingBox();
+  assert.ok(bounds);
+  await page.mouse.move(bounds.x + bounds.width * 0.25, bounds.y + bounds.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(bounds.x + bounds.width * 0.75, bounds.y + bounds.height / 2, { steps: 4 });
+  await page.mouse.up();
+  assert.ok(Number(await page.locator('input[name="rating"]').inputValue()) >= 0.5);
+  await page.getByRole("button", { name: "加号修饰" }).click();
+  assert.match(await slider.getAttribute("aria-valuetext"), /\+$/);
+  assert.equal(await page.locator('input[name="ratingModifier"]').inputValue(), "+");
+  await page.getByRole("button", { name: "清除评分" }).click();
+  await page.keyboard.press("Tab");
+  await slider.focus();
+  await page.screenshot({ path: join(output, "codex_rating_focus_light.png") });
+  await page.evaluate(async () => (await import("/src/abu_theme.ts")).setThemeChoice("dark"));
+  await page.screenshot({ path: join(output, "codex_rating_focus_dark.png") });
+  report.checks.push("Keyboard focus, step keys, boundaries, accessible value and clear action work");
+  await page.getByRole("checkbox", { name: /多维度评分/ }).check();
+  for (const name of ["制作", "词曲", "原创性", "共鸣"]) await page.getByRole("slider", { name }).press("ArrowRight");
+  await page.getByRole("slider", { name: "共鸣" }).press("ArrowUp");
+  await page.waitForFunction(() => document.querySelector('[role="slider"][aria-label="综合评分"]')?.getAttribute("aria-valuenow") === "0.6");
+  assert.equal(await page.getByRole("slider", { name: "综合评分" }).getAttribute("aria-valuenow"), "0.6");
+  assert.equal(await page.locator('input[name="rating"]').inputValue(), "0.6");
+  await page.getByRole("slider", { name: "综合评分" }).press("Home");
+  assert.equal(await page.locator('input[name="rating"]').inputValue(), "0.5");
+  await page.getByRole("slider", { name: "制作" }).press("ArrowUp");
+  await page.waitForFunction(() => document.querySelector('[role="slider"][aria-label="综合评分"]')?.getAttribute("aria-valuenow") === "0.8");
+  await page.locator('input[name="title"]').fill("T08 综合评分保存");
+  await page.locator('input[name="artistName"]').fill("T08 艺人");
+  await page.locator('input[name="albumName"]').fill("T08 专辑");
+  await page.locator('textarea[name="content"]').fill("四维评分和综合一位小数的保存回归。");
+  await page.getByRole("button", { name: "保存正式乐评" }).click();
+  await page.waitForURL(/#\/entries\/[^/]+\?saved=1/);
+  const savedId = page.url().match(/#\/entries\/([^?]+)/)?.[1];
+  assert.ok(savedId);
+  await page.reload();
+  const saved = await page.evaluate(async id => (await (await import("/src/store.ts")).store.listEntries()).find(entry => entry.id === id), savedId);
+  assert.deepEqual([saved.rating, saved.ratingProduction, saved.ratingSongwriting, saved.ratingOriginality, saved.ratingResonance, saved.compositeRatingLocked], [0.8, 1, 0.5, 0.5, 1, false]);
+  await page.goto(`${origin}/#/entries/${savedId}/edit`);
+  await page.getByText("补充作品信息、评分与日期（选填）", { exact: true }).click();
+  await page.getByRole("slider", { name: "综合评分" }).press("End");
+  await page.getByRole("button", { name: "保存正式乐评" }).click();
+  await page.waitForURL(/\?saved=1/);
+  const locked = await page.evaluate(async id => (await (await import("/src/store.ts")).store.listEntries()).find(entry => entry.id === id), savedId);
+  assert.deepEqual([locked.rating, locked.compositeRatingLocked], [10, true]);
+  report.checks.push("Four half-step dimensions retain a one-decimal composite score and locked state after save/reload");
+
+  await page.evaluate(items => {
+    localStorage.setItem("music-feelings-mobile-entries", JSON.stringify(items));
+    localStorage.setItem("music-feelings-mobile-app-data", JSON.stringify({ "top-albums:2026": "{broken" }));
+  }, entries);
+  await page.goto(`${origin}/#/summary?year=2026`);
+  await page.reload();
+  await page.locator(".journal-error").filter({ hasText: "榜单展示暂不可用" }).waitFor();
+  assert.equal(await page.getByRole("link", { name: "创建年度榜单" }).count(), 0, "damaged saved ranking must not look empty");
+  report.checks.push("Damaged saved ranking reports an error without presenting a create action");
+  assert.deepEqual(errors, []);
+
+  touchContext = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  const touchPage = await touchContext.newPage();
+  await touchPage.goto(`${origin}/#/new`);
+  await touchPage.getByText("补充作品信息、评分与日期（选填）", { exact: true }).click();
+  const touchSlider = touchPage.getByRole("slider", { name: "评分" });
+  const touchBounds = await touchSlider.boundingBox();
+  assert.ok(touchBounds);
+  await touchSlider.tap({ position: { x: touchBounds.width * 0.75, y: touchBounds.height / 2 } });
+  await touchPage.waitForFunction(() => Number(document.querySelector('input[name="rating"]')?.value) > 0);
+  report.checks.push("Touch tap commits a rating through the existing gesture path");
+  report.passed = true;
+} catch (error) {
+  report.error = error instanceof Error ? error.stack : String(error);
+  report.page = page ? { url: page.url(), body: (await page.locator("body").innerText().catch(() => "")).slice(0, 900) } : null;
+  process.exitCode = 1;
+} finally {
+  await mkdir(output, { recursive: true });
+  await writeFile(join(output, "codex_interaction_accessibility_results.json"), JSON.stringify(report, null, 2));
+  await touchContext?.close();
+  await browser?.close();
+  await server?.close();
+}
+console.log(JSON.stringify(report));

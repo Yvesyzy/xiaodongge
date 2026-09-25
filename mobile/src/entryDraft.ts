@@ -1,4 +1,5 @@
 import type { MusicInfoFields } from "./ocr";
+import { assertStorageWritable } from "./codex_restoreState";
 import { readMusicMetadata } from "./musicMetadata";
 import { ENTRY_TYPES, type EntryType, type MusicMetadata } from "./types";
 
@@ -53,30 +54,30 @@ type DraftStorage = Pick<Storage, "getItem" | "setItem" | "removeItem" | "key" |
 
 export function entryDraftKey(mode: EntryDraftMode, entryId: string | null, draftId: string | null = null) {
   if (mode === "create") {
-    if (!draftId) return "music-feelings-entry-draft:v1:new";
+    if (draftId === null) return "music-feelings-entry-draft:v1:new";
+    if (!draftId.trim()) throw new Error("新建草稿 ID 不能为空");
     return `music-feelings-entry-draft:v1:new:${draftId}`;
   }
-  if (!entryId) throw new Error("编辑草稿缺少记录 ID");
+  if (!entryId || !entryId.trim()) throw new Error("编辑草稿缺少记录 ID");
   return `music-feelings-entry-draft:v1:edit:${entryId}`;
 }
 
 export function readEntryDraft(storage: DraftStorage, mode: EntryDraftMode, entryId: string | null, draftId: string | null = null):
   { status: "missing" } | { status: "invalid" } | { status: "valid"; draft: EntryDraft } {
-  const raw = storage.getItem(entryDraftKey(mode, entryId, draftId));
+  const key = entryDraftKey(mode, entryId, draftId);
+  const raw = storage.getItem(key);
   if (raw === null) return { status: "missing" };
-  try {
-    const draft = parseEntryDraft(JSON.parse(raw));
-    return draft ? { status: "valid", draft } : { status: "invalid" };
-  } catch {
-    return { status: "invalid" };
-  }
+  const draft = readStoredEntryDraft(key, raw);
+  return draft ? { status: "valid", draft } : { status: "invalid" };
 }
 
 export function writeEntryDraft(storage: DraftStorage, draft: EntryDraft) {
+  assertStorageWritable();
   storage.setItem(entryDraftKey(draft.mode, draft.entryId, draft.draftId), JSON.stringify(draft));
 }
 
 export function removeEntryDraft(storage: DraftStorage, mode: EntryDraftMode, entryId: string | null, draftId: string | null = null) {
+  assertStorageWritable();
   storage.removeItem(entryDraftKey(mode, entryId, draftId));
 }
 
@@ -101,7 +102,9 @@ export function canRestoreEditDraft(draft: EntryDraft, entryId: string, entryUpd
 
 export type EntryDraftMeta = {
   key: string;
-  mode: EntryDraftMode;
+  status: "valid" | "invalid" | "conflict";
+  raw: string;
+  mode: EntryDraftMode | null;
   entryId: string | null;
   draftId: string | null;
   title: string;
@@ -114,46 +117,99 @@ export type EntryDraftMeta = {
 const DRAFT_KEY_PREFIX = "music-feelings-entry-draft:v1:";
 const NEW_LEGACY_KEY = "music-feelings-entry-draft:v1:new";
 const NEW_PREFIX = "music-feelings-entry-draft:v1:new:";
+const EDIT_PREFIX = "music-feelings-entry-draft:v1:edit:";
 
-// ponytail: 扫描 localStorage 中所有草稿 key，单用户本地草稿数量有限，O(n) 扫描足够
-export function listEntryDrafts(storage: DraftStorage): EntryDraftMeta[] {
-  const metas: EntryDraftMeta[] = [];
+export type StoredEntryDraft = {
+  key: string;
+  raw: string;
+};
+
+export type DraftRecordState = {
+  id: string;
+  updatedAt: string;
+};
+
+// ponytail: 遍历本地键保留全部原文；草稿量显著增长时再改为带索引的存储。
+export function listRawEntryDrafts(storage: DraftStorage): StoredEntryDraft[] {
+  const drafts: StoredEntryDraft[] = [];
   for (let i = 0; i < storage.length; i++) {
     const key = storage.key(i);
     if (!key || !key.startsWith(DRAFT_KEY_PREFIX)) continue;
     const raw = storage.getItem(key);
-    if (!raw) continue;
-    try {
-      const draft = parseEntryDraft(JSON.parse(raw));
-      if (!draft) continue;
-      const draftId = key === NEW_LEGACY_KEY ? null : (key.startsWith(NEW_PREFIX) ? key.slice(NEW_PREFIX.length) : null);
-      metas.push({
-        key,
-        mode: draft.mode,
-        entryId: draft.entryId,
-        draftId,
-        title: draft.fields.title || "(未命名草稿)",
-        type: draft.fields.type,
-        savedAt: draft.savedAt,
-        inspiration: draft.inspiration,
-        captureMode: draft.captureMode,
-      });
-    } catch {
-      // 损坏草稿跳过，不影响列表
+    if (raw !== null) drafts.push({ key, raw });
+  }
+  return drafts.sort((a, b) => a.key.localeCompare(b.key));
+}
+
+export function readStoredEntryDraft(key: string, raw: string): EntryDraft | null {
+  if (!key.startsWith(DRAFT_KEY_PREFIX)) return null;
+  try {
+    const draft = parseEntryDraft(JSON.parse(raw));
+    if (!draft) return null;
+    if (draft.mode === "create") {
+      if (draft.entryId !== null || draft.baseUpdatedAt !== null || !draft.draftId && key !== NEW_LEGACY_KEY) return null;
+      if (draft.draftId === null) return key === NEW_LEGACY_KEY ? draft : null;
+      return key === entryDraftKey("create", null, draft.draftId) ? draft : null;
     }
+    if (draft.draftId !== null || !draft.entryId || key !== entryDraftKey("edit", draft.entryId, null)) return null;
+    return draft;
+  } catch {
+    return null;
+  }
+}
+
+// ponytail: 单用户草稿数量很小，O(n) 扫描同时保留损坏项，避免无声丢失原文。
+export function listEntryDrafts(storage: DraftStorage, records?: readonly DraftRecordState[]): EntryDraftMeta[] {
+  const metas: EntryDraftMeta[] = [];
+  for (const stored of listRawEntryDrafts(storage)) {
+    const draft = readStoredEntryDraft(stored.key, stored.raw);
+    if (!draft) {
+      metas.push({
+        key: stored.key,
+        status: "invalid",
+        raw: stored.raw,
+        mode: stored.key === NEW_LEGACY_KEY || stored.key.startsWith(NEW_PREFIX) ? "create" : stored.key.startsWith(EDIT_PREFIX) ? "edit" : null,
+        entryId: null,
+        draftId: null,
+        title: "损坏草稿",
+        type: null,
+        savedAt: "",
+        inspiration: false,
+        captureMode: "full",
+      });
+      continue;
+    }
+    const conflict = draft.mode === "edit" && records !== undefined
+      && !records.some((record) => record.id === draft.entryId && record.updatedAt === draft.baseUpdatedAt);
+    metas.push({
+      key: stored.key,
+      status: conflict ? "conflict" : "valid",
+      raw: stored.raw,
+      mode: draft.mode,
+      entryId: draft.entryId,
+      draftId: draft.draftId,
+      title: draft.fields.title || "(未命名草稿)",
+      type: draft.fields.type,
+      savedAt: draft.savedAt,
+      inspiration: draft.inspiration,
+      captureMode: draft.captureMode,
+    });
   }
   return metas.sort((a, b) => b.savedAt.localeCompare(a.savedAt));
 }
 
 export function deleteEntryDraftByKey(storage: DraftStorage, key: string) {
+  assertStorageWritable();
   storage.removeItem(key);
 }
 
-function parseEntryDraft(value: unknown): EntryDraft | null {
+export function parseEntryDraft(value: unknown): EntryDraft | null {
   if (!isRecord(value) || (value.version !== 1 && value.version !== 2) || (value.mode !== "create" && value.mode !== "edit")) return null;
   const entryId = nullableString(value.entryId);
   // ponytail: 旧版草稿没有 draftId 字段，create 模式下解析为 null（legacy 草稿，续写时迁移）
-  const draftId = nullableString(value.draftId) ?? null;
+  const draftIdValue = nullableString(value.draftId);
+  if (draftIdValue === undefined && Object.prototype.hasOwnProperty.call(value, "draftId") && value.draftId !== undefined) return null;
+  const draftId = draftIdValue ?? null;
   const baseUpdatedAt = nullableDate(value.baseUpdatedAt);
   const savedAt = dateString(value.savedAt);
   const fields = parseFields(value.fields);
@@ -169,7 +225,8 @@ function parseEntryDraft(value: unknown): EntryDraft | null {
     || typeof value.coverChanged !== "boolean" || typeof value.ocrText !== "string" || recognizedFields === undefined
     || (value.version === 2 && value.musicMetadata === undefined)) return null;
   if (value.mode === "create" && (entryId !== null || baseUpdatedAt !== null)) return null;
-  if (value.mode === "edit" && (!entryId || !baseUpdatedAt)) return null;
+  if (value.mode === "create" && draftId !== null && !draftId.trim()) return null;
+  if (value.mode === "edit" && (!entryId || !baseUpdatedAt || draftId !== null)) return null;
   return {
     version: 2,
     mode: value.mode,

@@ -17,16 +17,19 @@ export function DeleteEntryButton({ id }: DeleteEntryButtonProps) {
     setLoading(true);
     setError("");
 
-    const response = await fetch(`/api/entries/${id}`, { method: "DELETE" });
-    if (!response.ok) {
-      const data = (await response.json().catch(() => null)) as { error?: string } | null;
-      setError(data?.error ?? "删除失败");
+    try {
+      const response = await fetch(`/api/entries/${id}`, { method: "DELETE" });
+      const data = (await response.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+      if (!response.ok || data?.ok !== true) {
+        throw new Error(data?.error ?? "删除失败，服务器未确认删除");
+      }
+      router.push("/timeline");
+      router.refresh();
+    } catch (error) {
+      setError(error instanceof Error ? `删除失败：${error.message}` : "删除失败，请重试");
+    } finally {
       setLoading(false);
-      return;
     }
-
-    router.push("/timeline");
-    router.refresh();
   }
 
   return (

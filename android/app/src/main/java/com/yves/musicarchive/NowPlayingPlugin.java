@@ -7,6 +7,9 @@ import android.media.MediaMetadata;
 import android.media.session.MediaController;
 import android.media.session.MediaSessionManager;
 import android.media.session.PlaybackState;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
+import android.os.Build;
 import android.provider.Settings;
 import androidx.core.app.NotificationManagerCompat;
 import com.getcapacitor.JSObject;
@@ -30,6 +33,21 @@ import org.json.JSONObject;
 @CapacitorPlugin(name = "NowPlaying")
 public class NowPlayingPlugin extends Plugin {
     private static final int MAX_RESPONSE_BYTES = 1_000_000;
+
+    @PluginMethod
+    public void getDiagnostics(PluginCall call) {
+        try {
+            PackageInfo info = getContext().getPackageManager().getPackageInfo(getContext().getPackageName(), 0);
+            JSObject response = new JSObject();
+            response.put("versionName", info.versionName);
+            response.put("versionCode", Build.VERSION.SDK_INT >= 28 ? info.getLongVersionCode() : info.versionCode);
+            response.put("notificationAccessEnabled", NotificationManagerCompat.getEnabledListenerPackages(getContext())
+                .contains(getContext().getPackageName()));
+            call.resolve(response);
+        } catch (PackageManager.NameNotFoundException error) {
+            call.reject("安装包信息读取失败", error);
+        }
+    }
 
     @PluginMethod
     public void getCurrentTrack(PluginCall call) {
@@ -65,7 +83,10 @@ public class NowPlayingPlugin extends Plugin {
             }
             call.resolve(response);
         } catch (SecurityException error) {
-            call.reject("无法读取媒体会话，请重新授予通知使用权", error);
+            // Permission can be revoked after the cached package check above.
+            JSObject denied = new JSObject();
+            denied.put("accessEnabled", false);
+            call.resolve(denied);
         }
     }
 

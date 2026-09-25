@@ -7,9 +7,12 @@ import { localDateOf } from "./format";
 import { formatEntriesCsv, formatEntriesTxt } from "./exportFormats";
 import { buildDayListeningSnapshot, buildMonthlyListeningSnapshot, buildYearlyListeningSnapshot, inRecordingPeriod, monthlySnapshotToMarkdown, parseMonthlyListeningSnapshot, parseYearlyListeningSnapshot, yearlySnapshotToMarkdown, type ListeningDaySnapshot, type MonthlyListeningSnapshot, type YearlyListeningSnapshot } from "./listeningYearbook";
 import { readMusicMetadata } from "./musicMetadata";
-import { BACKUP_HEALTH_KEY, readBackupAppData, readPreferredQuote, readSemanticOverride, SEMANTIC_OVERRIDES_KEY, WEATHER_LOCATION_KEY } from "../../shared/backupAppData";
+import { groupMusicEntries } from "./musicIdentity";
+import { BACKUP_HEALTH_KEY, readBackupAppData, readPreferredQuote, readSemanticOverride, readYearTopAlbums, SEMANTIC_OVERRIDES_KEY, TOP_ALBUMS_PREFIX, WEATHER_LOCATION_KEY } from "../../shared/backupAppData";
 import type { BackupPreview } from "./backupHealth";
-import { readSafeJson } from "./storageSafety";
+import { listRawEntryDrafts, readStoredEntryDraft, MAX_NEW_DRAFTS, type StoredEntryDraft } from "./entryDraft";
+import { acquireStorageSession, clearRecoveryError, RESTORE_GATE_KEY, WEB_RESTORE_JOURNAL_KEY, withRestoreLock, withStorageAccess, markRecoveryError } from "./codex_restoreState";
+import { preserveStorageCorruption, readSafeJson, readStorageCorruptions } from "./storageSafety";
 import { ENTRY_TYPES, type AlbumAggregate, type CoverKind, type CoverTarget, type EntryInput, type EntryType, type FrequencyItem, type ListeningMoment, type ListeningMomentInput, type MonthlySummary, type RatingModifier, type ReviewEntry, type SongAggregate, type YearStats, type YearlySummary } from "./types";
 
 const DB_NAME = "music_feelings_archive";
@@ -20,6 +23,8 @@ const COVERS_KEY = "music-feelings-mobile-covers";
 const LISTENING_MOMENTS_KEY = "music-feelings-mobile-listening-moments";
 const APP_DATA_KEY = "music-feelings-mobile-app-data";
 const IMPORT_UNDO_KEY = "music-feelings-mobile-import-undo";
+const NATIVE_RESTORE_JOURNAL_KEY = "codex-restore-journal:v1";
+const WEB_DATA_KEYS = [ENTRIES_KEY, SUMMARIES_KEY, MONTHLY_SUMMARIES_KEY, COVERS_KEY, LISTENING_MOMENTS_KEY, APP_DATA_KEY] as const;
 
 const schemaSql = `
 CREATE TABLE IF NOT EXISTS ReviewEntry (
@@ -296,23 +301,26 @@ class Store {
 
   async albumAggregates() {
     const [entries, covers] = await Promise.all([this.listEntries(), this.listCovers()]);
-    const groups = group(entries.filter((entry) => entry.albumName), (entry) => JSON.stringify([entry.albumName, entry.artistName]));
-    return Array.from(groups.values()).map((items): AlbumAggregate => {
-      const latest = [...items].sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+    const groups = groupMusicEntries(entries, "album");
+    return groups.map((items): AlbumAggregate => {
+      const newest = [...items].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      const latest = newest[0];
       const albumName = latest.albumName as string;
-      return { albumName, artistName: latest.artistName, coverDataUrl: resolveAlbumCover(covers, entries, { albumName, artistName: latest.artistName }), years: years(items), recordCount: items.length, lastRecordedAt: latest.createdAt, latestRating: latest.rating };
+      const coverDataUrl = newest.map(item => resolveAlbumCover(covers, entries, { albumName: item.albumName as string, artistName: item.artistName })).find(Boolean) ?? null;
+      return { representativeEntryId: latest.id, catalogId: items.map(item => item.musicMetadata?.catalogAlbumId?.trim()).find(Boolean) ?? null, albumName, artistName: latest.artistName, coverDataUrl, years: years(items), recordCount: items.length, lastRecordedAt: latest.createdAt, latestRating: latest.rating };
     }).sort((a, b) => b.lastRecordedAt.localeCompare(a.lastRecordedAt));
   }
 
   async songAggregates() {
     const [entries, covers] = await Promise.all([this.listEntries(), this.listCovers()]);
-    const groups = group(entries.filter((entry) => entry.songName), (entry) => JSON.stringify([entry.songName, entry.artistName, entry.albumName]));
-    return Array.from(groups.values()).map((items): SongAggregate => {
-      const latest = [...items].sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
+    const groups = groupMusicEntries(entries, "song");
+    return groups.map((items): SongAggregate => {
+      const newest = [...items].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      const latest = newest[0];
       const songName = latest.songName as string;
-      const ownCover = directCover(covers, "song", { songName, albumName: latest.albumName, artistName: latest.artistName });
-      const albumCover = latest.albumName ? resolveAlbumCover(covers, entries, { albumName: latest.albumName, artistName: latest.artistName }) : null;
-      return { songName, artistName: latest.artistName, albumName: latest.albumName, coverDataUrl: ownCover ?? albumCover ?? null, years: years(items), recordCount: items.length, lastRecordedAt: latest.createdAt, latestRating: latest.rating };
+      const ownCover = newest.map(item => directCover(covers, "song", { songName: item.songName, albumName: item.albumName, artistName: item.artistName })).find(Boolean);
+      const albumCover = newest.map(item => item.albumName ? resolveAlbumCover(covers, entries, { albumName: item.albumName, artistName: item.artistName }) : null).find(Boolean);
+      return { representativeEntryId: latest.id, catalogId: items.map(item => item.musicMetadata?.catalogTrackId?.trim()).find(Boolean) ?? null, songName, artistName: latest.artistName, albumName: latest.albumName, coverDataUrl: ownCover ?? albumCover ?? null, years: years(items), recordCount: items.length, lastRecordedAt: latest.createdAt, latestRating: latest.rating };
     }).sort((a, b) => b.lastRecordedAt.localeCompare(a.lastRecordedAt));
   }
 
@@ -625,14 +633,28 @@ class Store {
     return this.getAppData(key);
   }
 
+  async listSavedTopAlbums() {
+    const data = await this.listAppData();
+    return Object.entries(data).filter(([key]) => /^top-albums:[1-9]\d{0,3}$/.test(key))
+      .map(([key, raw]) => ({ year: Number(key.slice(TOP_ALBUMS_PREFIX.length)), albums: readYearTopAlbums(JSON.parse(raw)).albums }))
+      .sort((left, right) => left.year - right.year);
+  }
+
   async setStoredAppData(key: string, value: string | null) {
     if (!key.trim()) throw new Error("应用数据键不能为空");
+    if (key === NATIVE_RESTORE_JOURNAL_KEY || key === RESTORE_GATE_KEY || key === WEB_RESTORE_JOURNAL_KEY) throw new Error("恢复日志不能通过普通设置修改");
     await this.setAppData(key, value);
   }
 
   async exportBackup(options: { includeCovers?: boolean } = {}) {
-    return JSON.stringify({
-      version: 5,
+    const drafts = readBackupDrafts(listRawEntryDrafts(localStorage), options);
+    return JSON.stringify({ ...await this.exportMainData(options), drafts }, null, 2);
+  }
+
+  private async exportMainData(options: { includeCovers?: boolean } = {}) {
+    if (!Capacitor.isNativePlatform()) assertLocalStorageIntegrity();
+    return {
+      version: 6,
       exportedAt: new Date().toISOString(),
       entries: await this.listEntries(),
       summaries: await this.listSummaries(),
@@ -640,57 +662,156 @@ class Store {
       covers: options.includeCovers === false ? [] : await this.listCovers(),
       listeningMoments: await this.listListeningMoments(),
       // 备份健康是设备本地状态(最近验证/保存时间)，不属于用户数据，不应进入备份
-      appData: Object.fromEntries(Object.entries(await this.listAppData()).filter(([key]) => key !== BACKUP_HEALTH_KEY)),
-    }, null, 2);
+      appData: userAppData(await this.listAppData()),
+      drafts: [],
+    };
   }
 
   async exportTxt() {
+    if (!Capacitor.isNativePlatform()) assertLocalStorageIntegrity();
     return formatEntriesTxt(await this.listEntries(), await this.listSummaries());
   }
 
   async exportCsv() {
+    if (!Capacitor.isNativePlatform()) assertLocalStorageIntegrity();
     return formatEntriesCsv(await this.listEntries(), await this.listSummaries());
   }
 
-  async importBackup(raw: string, options: { includeCovers?: boolean } = {}) {
+  async importBackup(raw: string, options: { includeCovers?: boolean } = {}, expectedLocalSha256?: string) {
     const backup = parseBackup(raw, options);
-    const undoBackup = await this.exportBackup();
-    if (options.includeCovers === false) backup.covers = await this.listCovers();
-    await this.saveImportUndo(undoBackup);
-    await this.writeBackup(backup);
+    let stale = false;
+    await withRestoreLock(async () => {
+      await this.requireNoJournal();
+      const before = await this.snapshot();
+      if (expectedLocalSha256 && await sha256(mainSignature(parseBackup(before.beforeBackup)) + draftSignature(before.beforeDrafts)) !== expectedLocalSha256) {
+        stale = true;
+        return;
+      }
+      if (options.includeCovers === false) backup.covers = await this.listCovers();
+      // Device health belongs to this installation, not to the imported archive.
+      backup.appData = { ...userAppData(backup.appData), ...deviceAppData(before.beforeAppData) };
+      const targetDrafts = backup.draftsPresence === "absent" ? before.beforeDrafts : backup.drafts;
+      await this.replaceWithJournal("import", before, backup, targetDrafts, JSON.stringify(before));
+    });
+    if (stale) throw new Error("本机数据在预演后已变化，请重新预演");
   }
 
   async restoreImportUndo() {
-    const raw = await this.readImportUndo();
-    if (!raw) throw new Error("没有可撤销的导入");
-    await this.writeBackup(parseBackup(raw));
-    await this.clearImportUndo();
+    await withRestoreLock(async () => {
+      await this.requireNoJournal();
+      const raw = await this.readImportUndo();
+      if (!raw) throw new Error("没有可撤销的导入");
+      const target = this.parseUndo(raw);
+      const before = await this.snapshot();
+      const backup = target.snapshot ? parseBackup(target.snapshot.beforeBackup) : target.backup;
+      backup.appData = target.snapshot?.beforeAppData ?? { ...userAppData(backup.appData), ...deviceAppData(before.beforeAppData) };
+      await this.replaceWithJournal("undo", before, backup, target.snapshot?.beforeDrafts ?? before.beforeDrafts, null, target.snapshot?.beforeWebStorage);
+    });
   }
 
   async previewImportUndo(): Promise<BackupPreview | null> {
     const raw = await this.readImportUndo();
     if (!raw) return null;
+    const target = this.parseUndo(raw);
+    const preview = summarizeBackup(target.backup);
+    return target.snapshot ? { ...preview, ...draftPreview(target.snapshot.beforeDrafts), draftsPresence: "present" } : preview;
+  }
+
+  private parseUndo(raw: string): { backup: BackupData; snapshot?: RestoreSnapshot } {
+    const parsed: unknown = JSON.parse(raw);
+    if (isRecord(parsed) && parsed.kind === "codex-import-undo") {
+      const snapshot = readRestoreSnapshot(parsed, Capacitor.isNativePlatform());
+      return { backup: parseBackup(snapshot.beforeBackup), snapshot };
+    }
+    const backup = parseBackup(raw);
+    if (backup.sourceVersion > 5) throw new Error("撤销槽格式无效，原文已保留");
+    return { backup };
+  }
+
+  private async snapshot(): Promise<RestoreSnapshot> {
+    const beforeBackup = JSON.stringify(await this.exportMainData());
+    const beforeAppData = Object.fromEntries(Object.entries(await this.listAppData()).filter(([key]) => key !== NATIVE_RESTORE_JOURNAL_KEY));
+    return readRestoreSnapshot({ kind: "codex-import-undo", version: 1, beforeBackup,
+      beforeDrafts: listRawEntryDrafts(localStorage), beforeAppData,
+      ...(!Capacitor.isNativePlatform() ? { beforeWebStorage: Object.fromEntries(WEB_DATA_KEYS.map(key => [key, localStorage.getItem(key)])) } : {}),
+    }, Capacitor.isNativePlatform());
+  }
+
+  private async readJournal() {
+    return Capacitor.isNativePlatform() ? this.getAppData(NATIVE_RESTORE_JOURNAL_KEY) : localStorage.getItem(WEB_RESTORE_JOURNAL_KEY);
+  }
+  private async writeJournal(journal: RestoreJournal | null) {
+    const raw = journal === null ? null : JSON.stringify(journal);
+    if (Capacitor.isNativePlatform()) await this.setAppData(NATIVE_RESTORE_JOURNAL_KEY, raw);
+    else restoreStorage(WEB_RESTORE_JOURNAL_KEY, raw);
+    if (await this.readJournal() !== raw) throw new Error("恢复日志写入校验失败");
+  }
+  private async requireNoJournal() {
+    if (await this.readJournal() !== null) throw new Error("上次恢复尚未结束，请先重试恢复。");
+  }
+
+  async recoverPendingRestore() {
     try {
-      return summarizeBackup(parseBackup(raw));
-    } catch {
-      await this.clearImportUndo();
-      return null;
+      // Acquire a shared session first, so a normal second window can open without exclusive access.
+      await acquireStorageSession();
+      if (await this.readJournal() === null && localStorage.getItem(RESTORE_GATE_KEY) === null) {
+        clearRecoveryError();
+        return;
+      }
+      await withRestoreLock(async () => {
+        const raw = await this.readJournal();
+        if (raw !== null) await this.rollback(readRestoreJournal(raw, Capacitor.isNativePlatform()));
+      });
+    } catch (error) { markRecoveryError(error); throw error; }
+  }
+
+  async getRecoveryEvidence() {
+    await this.init();
+    return JSON.stringify({ journal: await this.readJournal(), gate: localStorage.getItem(RESTORE_GATE_KEY),
+      undo: await this.readImportUndo(), drafts: listRawEntryDrafts(localStorage),
+      webStorage: Object.fromEntries(WEB_DATA_KEYS.map(key => [key, localStorage.getItem(key)])),
+    }, null, 2);
+  }
+
+  private async replaceWithJournal(operation: "import" | "undo", before: RestoreSnapshot, backup: BackupData,
+    drafts: StoredEntryDraft[], undo: string | null, webStorage?: Record<string, string | null>) {
+    const journal: RestoreJournal = { ...before, operation, phase: "prepared", beforeUndo: await this.readImportUndo() };
+    await this.writeJournal(journal);
+    try {
+      const written = { ...journal, phase: "data-written" as const };
+      await this.writeBackup(backup, written, undo, webStorage);
+      replaceDrafts(drafts);
+      await this.verifyRestore(backup, drafts, undo, webStorage);
+      await this.writeJournal(null);
+    } catch (error) {
+      try { await this.rollback(journal); }
+      catch (rollbackError) { throw new Error(`恢复未完成，原文和快照已保留，请重试：${rollbackError instanceof Error ? rollbackError.message : "回滚失败"}`); }
+      throw error;
     }
   }
 
-  // ponytail: 原生端快照存 SQLite(单行表,无 localStorage 5MB 配额),Web 端沿用 localStorage
-  private async saveImportUndo(raw: string) {
-    if (Capacitor.isNativePlatform()) {
-      await this.init();
-      await this.dbReady().run("DELETE FROM UndoBackup");
-      await this.dbReady().run("INSERT INTO UndoBackup (id, value) VALUES (1, ?)", [raw]);
-      return;
-    }
-    try {
-      localStorage.setItem(IMPORT_UNDO_KEY, raw);
-    } catch {
-      throw new Error("无法保存导入前快照，已取消导入");
-    }
+  private async rollback(journal: RestoreJournal) {
+    const rolling = { ...journal, phase: "rolling-back" as const };
+    await this.writeJournal(rolling);
+    const backup = parseBackup(journal.beforeBackup);
+    backup.appData = journal.beforeAppData;
+    await this.writeBackup(backup, rolling, journal.beforeUndo, journal.beforeWebStorage);
+    replaceDrafts(journal.beforeDrafts);
+    await this.verifyRestore(backup, journal.beforeDrafts, journal.beforeUndo, journal.beforeWebStorage);
+    await this.writeJournal(null);
+  }
+
+  private async verifyRestore(backup: BackupData, drafts: StoredEntryDraft[], undo: string | null, webStorage?: Record<string, string | null>) {
+    if (webStorage && WEB_DATA_KEYS.some(key => localStorage.getItem(key) !== webStorage[key])) throw new Error("恢复后主数据原文不一致");
+    // Read directly here: a retained corruption archive must never prevent restoring its original bytes.
+    const current = Capacitor.isNativePlatform() ? {
+      entries: await this.listEntries(), summaries: await this.listSummaries(), monthlySummaries: await this.listMonthlySummaries(),
+      covers: await this.listCovers(), listeningMoments: await this.listListeningMoments(), appData: await this.listAppData(),
+    } : readWebSnapshot(Object.fromEntries(WEB_DATA_KEYS.map(key => [key, localStorage.getItem(key)])));
+    current.appData = Object.fromEntries(Object.entries(current.appData).filter(([key]) => key !== NATIVE_RESTORE_JOURNAL_KEY));
+    if (mainSignature(current) !== mainSignature(backup)) throw new Error("恢复后正式数据或应用数据不一致");
+    if (draftSignature(listRawEntryDrafts(localStorage)) !== draftSignature(drafts)) throw new Error("恢复后草稿原文不一致");
+    if (await this.readImportUndo() !== undo) throw new Error("恢复后撤销快照不一致");
   }
 
   private async readImportUndo(): Promise<string | null> {
@@ -703,44 +824,92 @@ class Store {
     return localStorage.getItem(IMPORT_UNDO_KEY);
   }
 
-  private async clearImportUndo() {
-    if (Capacitor.isNativePlatform()) {
-      await this.init();
-      await this.dbReady().run("DELETE FROM UndoBackup");
-    } else {
-      localStorage.removeItem(IMPORT_UNDO_KEY);
-    }
-  }
-
   previewBackup(raw: string, options: { includeCovers?: boolean } = {}) {
     return summarizeBackup(parseBackup(raw, options));
   }
 
-  private async writeBackup(backup: BackupData) {
+  async previewRestoreDiff(raw: string, options: { includeCovers?: boolean } = {}): Promise<RestoreDiffReport> {
+    const backup = parseBackup(raw, options);
+    const current = await this.exportMainData();
+    const currentDrafts = listRawEntryDrafts(localStorage);
+    const targetCovers = options.includeCovers === false ? current.covers : backup.covers;
+    const targetDrafts = backup.draftsPresence === "absent" ? currentDrafts : backup.drafts;
+    return {
+      inputSha256: await sha256(raw),
+      localSha256: await sha256(mainSignature(current) + draftSignature(currentDrafts)),
+      includeCovers: options.includeCovers !== false,
+      sourceVersion: backup.sourceVersion,
+      groups: {
+        entries: restoreDiffCounts(current.entries, backup.entries, item => item.id),
+        summaries: restoreDiffCounts(current.summaries, backup.summaries, item => item.id),
+        monthlySummaries: restoreDiffCounts(current.monthlySummaries, backup.monthlySummaries, item => item.id),
+        listeningMoments: restoreDiffCounts(current.listeningMoments, backup.listeningMoments, item => item.id),
+        covers: restoreDiffCounts(current.covers, targetCovers, item => item.coverKey),
+        appData: restoreDiffCounts(Object.entries(current.appData).map(([key, value]) => ({ key, value })),
+          Object.entries(userAppData(backup.appData)).map(([key, value]) => ({ key, value })), item => item.key),
+        drafts: restoreDiffCounts(currentDrafts, targetDrafts, item => item.key),
+      },
+    };
+  }
+
+  async rehearseRestore(raw: string, options: { includeCovers?: boolean } = {}): Promise<RestoreRehearsal> {
+    const diff = await this.previewRestoreDiff(raw, options);
+    const backup = parseBackup(raw, options);
+    const current = await this.exportMainData();
+    const currentDrafts = listRawEntryDrafts(localStorage);
+    if (await sha256(mainSignature(current) + draftSignature(currentDrafts)) !== diff.localSha256) {
+      throw new Error("预演期间本机数据已变化，请重新预演");
+    }
+    if (options.includeCovers === false) backup.covers = current.covers;
+    backup.appData = { ...userAppData(backup.appData), ...deviceAppData(await this.listAppData()) };
+    const drafts = backup.draftsPresence === "absent" ? currentDrafts : backup.drafts;
+    const journal: RestoreJournal = { ...await this.snapshot(), operation: "import", phase: "data-written", beforeUndo: null };
+    const isolatedDrafts = createIsolatedStorage();
+    let isolationDatabase: string | undefined;
+    if (Capacitor.isNativePlatform()) {
+      const sandbox = new Store();
+      const name = `codex_restore_preview_${crypto.randomUUID().replaceAll("-", "")}`;
+      isolationDatabase = name;
+      if (name === DB_NAME || (await sandbox.sqlite.isDatabase(name)).result) throw new Error("隔离数据库名称已存在，预演已停止");
+      const database = await sandbox.sqlite.createConnection(name, false, "no-encryption", 1, false);
+      try {
+        await database.open();
+        await database.execute(schemaSql);
+        sandbox.db = database;
+        sandbox.nativeReady = true;
+        await sandbox.writeBackup(backup, journal, null);
+        replaceDrafts(drafts, isolatedDrafts);
+        const readback = await sandbox.exportMainData();
+        if (mainSignature(readback) !== mainSignature({ ...backup, appData: userAppData(backup.appData) })
+          || draftSignature(listRawEntryDrafts(isolatedDrafts)) !== draftSignature(drafts)
+          || await sandbox.readImportUndo() !== null) throw new Error("隔离数据库回读与目标备份不一致");
+      } finally {
+        await sandbox.sqlite.closeConnection(name, false);
+      }
+    } else {
+      const sandbox = new Store();
+      await sandbox.writeBackup(backup, journal, null, undefined, isolatedDrafts);
+      replaceDrafts(drafts, isolatedDrafts);
+      const readback = readWebSnapshot(Object.fromEntries(WEB_DATA_KEYS.map(key => [key, isolatedDrafts.getItem(key)])));
+      if (mainSignature(readback) !== mainSignature(backup)
+        || draftSignature(listRawEntryDrafts(isolatedDrafts)) !== draftSignature(drafts)
+        || isolatedDrafts.getItem(IMPORT_UNDO_KEY) !== null) throw new Error("隔离 Web 存储回读与目标备份不一致");
+    }
+    const after = await this.previewRestoreDiff(raw, options);
+    if (after.localSha256 !== diff.localSha256 || after.inputSha256 !== diff.inputSha256) throw new Error("预演期间正式数据已变化，请重新预演");
+    return { ...diff, verified: true, target: Capacitor.isNativePlatform() ? "android-isolated-sqlite" : "web-isolated-storage",
+      ...(isolationDatabase ? { isolationDatabase } : {}) };
+  }
+
+  private async writeBackup(backup: BackupData, journal: RestoreJournal, undo: string | null,
+    webStorage?: Record<string, string | null>, isolatedStorage?: Storage) {
     await this.init();
     if (!Capacitor.isNativePlatform()) {
-      const oldEntries = localStorage.getItem(ENTRIES_KEY);
-      const oldSummaries = localStorage.getItem(SUMMARIES_KEY);
-      const oldMonthlySummaries = localStorage.getItem(MONTHLY_SUMMARIES_KEY);
-      const oldCovers = localStorage.getItem(COVERS_KEY);
-      const oldListeningMoments = localStorage.getItem(LISTENING_MOMENTS_KEY);
-      const oldAppData = localStorage.getItem(APP_DATA_KEY);
-      try {
-        writeEntries(backup.entries);
-        writeSummaries(backup.summaries);
-        writeMonthlySummaries(backup.monthlySummaries);
-        writeCovers(backup.covers);
-        writeListeningMoments(backup.listeningMoments);
-        writeAppData(backup.appData);
-      } catch (error) {
-        restoreStorage(ENTRIES_KEY, oldEntries);
-        restoreStorage(SUMMARIES_KEY, oldSummaries);
-        restoreStorage(MONTHLY_SUMMARIES_KEY, oldMonthlySummaries);
-        restoreStorage(COVERS_KEY, oldCovers);
-        restoreStorage(LISTENING_MOMENTS_KEY, oldListeningMoments);
-        restoreStorage(APP_DATA_KEY, oldAppData);
-        throw error;
-      }
+      const values = [backup.entries, backup.summaries, backup.monthlySummaries, backup.covers, backup.listeningMoments, backup.appData];
+      WEB_DATA_KEYS.forEach((key, index) => restoreStorage(key, webStorage ? webStorage[key] : JSON.stringify(values[index]), isolatedStorage));
+      restoreStorage(IMPORT_UNDO_KEY, undo, isolatedStorage);
+      if (isolatedStorage) restoreStorage(WEB_RESTORE_JOURNAL_KEY, JSON.stringify(journal), isolatedStorage);
+      else await this.writeJournal(journal);
       return;
     }
 
@@ -758,6 +927,8 @@ class Store {
       ...backup.monthlySummaries.map((summary) => ({ statement: "INSERT INTO MonthlySummary (id, year, month, title, content, themeId, analysisJson, analysisVersion, sourceFingerprint, sourceEntryCount, generatedAt, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", values: monthlySummaryValues(summary) })),
       ...backup.covers.map((cover) => ({ statement: "INSERT INTO CoverImage (coverKey, kind, albumName, songName, artistName, dataUrl, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?)", values: coverValues(cover) })),
       ...Object.entries(backup.appData).map(([key, value]) => ({ statement: "INSERT INTO AppData (key, value) VALUES (?, ?)", values: [key, value] })),
+      { statement: "INSERT INTO AppData (key, value) VALUES (?, ?)", values: [NATIVE_RESTORE_JOURNAL_KEY, JSON.stringify(journal)] },
+      ...(undo === null ? [{ statement: "DELETE FROM UndoBackup", values: [] }] : [{ statement: "INSERT INTO UndoBackup (id, value) VALUES (1, ?) ON CONFLICT(id) DO UPDATE SET value = excluded.value", values: [undo] }]),
     ];
     await this.dbReady().executeSet(set, true);
   }
@@ -851,7 +1022,16 @@ class Store {
   }
 }
 
-export const store = new Store();
+const rawStore = new Store();
+const unlockedMethods = new Set(["previewBackup", "importBackup", "restoreImportUndo", "recoverPendingRestore", "getRecoveryEvidence"]);
+export const store = new Proxy(rawStore, {
+  get(target, key, receiver) {
+    const value = Reflect.get(target, key, receiver);
+    if (typeof value !== "function") return value;
+    return (...args: unknown[]) => unlockedMethods.has(String(key))
+      ? value.apply(target, args) : withStorageAccess(() => value.apply(target, args));
+  },
+});
 
 export function entryCoverTarget(input: Pick<EntryInput, "type" | "songName" | "albumName" | "artistName">) {
   if (input.type === "album" && input.albumName) {
@@ -871,21 +1051,22 @@ export function parseList(value: string) {
 }
 
 export function calculateYearStats(year: number, entries: ReviewEntry[]): YearStats {
-  const ratings = entries.map((entry) => entry.rating).filter((rating): rating is number => rating !== null);
+  const musicEntries = entries.filter(isAutomaticEntry);
+  const ratings = musicEntries.map((entry) => entry.rating).filter((rating): rating is number => rating !== null);
   const createdThisYear = entries.filter((entry) => inRecordingPeriod(entry, year)).length;
   return {
     year,
     totalEntries: entries.length,
     createdThisYear,
     monthCount: new Set(entries.map((entry) => entry.month).filter((month): month is number => month !== null)).size,
-    albumCount: new Set(entries.map((entry) => entry.albumName).filter(Boolean)).size,
-    songCount: new Set(entries.map((entry) => entry.songName).filter(Boolean)).size,
+    albumCount: groupMusicEntries(entries, "album").length,
+    songCount: groupMusicEntries(entries, "song").length,
     topTags: topItems(entries.flatMap((entry) => entry.tags)),
     topMoods: topItems(entries.flatMap((entry) => entry.moods)),
     averageRating: ratings.length ? Math.round((ratings.reduce((sum, rating) => sum + rating, 0) / ratings.length) * 10) / 10 : null,
     mostActiveMonth: topItems(entries.map((entry) => (entry.month ? `${entry.month} 月` : "")))[0] ?? null,
-    topAlbum: topItems(entries.map((entry) => entry.albumName ?? ""))[0] ?? null,
-    topSong: topItems(entries.map((entry) => entry.songName ?? ""))[0] ?? null,
+    topAlbum: topItems(musicEntries.map((entry) => entry.albumName ?? ""))[0] ?? null,
+    topSong: topItems(musicEntries.map((entry) => entry.songName ?? ""))[0] ?? null,
   };
 }
 
@@ -1017,7 +1198,10 @@ function validateEntry(entry: ReviewEntry) {
 }
 
 type BackupData = {
-  version: 5;
+  version: 6;
+  sourceVersion: number;
+  draftsPresence: "absent" | "present";
+  drafts: StoredEntryDraft[];
   exportedAt: string;
   entries: ReviewEntry[];
   summaries: YearlySummary[];
@@ -1026,6 +1210,16 @@ type BackupData = {
   listeningMoments: ListeningMoment[];
   appData: Record<string, string>;
 };
+
+export type RestoreDiffCounts = { added: number; changed: number; unchanged: number; removed: number };
+export type RestoreDiffReport = {
+  inputSha256: string;
+  localSha256: string;
+  includeCovers: boolean;
+  sourceVersion: number;
+  groups: Record<"entries" | "summaries" | "monthlySummaries" | "listeningMoments" | "covers" | "appData" | "drafts", RestoreDiffCounts>;
+};
+export type RestoreRehearsal = RestoreDiffReport & { verified: true; target: "web-isolated-storage" | "android-isolated-sqlite"; isolationDatabase?: string };
 
 function parseBackup(raw: string, options: { includeCovers?: boolean } = {}): BackupData {
   let parsed: unknown;
@@ -1036,8 +1230,10 @@ function parseBackup(raw: string, options: { includeCovers?: boolean } = {}): Ba
   }
   if (!isRecord(parsed)) throw new Error("备份内容必须是 JSON 对象");
   const version = parsed.version;
-  if (version !== 1 && version !== 2 && version !== 3 && version !== 4 && version !== 5) throw new Error("备份版本不支持");
+  if (version !== 1 && version !== 2 && version !== 3 && version !== 4 && version !== 5 && version !== 6) throw new Error("备份版本不支持");
   if (!isValidDateString(parsed.exportedAt)) throw new Error("备份导出时间无效");
+  if (version < 6 && Object.hasOwn(parsed, "drafts")) throw new Error("v1–v5 备份不能含 drafts，来源格式矛盾");
+  const drafts = version === 6 ? readBackupDrafts(parsed.drafts, options) : [];
 
   const entries = readArray(parsed.entries, "entries").map((entry) => readEntry(entry, version >= 2));
   const summaries = readArray(parsed.summaries, "summaries").map((summary) => readSummary(summary, version >= 3));
@@ -1045,11 +1241,32 @@ function parseBackup(raw: string, options: { includeCovers?: boolean } = {}): Ba
   const covers = options.includeCovers === false ? [] : readArray(parsed.covers, "covers").map(readCover);
   const listeningMoments = version >= 4 ? readArray(parsed.listeningMoments, "listeningMoments").map(readListeningMoment) : [];
   const appData = version >= 3 ? readBackupAppData(parsed.appData) : {};
-  return { version: 5, exportedAt: parsed.exportedAt, entries, summaries, monthlySummaries, covers, listeningMoments, appData };
+  assertUniqueBackupKeys(entries, item => item.id, "entries.id");
+  assertUniqueBackupKeys(summaries, item => item.id, "summaries.id");
+  assertUniqueBackupKeys(summaries, item => String(item.year), "summaries.year");
+  assertUniqueBackupKeys(monthlySummaries, item => item.id, "monthlySummaries.id");
+  assertUniqueBackupKeys(monthlySummaries, item => `${item.year}-${item.month}`, "monthlySummaries.year/month");
+  assertUniqueBackupKeys(covers, item => item.coverKey, "covers.coverKey");
+  assertUniqueBackupKeys(listeningMoments, item => item.id, "listeningMoments.id");
+  const entryIds = new Set(entries.map(item => item.id));
+  if (listeningMoments.some(item => !entryIds.has(item.entryId))) throw new Error("重听记录引用了备份中不存在的乐评");
+  return { version: 6, sourceVersion: version, draftsPresence: version === 6 ? "present" : "absent", drafts, exportedAt: parsed.exportedAt, entries, summaries, monthlySummaries, covers, listeningMoments, appData };
 }
 
-function summarizeBackup(backup: BackupData) {
+function assertUniqueBackupKeys<T>(values: T[], keyOf: (value: T) => string, label: string) {
+  const seen = new Set<string>();
+  for (const value of values) {
+    const key = keyOf(value);
+    if (seen.has(key)) throw new Error(`${label} 重复`);
+    seen.add(key);
+  }
+}
+
+function summarizeBackup(backup: BackupData): BackupPreview {
   return {
+    sourceVersion: backup.sourceVersion,
+    draftsPresence: backup.draftsPresence,
+    ...draftPreview(backup.drafts),
     exportedAt: backup.exportedAt,
     entryCount: backup.entries.length,
     summaryCount: backup.summaries.length,
@@ -1057,6 +1274,143 @@ function summarizeBackup(backup: BackupData) {
     coverCount: backup.covers.length,
     listeningMomentCount: backup.listeningMoments.length,
   };
+}
+
+type RestoreSnapshot = {
+  kind: "codex-import-undo";
+  version: 1;
+  beforeBackup: string;
+  beforeDrafts: StoredEntryDraft[];
+  beforeAppData: Record<string, string>;
+  beforeWebStorage?: Record<string, string | null>;
+};
+type RestoreJournal = RestoreSnapshot & {
+  operation: "import" | "undo";
+  phase: "prepared" | "data-written" | "rolling-back";
+  beforeUndo: string | null;
+};
+function userAppData(data: Record<string, string>) {
+  return Object.fromEntries(Object.entries(data).filter(([key]) => key !== BACKUP_HEALTH_KEY && key !== NATIVE_RESTORE_JOURNAL_KEY));
+}
+function deviceAppData(data: Record<string, string>) {
+  return Object.fromEntries(Object.entries(data).filter(([key]) => key === BACKUP_HEALTH_KEY));
+}
+function readRawDrafts(value: unknown): StoredEntryDraft[] {
+  const seen = new Set<string>();
+  return readArray(value, "drafts").map(item => {
+    if (!isRecord(item) || typeof item.key !== "string" || !item.key.startsWith("music-feelings-entry-draft:v1:")
+      || typeof item.raw !== "string" || seen.has(item.key)) throw new Error("草稿键无效或重复，原文已保留");
+    seen.add(item.key);
+    return { key: item.key, raw: item.raw };
+  });
+}
+function readBackupDrafts(value: unknown, options: { includeCovers?: boolean } = {}) {
+  let newCount = 0;
+  const drafts = readRawDrafts(value).map(item => {
+    const draft = readStoredEntryDraft(item.key, item.raw);
+    if (!draft) throw new Error("草稿损坏或键与内容不一致，请在草稿箱抢救原文并整理后重试");
+    if (draft.mode === "create") newCount++;
+    return options.includeCovers === false
+      ? { key: item.key, raw: JSON.stringify({ ...JSON.parse(item.raw), coverDataUrl: null, coverChanged: false }) }
+      : item;
+  });
+  if (newCount > MAX_NEW_DRAFTS) throw new Error(`新建草稿超过 ${MAX_NEW_DRAFTS} 份，请先整理备份中的草稿`);
+  return drafts;
+}
+function draftPreview(drafts: StoredEntryDraft[]) {
+  return {
+    draftCount: drafts.length,
+    newDraftCount: drafts.filter(item => item.key === "music-feelings-entry-draft:v1:new" || item.key.startsWith("music-feelings-entry-draft:v1:new:")).length,
+    editDraftCount: drafts.filter(item => item.key.startsWith("music-feelings-entry-draft:v1:edit:")).length,
+    localDraftCount: listRawEntryDrafts(localStorage).length,
+  };
+}
+function replaceDrafts(drafts: StoredEntryDraft[], storage: Storage = localStorage) {
+  const keys = new Set(drafts.map(item => item.key));
+  for (const item of drafts) storage.setItem(item.key, item.raw);
+  for (const item of listRawEntryDrafts(storage)) if (!keys.has(item.key)) storage.removeItem(item.key);
+}
+function draftSignature(drafts: StoredEntryDraft[]) {
+  return JSON.stringify([...drafts].sort((a, b) => a.key.localeCompare(b.key)));
+}
+function canonical(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
+  if (isRecord(value)) return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${canonical(value[key])}`).join(",")}}`;
+  return JSON.stringify(value);
+}
+
+async function sha256(value: string) {
+  const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(bytes), byte => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function restoreDiffCounts<T>(before: T[], after: T[], keyOf: (value: T) => string): RestoreDiffCounts {
+  const old = new Map(before.map(item => [keyOf(item), canonical(item)]));
+  const next = new Map(after.map(item => [keyOf(item), canonical(item)]));
+  let added = 0, changed = 0, unchanged = 0, removed = 0;
+  for (const [key, value] of next) {
+    if (!old.has(key)) added++;
+    else if (old.get(key) === value) unchanged++;
+    else changed++;
+  }
+  for (const key of old.keys()) if (!next.has(key)) removed++;
+  return { added, changed, unchanged, removed };
+}
+
+function createIsolatedStorage(): Storage {
+  const values = new Map<string, string>();
+  return {
+    get length() { return values.size; },
+    clear: () => values.clear(),
+    getItem: key => values.get(key) ?? null,
+    key: index => [...values.keys()][index] ?? null,
+    removeItem: key => { values.delete(key); },
+    setItem: (key, value) => { values.set(key, value); },
+  };
+}
+function mainSignature(value: Pick<BackupData, "entries" | "summaries" | "monthlySummaries" | "covers" | "listeningMoments" | "appData">) {
+  return canonical({ ...Object.fromEntries((["entries", "summaries", "monthlySummaries", "covers", "listeningMoments"] as const)
+    .map(key => [key, value[key].map(canonical).sort()])), appData: value.appData });
+}
+function readWebSnapshot(raw: Record<string, string | null>) {
+  const parsed = WEB_DATA_KEYS.map((key, index) => raw[key] === null ? (index === 5 ? {} : []) : JSON.parse(raw[key]));
+  const appData = parsed[5];
+  if (!isRecord(appData) || Object.values(appData).some(value => typeof value !== "string") || Object.hasOwn(appData, NATIVE_RESTORE_JOURNAL_KEY)) throw new Error("应用数据快照无效");
+  return {
+    entries: readArray(parsed[0], "entries").map(item => readEntry(item)),
+    summaries: readArray(parsed[1], "summaries").map(item => readSummary(item)),
+    monthlySummaries: readArray(parsed[2], "monthlySummaries").map(item => readMonthlySummary(item, false)),
+    covers: readArray(parsed[3], "covers").map(readCover),
+    listeningMoments: readArray(parsed[4], "listeningMoments").map(readListeningMoment),
+    appData: appData as Record<string, string>,
+  };
+}
+function readRestoreSnapshot(value: unknown, native: boolean): RestoreSnapshot {
+  if (!isRecord(value) || value.version !== 1 || value.kind !== "codex-import-undo" || typeof value.beforeBackup !== "string"
+    || !isRecord(value.beforeAppData) || Object.values(value.beforeAppData).some(item => typeof item !== "string")
+    || Object.hasOwn(value.beforeAppData, NATIVE_RESTORE_JOURNAL_KEY)) throw new Error("恢复快照格式无效，原文已保留");
+  const backup = parseBackup(value.beforeBackup);
+  if (backup.sourceVersion !== 6 || backup.drafts.length !== 0) throw new Error("内部快照必须为不含草稿的 v6 数据");
+  const beforeAppData = value.beforeAppData as Record<string, string>;
+  if (canonical(backup.appData) !== canonical(userAppData(beforeAppData))) throw new Error("恢复快照应用数据矛盾");
+  const beforeDrafts = readRawDrafts(value.beforeDrafts);
+  let beforeWebStorage: Record<string, string | null> | undefined;
+  if (!native) {
+    const raw = value.beforeWebStorage;
+    if (!isRecord(raw) || Object.keys(raw).length !== WEB_DATA_KEYS.length
+      || WEB_DATA_KEYS.some(key => !Object.hasOwn(raw, key) || (raw[key] !== null && typeof raw[key] !== "string"))) throw new Error("恢复快照的六个存储键不完整");
+    beforeWebStorage = raw as Record<string, string | null>;
+    const snapshot = readWebSnapshot(beforeWebStorage);
+    if (mainSignature(snapshot) !== mainSignature({ ...backup, appData: beforeAppData })) throw new Error("恢复快照原文与正式数据不一致");
+  } else if (value.beforeWebStorage !== undefined) throw new Error("原生恢复快照不能含 Web 存储键");
+  return { kind: "codex-import-undo", version: 1, beforeBackup: value.beforeBackup, beforeDrafts, beforeAppData, ...(beforeWebStorage ? { beforeWebStorage } : {}) };
+}
+function readRestoreJournal(raw: string, native: boolean): RestoreJournal {
+  const value: unknown = JSON.parse(raw);
+  if (!isRecord(value) || (value.operation !== "import" && value.operation !== "undo")
+    || !["prepared", "data-written", "rolling-back"].includes(String(value.phase))
+    || (value.beforeUndo !== null && typeof value.beforeUndo !== "string")) throw new Error("恢复日志格式无效，原文已保留");
+  return { ...readRestoreSnapshot({ ...value, kind: "codex-import-undo" }, native), operation: value.operation, phase: value.phase as RestoreJournal["phase"], beforeUndo: value.beforeUndo };
 }
 
 function readEntry(value: unknown, metadataRequired = false): ReviewEntry {
@@ -1221,59 +1575,71 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
-// ponytail: 与原生 rowToEntry 对齐——单条损坏不阻塞整列表;备份导入仍走严格 parseBackup
-function tolerantMap<T>(values: unknown[], read: (value: unknown) => T): T[] {
-  return values.flatMap((value) => {
+// ponytail: 列表可继续显示有效行，但原数组保留在隔离副本前不得被任何 write* 重写。
+function tolerantMap<T>(values: unknown[], read: (value: unknown) => T, key: string, raw: string | null): T[] {
+  let damaged = false;
+  const result = values.flatMap((value) => {
     try {
       return [read(value)];
     } catch (error) {
+      damaged = true;
       console.warn("跳过损坏的本地数据条目", error);
       return [];
     }
   });
+  if (damaged && raw !== null) {
+    try {
+      preserveStorageCorruption(localStorage, key, raw);
+    } catch (error) {
+      const detail = error instanceof Error ? `：${error.message}` : "";
+      throw new Error(`本地数据 ${key} 含有损坏条目，原始集合仍保留但隔离副本保存失败${detail}`);
+    }
+  }
+  return result;
 }
 
 function readEntries() {
-  const values = readJson<unknown[]>(ENTRIES_KEY, []);
-  return Array.isArray(values) ? tolerantMap(values, (entry) => readEntry(entry)) : [];
+  return readCollection(ENTRIES_KEY, (entry) => readEntry(entry), "entries");
 }
 
 function writeEntries(entries: ReviewEntry[]) {
+  assertLocalStorageIntegrity();
   localStorage.setItem(ENTRIES_KEY, JSON.stringify(entries));
 }
 
 function readSummaries() {
-  const values = readJson<unknown[]>(SUMMARIES_KEY, []);
-  return Array.isArray(values) ? tolerantMap(values, (summary) => readSummary(summary)) : [];
+  return readCollection(SUMMARIES_KEY, (summary) => readSummary(summary), "summaries");
 }
 
 function writeSummaries(summaries: YearlySummary[]) {
+  assertLocalStorageIntegrity();
   localStorage.setItem(SUMMARIES_KEY, JSON.stringify(summaries));
 }
 
 function readMonthlySummaries() {
-  const values = readJson<unknown[]>(MONTHLY_SUMMARIES_KEY, []);
-  return Array.isArray(values) ? tolerantMap(values, (summary) => readMonthlySummary(summary, false)) : [];
+  return readCollection(MONTHLY_SUMMARIES_KEY, (summary) => readMonthlySummary(summary, false), "monthly summaries");
 }
 
 function writeMonthlySummaries(summaries: MonthlySummary[]) {
+  assertLocalStorageIntegrity();
   localStorage.setItem(MONTHLY_SUMMARIES_KEY, JSON.stringify(summaries));
 }
 
 function readCovers() {
-  return readJson<CoverRow[]>(COVERS_KEY, []);
+  return readCollection(COVERS_KEY, readCover, "covers");
 }
 
 function writeCovers(covers: CoverRow[]) {
+  assertLocalStorageIntegrity();
   localStorage.setItem(COVERS_KEY, JSON.stringify(covers));
 }
 
 function readListeningMoments(): ListeningMoment[] {
-  const values = readJson<unknown[]>(LISTENING_MOMENTS_KEY, []);
-  return Array.isArray(values) ? tolerantMap(values, readListeningMoment) : [];
+  return readCollection(LISTENING_MOMENTS_KEY, readListeningMoment, "listening moments");
 }
 
 function writeListeningMoments(moments: ListeningMoment[]) {
+  assertLocalStorageIntegrity();
   localStorage.setItem(LISTENING_MOMENTS_KEY, JSON.stringify(moments));
 }
 
@@ -1292,16 +1658,50 @@ function readListeningMoment(value: unknown): ListeningMoment {
   };
 }
 
-function restoreStorage(key: string, value: string | null) {
+function restoreStorage(key: string, value: string | null, storage: Storage = localStorage) {
   if (value === null) {
-    localStorage.removeItem(key);
+    storage.removeItem(key);
     return;
   }
-  localStorage.setItem(key, value);
+  storage.setItem(key, value);
 }
 
-function readJson<T>(key: string, fallback: T): T {
-  return readSafeJson(localStorage, key, fallback);
+function readJsonWithRaw<T>(key: string, fallback: T): { value: T; raw: string | null } {
+  const raw = localStorage.getItem(key);
+  return { value: readSafeJson(localStorage, key, fallback), raw };
+}
+
+function readCollection<T>(key: string, read: (value: unknown) => T, label: string): T[] {
+  const { value, raw } = readJsonWithRaw<unknown>(key, []);
+  if (!Array.isArray(value)) {
+    if (raw !== null) preserveStorageCorruption(localStorage, key, raw);
+    throw new Error(`本地数据 ${key} 的 ${label}结构无效，原始内容仍保留，请前往备份页处理`);
+  }
+  return tolerantMap(value, read, key, raw);
+}
+
+function assertLocalStorageIntegrity() {
+  const checks: Array<[string, () => unknown]> = [
+    [ENTRIES_KEY, readEntries],
+    [SUMMARIES_KEY, readSummaries],
+    [MONTHLY_SUMMARIES_KEY, readMonthlySummaries],
+    [COVERS_KEY, readCovers],
+    [LISTENING_MOMENTS_KEY, readListeningMoments],
+    [APP_DATA_KEY, readAppData],
+  ];
+  const failedKeys = new Set<string>();
+  for (const [key, read] of checks) {
+    try {
+      read();
+    } catch {
+      // Continue scanning so one damaged collection cannot hide the others.
+      failedKeys.add(key);
+    }
+  }
+  const corruptions = readStorageCorruptions(localStorage);
+  const keys = Array.from(new Set([...failedKeys, ...corruptions.map((item) => item.key)])).join("、");
+  if (!keys) return;
+  throw new Error(`本地数据 ${keys} 含有损坏条目，原文已保留；请先在备份页抢救，当前备份不完整，已阻止写入或导出`);
 }
 
 function decodeList(value: string | null) {
@@ -1316,11 +1716,16 @@ function decodeList(value: string | null) {
 }
 
 function readAppData() {
-  const value = readJson<unknown>(APP_DATA_KEY, {});
-  return isRecord(value) ? Object.fromEntries(Object.entries(value).filter((item): item is [string, string] => typeof item[1] === "string")) : {};
+  const { value, raw } = readJsonWithRaw<unknown>(APP_DATA_KEY, {});
+  if (!isRecord(value) || Object.values(value).some((item) => typeof item !== "string")) {
+    if (raw !== null) preserveStorageCorruption(localStorage, APP_DATA_KEY, raw);
+    throw new Error(`本地数据 ${APP_DATA_KEY} 的应用数据映射结构无效，原始内容仍保留，请前往备份页处理`);
+  }
+  return value as Record<string, string>;
 }
 
 function writeAppData(value: Record<string, string>) {
+  assertLocalStorageIntegrity();
   localStorage.setItem(APP_DATA_KEY, JSON.stringify(value));
 }
 
@@ -1409,12 +1814,6 @@ function dispatchCoverChanged() {
 
 function coverKey(kind: CoverKind, target: CoverTarget) {
   return JSON.stringify([kind, target.albumName ?? "", target.songName ?? "", target.artistName ?? ""]);
-}
-
-function group<T>(items: T[], keyOf: (item: T) => string) {
-  const map = new Map<string, T[]>();
-  for (const item of items) map.set(keyOf(item), [...(map.get(keyOf(item)) ?? []), item]);
-  return map;
 }
 
 function isAutomaticEntry(entry: ReviewEntry) {

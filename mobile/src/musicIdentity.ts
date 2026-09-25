@@ -19,6 +19,29 @@ export function findEntryIdentityMatches(entries: ReviewEntry[], identity: Entry
     : findMusicIdentityMatches(entries, identity);
 }
 
+export function groupMusicEntries(entries: ReviewEntry[], kind: "album" | "song") {
+  const catalogId = (entry: ReviewEntry) => clean(kind === "album" ? entry.musicMetadata?.catalogAlbumId : entry.musicMetadata?.catalogTrackId);
+  const matches = kind === "album" ? sameAlbumIdentity : sameMusicIdentity;
+  // Known IDs and full names come first, so an incomplete song joins one group without merging distinct known albums.
+  const ordered = entries.filter(entry => (entry.type === "album" || entry.type === "song")
+    && normalizeMusicIdentityText(kind === "album" ? entry.albumName : entry.songName))
+    .sort((left, right) => Number(Boolean(catalogId(right))) - Number(Boolean(catalogId(left)))
+      || Number(Boolean(normalizeMusicIdentityText(right.artistName))) - Number(Boolean(normalizeMusicIdentityText(left.artistName)))
+      || (kind === "song" ? Number(Boolean(normalizeMusicIdentityText(right.albumName))) - Number(Boolean(normalizeMusicIdentityText(left.albumName))) : 0)
+      || left.id.localeCompare(right.id));
+  const groups: ReviewEntry[][] = [];
+  for (const entry of ordered) {
+    const id = catalogId(entry);
+    const group = groups.find(items => {
+      const knownId = items.map(catalogId).find(Boolean);
+      return (!id || !knownId || id === knownId) && items.some(item => matches(item, entry));
+    });
+    if (group) group.push(entry);
+    else groups.push([entry]);
+  }
+  return groups;
+}
+
 export function sameAlbumIdentity(left: MusicIdentity, right: MusicIdentity) {
   const leftAlbumId = clean(left.musicMetadata?.catalogAlbumId);
   const rightAlbumId = clean(right.musicMetadata?.catalogAlbumId);

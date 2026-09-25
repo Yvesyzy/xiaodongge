@@ -178,16 +178,22 @@ public class NativeExportPlugin extends Plugin {
             call.reject("读取导出内容失败：" + safeMessage(error), error);
             return;
         }
-        try (OutputStream output = getContext().getContentResolver().openOutputStream(uri, "w")) {
-            if (output == null) throw new IOException("系统无法打开文件输出流");
-            output.write(payload);
-            output.flush();
+        try {
+            writeAndClose(getContext().getContentResolver().openOutputStream(uri, "w"), payload);
             JSObject response = new JSObject();
             response.put("status", "saved");
             response.put("uri", uri.toString());
             call.resolve(response);
         } catch (IOException | SecurityException error) {
             call.reject("写入导出文件失败：" + safeMessage(error), error);
+        }
+    }
+
+    static void writeAndClose(OutputStream output, byte[] payload) throws IOException {
+        if (output == null) throw new IOException("系统无法打开文件输出流");
+        try (OutputStream managedOutput = output) {
+            managedOutput.write(payload);
+            managedOutput.flush();
         }
     }
 
