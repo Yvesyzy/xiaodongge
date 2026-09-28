@@ -1,6 +1,6 @@
-# 小懂哥 v3.0
+# 小懂哥 v3.0.1
 
-一个在安卓手机本地运行、以专辑为中心的私人音乐感受记录 APK。它只保存你手动输入或确认过的信息，不自动编造歌曲、专辑、歌手或感受。v3.0 加入专辑盲重听、跨年轨迹、备份恢复预演、榜单导出预检与本机诊断，修复当前播放读取提示及草稿/备份等数据保护问题；保留青绿鎏金榜单海报、黑胶首页、十分制和离线字体。
+一个在安卓手机本地运行、以专辑为中心的私人音乐感受记录 APK。它只保存你手动输入或确认过的信息，不自动编造歌曲、专辑、歌手或感受。v3.0.1 改善当前播放的歌曲、专辑、歌手读取反馈，恢复完整乐评的情绪、评分、曲风入口，将新建草稿上限扩至 10 份，并修复深色乐评表单的浅底浅字；保留 v3.0 的专辑盲重听、跨年轨迹、备份恢复预演、榜单导出预检与本机诊断。
 
 ## 功能
 
@@ -59,20 +59,20 @@
 
 最新安装包下载：
 
-当前安卓版本为 `3.0 (28)`（npm 包版本 `3.0.0`），沿用 v2.5 至 v2.9 的长期发布签名，可直接覆盖这些正式版本，无需卸载。更早旧签名版本和 debug 版本请先保存并回读备份，再按签名兼容情况迁移。
+当前安卓版本为 `3.0.1 (29)`（npm 包版本 `3.0.1`），沿用 v2.5 至 v3.0 的长期发布签名，可直接覆盖这些正式版本，无需卸载。更早旧签名版本和 debug 版本请先保存并回读备份，再按签名兼容情况迁移。
 
-- [下载 v3.0 APK](https://github.com/Yvesyzy/xiaodongge/releases/download/v3.0/codex_xiaodongge-v3.0.apk)
-- [下载 SHA256 校验文件](https://github.com/Yvesyzy/xiaodongge/releases/download/v3.0/codex_xiaodongge-v3.0.sha256.txt)
+- [下载 v3.0.1 APK](https://github.com/Yvesyzy/xiaodongge/releases/download/v3.0.1/codex_xiaodongge-v3.0.1.apk)
+- [下载 SHA256 校验文件](https://github.com/Yvesyzy/xiaodongge/releases/download/v3.0.1/codex_xiaodongge-v3.0.1.sha256.txt)
 
-发布页：[小懂哥 v3.0](https://github.com/Yvesyzy/xiaodongge/releases/tag/v3.0)。
+发布页：[小懂哥 v3.0.1](https://github.com/Yvesyzy/xiaodongge/releases/tag/v3.0.1)。
 
-`main` 已包含 v3.0 发布后的当前播放信息显示、10 份新建草稿上限和深色乐评表单修补；上面的 v3.0 Release APK 是原发布包，尚不包含这些后续改动。需要这些修补时请从当前源码构建，或使用后续正式发布包。
+v3.0.1 APK 包含 v3.0 发布后的当前播放信息显示、10 份新建草稿上限和深色乐评表单修补；原 v3.0 Release 与附件保持不变。
 
 签名证书 SHA-256：`6386734ef9b4a3fe106d690a8d31ae952697c2ea652ea1ee82f3f7ab488f1022`。
 
-APK SHA-256：`2c095e43341bddb7833321a23b504d93fb43cacef860c2aae416d0fff3984f92`；大小 75,772,930 字节。
+APK SHA-256：`83e623d3092c3a2f84e463c4ecea4a5550c214795c4a10792d9a3da631870525`；大小 75,773,270 字节。
 
-本版通过 26 组完整检查、8 项 Android JUnit、正式签名构建与包内 17 个网页文件及 3 个平台文件逐字节核对。项目 Android16 模拟器已完成合成档案覆盖升级、旧备份预演与导入；实体手机、实际 B 站、系统分享接收应用和 TalkBack 尚未验收。冷启动及首次榜单预览的既定性能门槛尚未通过，详见[发布说明与验收边界](docs/codex_v30_release_notes.md)。
+本版通过 26 组完整检查、8 项 Android JUnit、正式签名构建与包内 17 个网页文件及 3 个平台文件逐字节核对。项目 Android16 模拟器从 v3.0 覆盖升级至 v3.0.1，首装时间、合成乐评与草稿保留；实体手机、实际 B 站、系统分享接收应用和 TalkBack 尚未完成本版验收。冷启动及首次榜单预览的既定性能门槛尚未通过，详见[发布说明与验收边界](docs/codex_v301_release_notes.md)。
 
 榜单字体采用 Noto Sans SC 和 Montserrat 900 数字子集，OFL授权随包提供于 `mobile/public/codex_font_licenses.txt`；未使用 Spotify 专有字体。中文保留完整字库，支持离线导出。
 
@@ -84,7 +84,7 @@ JSON v6 默认包含封面与有效草稿；取消「JSON 包含封面」可生�
 
 `npm.cmd run mobile:dev` 是当前移动端的 H5 开发入口；Android 使用本机 SQLite，H5 使用该浏览器地址的 localStorage，二者不会自动同步。
 
-`npm.cmd run dev` / `npm.cmd run start` 是保留的 Next.js/Prisma 旧网页端，仅绑定 `127.0.0.1`，不提供远程登录和授权。它使用独立的 Prisma 数据库，仍采用整数评分及手动年份/月份归档，不具备手机端全部草稿、半分评分和备份能力。不要把网页端数据库或导出文件当成手机备份直接覆盖导入。该入口保留安全维护，不作为 v3.0 手机界面的预览。
+`npm.cmd run dev` / `npm.cmd run start` 是保留的 Next.js/Prisma 旧网页端，仅绑定 `127.0.0.1`，不提供远程登录和授权。它使用独立的 Prisma 数据库，仍采用整数评分及手动年份/月份归档，不具备手机端全部草稿、半分评分和备份能力。不要把网页端数据库或导出文件当成手机备份直接覆盖导入。该入口保留安全维护，不作为 v3.0.1 手机界面的预览。
 
 ### 可重复检查
 
@@ -101,7 +101,7 @@ PowerShell 定向复查示例：`pwsh -NoProfile -File scripts/codex_verify_proj
 
 `verify:android` 使用本机 JDK/Android SDK 编译原生测试，然后直接把 Gradle 提供的运行类路径传给 JUnit，绕过本机 Java 启动器读取 Gradle 参数文件中中文路径失败的问题。它验证写入、刷新、关闭失败和空输出流，不启动系统文件选择器；真机验收另行记录。
 
-v3.0 的当前播放读取会在按钮附近显示结果；通知访问被撤销时提供设置入口，过期的目录补全不会覆盖正在编辑的作品。读取依赖播放器提供处于播放状态的系统媒体会话，暂停内容不会被当作当前播放。Android36 模拟器已通过系统会话检查及官方网易云 9.5.95 实际在线播放读取/按钮填入；实际 B 站和其他手机系统未验，详见[播放修补交接](docs/codex_session_summary_2026-09-22_playback_review.md)。
+v3.0.1 的当前播放读取会在按钮附近显示结果，并在成功时列出歌曲、专辑、歌手；通知访问被撤销时提供设置入口，过期的目录补全不会覆盖正在编辑的作品。读取依赖播放器提供处于播放状态的系统媒体会话，暂停内容不会被当作当前播放。Android36 模拟器已通过系统会话检查；官方网易云 9.5.95 的实播读取记录来自先前测试，本版未重新完成在线实播。实际 B 站和其他手机系统未验，详见[播放回归交接](docs/codex_session_summary_2026-09-26_playback_review_regression.md)。
 
 首次安装依赖：
 
