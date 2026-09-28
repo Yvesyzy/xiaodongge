@@ -12,7 +12,7 @@
 
 ## 验证
 
-证据在 `release/codex_t10_baseline_20260923/`、`release/codex_t10_native_initial_20260923/`、`release/codex_t10_full_acceptance_20260924/`、`release/codex_t10_android_unit_final_20260924/`。原生设备记录由 `scripts/codex_profile_ocr_android.mjs` 在确认 AVD 名称后经真实 WebView/Capacitor 桥接获取。
+证据在 `release/codex_t10_baseline_20260923/`、`release/codex_t10_native_initial_20260923/`、`release/codex_t10_full_acceptance_reviewed_20260924/`、`release/codex_t10_android_unit_final_20260924/`。原生设备记录由 `scripts/codex_profile_ocr_android.mjs` 在确认 AVD 名称后经真实 WebView/Capacitor 桥接获取。
 
 | 合成图 | 字节 / 原尺寸 | 旧包识别耗时 / 峰值 PSS | 新包识别耗时 / 峰值 PSS | 新解码尺寸与字段 |
 |---|---|---|---|---|
@@ -24,7 +24,7 @@
 
 原生桥接实测：12 MiB−1 与恰好 12 MiB 的填充 JPEG 均识别出专辑和艺人；12 MiB＋1 字节被拒绝，提示裁剪或更换。超限图强行直接跨桥接仍会造成短时内存升高，所以前端先行拒绝是必要保护。相同普通图连续识别 20 次均成功，字段 20/20 保留；结束后 PSS 范围 170,842–173,679 KiB，首尾 172,215/172,650 KiB，未见逐次累积。这个 PSS 结果是活动 bitmap 是否积累的外部代理指标，无法直接计数内部 bitmap 对象。
 
-初次全量入口 22/22 通过：`release/codex_t10_full_acceptance_20260924/codex_results.json`；独立复查后补充“成功 A→失败 B”字段保持断言，定向检查通过，最终全量结果见 `release/codex_t10_full_acceptance_reviewed_20260924/codex_results.json`。Android JUnit 8/8 通过：`release/codex_t10_android_unit_final_20260924/`。`git diff --check` 退出 0。调试 APK `release/codex_t10_native_initial_20260923/codex_t10_debug.apk` 为 81,180,420 字节，SHA-256 `B6D5B36F9EABA3E23ACB3733FA654CD4B689023CB80B5B95CC73A6F7B8B7F234`，与构建输出逐字节摘要相同；仅用于项目模拟器。
+初次全量入口曾报告 22/22 通过；独立复查发现并补充“成功 A→失败 B”字段保持断言，初次原始输出已在后续清理中删除。修正后的定向检查通过，最终全量结果见 `release/codex_t10_full_acceptance_reviewed_20260924/codex_results.json`。Android JUnit 8/8 通过：`release/codex_t10_android_unit_final_20260924/`。`git diff --check` 退出 0。调试 APK `release/codex_t10_native_initial_20260923/codex_t10_debug.apk` 为 81,180,420 字节，SHA-256 `B6D5B36F9EABA3E23ACB3733FA654CD4B689023CB80B5B95CC73A6F7B8B7F234`，与构建输出逐字节摘要相同；仅用于项目模拟器。
 
 独立只读复查未发现已确认的 bitmap/recognizer 泄漏或预算运算问题；两项证据反馈已关闭：成功后再次失败仍保留旧 OCR 文本和用户表单，以及 `dumpsys meminfo` 无效或无采样时剖析脚本必须失败、峰值纳入结束值。修正后原生超限记录为 `release/codex_t10_native_initial_20260923/codex_profile_over_limit_reviewed.json`。ML Kit 内部任务失败时的清理未被故障注入直接触发，当前依据源码收尾路径与 20 次连续运行核对，不能把它写成已实测故障注入。
 
