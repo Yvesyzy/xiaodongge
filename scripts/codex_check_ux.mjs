@@ -23,12 +23,11 @@ try {
   await page.goto(origin + '/#/new');
   const body = page.locator('textarea[name="content"]'); await body.waitFor();
   assert.ok((await body.boundingBox()).y < 844, 'Body begins on first mobile screen');
-  assert.equal(await page.locator('.writing-extras').getAttribute('open'), null);
+  assert.equal(await page.locator('.writing-extras').getAttribute('open'), '');
   assert.doesNotMatch(await page.locator('select[name="type"]').innerText(), /album|song/);
   await page.screenshot({ path: output + '/codex_writer_new.png', fullPage: true });
   await page.locator('input[name="title"]').fill('正文先写的草稿');
   await body.fill('这是草稿正文，稍后接着写。');
-  await page.locator('.writing-extras > summary').click();
   await page.locator('input[name="albumName"]').fill('补充信息也要保存');
   await page.locator('.writing-extras > summary').click();
   await page.getByRole('button', { name: '保存草稿', exact: true }).click();

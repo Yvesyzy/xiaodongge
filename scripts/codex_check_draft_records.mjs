@@ -107,22 +107,23 @@ async function checkCorruptDraftUi() {
     ["music-feelings-entry-draft:v1:new:unknown-suffix", JSON.stringify(makeDraft({ draftId: "payload-id", title: "未知新建后缀" }))],
     ["music-feelings-entry-draft:v1:unknown", JSON.stringify(makeDraft({ title: "未知键前缀" }))],
   ];
+  for (let index = 0; index < 5; index++) damaged.push([`music-feelings-entry-draft:v1:new:extra-${index}`, "{broken-json"]);
   await seed(page, damaged);
   await page.goto(`${origin}/#/drafts`);
   await page.getByRole("heading", { name: "草稿箱", exact: true }).waitFor();
-  await page.locator(".draft-damaged").nth(5).waitFor();
-  assert.equal(await page.locator(".draft-damaged").count(), 6);
-  assert.match(await page.locator("body").innerText(), /新建占位 5\/5/);
-  assert.match(await page.locator("body").innerText(), /损坏 6/);
+  await page.locator(".draft-damaged").nth(10).waitFor();
+  assert.equal(await page.locator(".draft-damaged").count(), 11);
+  assert.match(await page.locator("body").innerText(), /新建占位 10\/10/);
+  assert.match(await page.locator("body").innerText(), /损坏 11/);
   await page.goto(`${origin}/#/`);
   await page.locator(".home-draft-link").waitFor();
-  assert.match(await page.locator(".home-draft-link").innerText(), /新建占位 5/);
-  assert.match(await page.locator(".home-draft-link").innerText(), /损坏 6/);
+  assert.match(await page.locator(".home-draft-link").innerText(), /新建占位 10\/10/);
+  assert.match(await page.locator(".home-draft-link").innerText(), /损坏 11/);
   await page.goto(`${origin}/#/more`);
   const moreDraftCard = page.locator(".entry-card").filter({ hasText: "草稿箱" });
   await moreDraftCard.waitFor();
-  assert.match(await moreDraftCard.innerText(), /新建占位 5/);
-  assert.match(await moreDraftCard.innerText(), /损坏 6/);
+  assert.match(await moreDraftCard.innerText(), /新建占位 10\/10/);
+  assert.match(await moreDraftCard.innerText(), /损坏 11/);
   await page.goto(`${origin}/#/drafts`);
   await page.getByRole("heading", { name: "草稿箱", exact: true }).waitFor();
   const unknownCard = page.locator(".draft-damaged").filter({ hasText: "music-feelings-entry-draft:v1:unknown" });
@@ -144,19 +145,19 @@ async function checkCorruptDraftUi() {
   await page.locator(".draft-damaged").filter({ hasText: "music-feelings-entry-draft:v1:new:empty" }).getByRole("button", { name: "删除", exact: true }).click();
   await page.waitForTimeout(150);
   assert.equal(await page.evaluate(() => localStorage.getItem("music-feelings-entry-draft:v1:new:empty")), unchangedRaw);
-  assert.equal(await page.locator(".draft-damaged").count(), 6);
+  assert.equal(await page.locator(".draft-damaged").count(), 11);
 
   page.once("dialog", (dialog) => dialog.accept());
   await exportCard.getByRole("button", { name: "删除", exact: true }).click();
   await page.waitForTimeout(200);
   assert.equal(await page.evaluate(() => localStorage.getItem("music-feelings-entry-draft:v1:new:broken-json")), null);
-  assert.match(await page.locator("body").innerText(), /新建占位 4\/5/);
+  assert.match(await page.locator("body").innerText(), /新建占位 9\/10/);
   await page.goto(`${origin}/#/new`);
   await page.locator("form.writing-form").waitFor();
   assert.equal(await page.locator(".writing-form").count(), 1, "删除一份损坏新建草稿后应释放新建名额");
   await page.screenshot({ path: path.join(outputDir, "codex_draft_records.png"), fullPage: true });
   result.damage = {
-    damagedNewVisible: 5,
+    damagedNewVisible: 10,
     unknownPrefixVisible: true,
     rawKeyVisible: true,
     rawExported: true,
@@ -220,7 +221,7 @@ async function checkConflictTransfer() {
   const page = await newPage();
   const conflict = makeDraft({ mode: "edit", entryId: "missing-entry", draftId: null, baseUpdatedAt: "2026-09-20T00:00:00.000Z", title: "冲突原文标题" });
   const seedItems = [["music-feelings-entry-draft:v1:edit:missing-entry", JSON.stringify(conflict)]];
-  for (let i = 0; i < 5; i++) seedItems.push([`music-feelings-entry-draft:v1:new:occupied-${i}`, JSON.stringify(makeDraft({ draftId: `occupied-${i}`, title: `占位 ${i}` }))]);
+  for (let i = 0; i < 10; i++) seedItems.push([`music-feelings-entry-draft:v1:new:occupied-${i}`, JSON.stringify(makeDraft({ draftId: `occupied-${i}`, title: `占位 ${i}` }))]);
   await seed(page, seedItems);
   await page.goto(`${origin}/#/drafts`);
   const conflictCard = page.locator(".draft-conflict").filter({ hasText: "music-feelings-entry-draft:v1:edit:missing-entry" });

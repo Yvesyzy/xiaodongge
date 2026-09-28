@@ -8,7 +8,7 @@ export type AlbumFirstRecognition = {
 
 export function toAlbumFirstRecognition(fields: MusicInfoFields, metadata: MusicMetadata | null): AlbumFirstRecognition {
   const albumName = clean(fields.albumName);
-  const songName = clean(fields.songName) ?? clean(fields.title);
+  const songName = clean(fields.songName) ?? (fields.type === "album" ? null : clean(fields.title));
   const artistName = clean(metadata?.albumArtistName) ?? clean(fields.artistName);
 
   if (!albumName) {
@@ -26,7 +26,7 @@ export function toAlbumFirstRecognition(fields: MusicInfoFields, metadata: Music
     fields: {
       type: "album",
       title: albumName,
-      songName: null,
+      songName,
       albumName,
       ...(artistName ? { artistName } : {}),
     },

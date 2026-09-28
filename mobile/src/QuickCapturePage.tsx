@@ -46,6 +46,7 @@ export default function QuickCapturePage() {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [playbackStatus, setPlaybackStatus] = useState<{ text: string; error: boolean } | null>(null);
   const dirtyRef = useRef(false);
   const formRevisionRef = useRef(0);
   const nowPlayingRequestRef = useRef(0);
@@ -205,15 +206,16 @@ export default function QuickCapturePage() {
     const isCurrentForm = () => isCurrentRequest() && formRevisionRef.current === startRevision;
     setBusy(true);
     setError("");
+    setPlaybackStatus(null);
     try {
       let result = parseNowPlayingResult(await NowPlaying.getCurrentTrack());
       if (!isCurrentForm()) return;
       if (!result.accessEnabled) {
-        setMessage("请先授予通知使用权；仍可手动填写快速记录。");
+        setPlaybackStatus({ text: "请先授予通知使用权；仍可手动填写快速记录。", error: false });
         return;
       }
       if (!result.fields) {
-        setMessage("没有读到正在播放的歌曲，仍可手动填写。");
+        setPlaybackStatus({ text: "没有读到正在播放的歌曲，仍可手动填写。", error: false });
         return;
       }
       const nextIdentity: MusicIdentity = { ...result.fields, musicMetadata: result.musicMetadata };
@@ -221,9 +223,9 @@ export default function QuickCapturePage() {
       if (dirtyRef.current) {
         if (!sameMusicIdentity(currentIdentity, nextIdentity)) {
           setPendingTrack(result);
-          setMessage("当前播放已经变化，现有输入没有被覆盖。");
+          setPlaybackStatus({ text: "当前播放已经变化，现有输入没有被覆盖。", error: false });
         } else {
-          setMessage("表单已有当前歌曲信息，未覆盖用户输入。");
+          setPlaybackStatus({ text: "表单已有当前歌曲信息，未覆盖用户输入。", error: false });
         }
         return;
       }
@@ -231,9 +233,13 @@ export default function QuickCapturePage() {
       result = await enrichNowPlaying(result);
       if (!isCurrentForm()) return;
       applyTrack(result);
-      setMessage("已读取当前播放");
+      setPlaybackStatus({ text: `已读取当前播放：${[
+        result.fields?.songName ? `歌曲 ${result.fields.songName}` : null,
+        result.fields?.albumName ? `专辑 ${result.fields.albumName}` : null,
+        result.fields?.artistName ? `歌手 ${result.fields.artistName}` : null,
+      ].filter(Boolean).join(" · ")}`, error: false });
     } catch (err) {
-      if (isCurrentForm()) setError(err instanceof Error ? err.message : "当前播放读取失败");
+      if (isCurrentForm()) setPlaybackStatus({ text: err instanceof Error ? err.message : "当前播放读取失败", error: true });
     } finally {
       if (isCurrentRequest()) setBusy(false);
     }
@@ -407,6 +413,9 @@ export default function QuickCapturePage() {
         </div>
         {Capacitor.isNativePlatform() ? <button type="button" className="secondary-button" onClick={() => refreshNowPlaying()} disabled={busy}>{busy ? "读取中" : "读取当前播放"}</button> : null}
       </section>
+      <div className="quick-playback-status">
+        {playbackStatus ? <p className={playbackStatus.error ? "error" : "hint"} role="status" aria-live="polite">{playbackStatus.text}</p> : null}
+      </div>
 
       {pendingTrack ? (
         <section className="track-change-note">

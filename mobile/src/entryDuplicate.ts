@@ -10,7 +10,7 @@ function sameEntrySignal(entry: ReviewEntry, input: EntryInput) {
     && entry.year === input.year
     && entry.month === input.month
     && textKey(entry.albumName) === textKey(input.albumName)
-    && textKey(entry.songName) === textKey(input.songName)
+    && (input.type === "album" || textKey(entry.songName) === textKey(input.songName))
     && textKey(entry.artistName) === textKey(input.artistName)
     && dateKey(entry.listenedAt) === dateKey(input.listenedAt);
 }

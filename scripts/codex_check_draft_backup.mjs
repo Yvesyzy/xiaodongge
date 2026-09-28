@@ -751,8 +751,8 @@ async function runCoreCases(harness, branch) {
     invalids.push(["key and content mismatch", makePayload(6, [{ ...TARGET_DRAFTS[0], key: `${DRAFT_PREFIX}edit:${BASE_ENTRIES[0].id}` }])]);
     const editDraftId = JSON.parse(TARGET_DRAFTS[2].raw); editDraftId.draftId = "must-be-null";
     invalids.push(["edit draftId must be null", makePayload(6, [{ key: TARGET_DRAFTS[2].key, raw: JSON.stringify(editDraftId) }])]);
-    const overQuota = Array.from({ length: 6 }, (_, index) => makeDraft({ key: `${DRAFT_PREFIX}new:d5-over-${index}`, title: `超过配额 ${index}`, draftId: `d5-over-${index}` }));
-    invalids.push(["more than five new drafts", makePayload(6, overQuota)]);
+    const overQuota = Array.from({ length: 11 }, (_, index) => makeDraft({ key: `${DRAFT_PREFIX}new:d5-over-${index}`, title: `超过配额 ${index}`, draftId: `d5-over-${index}` }));
+    invalids.push(["more than ten new drafts", makePayload(6, overQuota)]);
     for (const [label, payload] of invalids) {
       const before = await seedBaseline(harness);
       assertResultRejected(await storeInvoke(harness.page, "importBackup", [asJson(payload)]), label);

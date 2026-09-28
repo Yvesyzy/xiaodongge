@@ -281,7 +281,7 @@ function HomePage() {
         <div className="home-hero-copy">
           <h1>私人音乐档案</h1>
           <p>记录每一次听歌的心情与感受</p>
-          <Link to="/drafts" className="home-draft-link"><strong>草稿箱 · {homeDrafts.length} 条（有效新建 {homeDrafts.filter(draft => draft.status !== "invalid" && draft.mode === "create").length} · 编辑 {editDraftCount} · 损坏 {damagedDraftCount}；新建占位 {newDraftCount}/5） <span aria-hidden="true">→</span></strong>{latestDraft ? <><span className="home-draft-title">{latestDraft.title || "未命名草稿"}</span><span>{latestDraft.status === "conflict" ? "编辑草稿与正式记录冲突，请先处理。" : latestDraft.status === "invalid" ? "原文已保留，可查看或导出。" : latestDraftResult ? excerpt(latestDraftResult.fields.content, 70) || "正文还没写，随时继续。" : "打开草稿箱继续"}</span></> : <span>未写完的感受，留在这里继续。</span>}</Link>
+          <Link to="/drafts" className="home-draft-link"><strong>草稿箱 · {homeDrafts.length} 条（有效新建 {homeDrafts.filter(draft => draft.status !== "invalid" && draft.mode === "create").length} · 编辑 {editDraftCount} · 损坏 {damagedDraftCount}；新建占位 {newDraftCount}/{MAX_NEW_DRAFTS}） <span aria-hidden="true">→</span></strong>{latestDraft ? <><span className="home-draft-title">{latestDraft.title || "未命名草稿"}</span><span>{latestDraft.status === "conflict" ? "编辑草稿与正式记录冲突，请先处理。" : latestDraft.status === "invalid" ? "原文已保留，可查看或导出。" : latestDraftResult ? excerpt(latestDraftResult.fields.content, 70) || "正文还没写，随时继续。" : "打开草稿箱继续"}</span></> : <span>未写完的感受，留在这里继续。</span>}</Link>
         </div>
         <div className="hero-record" aria-hidden="true" />
       </section>
@@ -1027,7 +1027,7 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
           </div>
         </section>
         <label>正文<textarea className="note-editor" name="content" rows={10} defaultValue={source?.content ?? ""} placeholder="像写备忘录一样，记录此刻的感受……" required /></label>
-        <details className="writing-extras"><summary>补充作品信息、评分与日期（选填）</summary>
+        <details className="writing-extras" open><summary>补充作品信息、评分与日期（选填）</summary>
         {Capacitor.isNativePlatform() ? (
           <section className="assist-panel">
             <div className="assist-panel-head">
@@ -2486,7 +2486,7 @@ function MorePage() {
     ["/albums", "专辑", "按专辑名称聚合记录。"],
     ["/albums/timeline", "跨年专辑轨迹", "查看保存的榜单名次、当前乐评与重听来源。"],
     ["/songs", "歌曲", "按歌曲名称聚合记录。"],
-    ["/drafts", "草稿箱", `${moreDrafts.length} 份未保存草稿（有效新建 ${moreDrafts.filter(draft => draft.status !== "invalid" && draft.mode === "create").length}、编辑 ${editDraftCount}、损坏 ${damagedDraftCount}；新建占位 ${newDraftCount}/5），可续写或处理。`],
+    ["/drafts", "草稿箱", `${moreDrafts.length} 份未保存草稿（有效新建 ${moreDrafts.filter(draft => draft.status !== "invalid" && draft.mode === "create").length}、编辑 ${editDraftCount}、损坏 ${damagedDraftCount}；新建占位 ${newDraftCount}/${MAX_NEW_DRAFTS}），可续写或处理。`],
     ["/backup", "备份", "导出或导入本地 JSON 备份。"],
     ["/diagnostics", "本机诊断", "查看版本、备份、草稿、存储与通知权限状态。"],
     ["/privacy", "隐私说明", "查看通知读取、天气联网与本地听感分析的数据范围。"],
@@ -3186,9 +3186,10 @@ function setRecognizedField(form: HTMLFormElement, name: string, value: string |
 }
 
 function recognitionNotice(fields: MusicInfoFields) {
-  const artist = fields.artistName ? ` / ${fields.artistName}` : "";
-  if (fields.type === "album" && fields.albumName) return `识别为专辑：${fields.albumName}${artist}`;
-  if (fields.songName) return `识别为歌曲：${fields.songName}${artist}`;
+  const artist = fields.artistName ? ` / 歌手：${fields.artistName}` : "";
+  const album = fields.albumName ? ` / 专辑：${fields.albumName}` : "";
+  if (fields.type === "album" && fields.albumName) return `识别为专辑：${fields.albumName}${fields.songName ? ` / 歌曲：${fields.songName}` : ""}${artist}`;
+  if (fields.songName) return `识别为歌曲：${fields.songName}${album}${artist}`;
   return "已识别文字，请保存前检查";
 }
 

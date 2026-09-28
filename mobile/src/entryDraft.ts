@@ -48,7 +48,7 @@ export type EntryDraft = {
   inspiration: boolean;
 };
 
-export const MAX_NEW_DRAFTS = 5;
+export const MAX_NEW_DRAFTS = 10;
 
 type DraftStorage = Pick<Storage, "getItem" | "setItem" | "removeItem" | "key" | "length">;
 

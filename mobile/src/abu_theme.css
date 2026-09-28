@@ -168,6 +168,22 @@
 [data-theme="dark"] .bottom-sheet:has(.create-choice) .sheet-handle { background: #4a5a51; }
 [data-theme="dark"] .codex-reader .detail-hero .cover-art.large { box-shadow: 3px 3px 9px #0006; }
 
+[data-theme="dark"] .app-shell :is(.assist-panel, .cover-picker, .choice-panel, .rating-slider-section, .multi-dimension-grid) {
+  border-color: var(--neu-edge);
+  background: var(--neu-panel);
+}
+[data-theme="dark"] .app-shell .genre-search-results button {
+  border-color: var(--neu-edge);
+  background: var(--neu-surface);
+  color: var(--ink);
+}
+[data-theme="dark"] .app-shell :is(.genre-search-results button.selected, .choice-chip-row button.selected, .selected-chip-row button, .genre-tree-chip.selected) {
+  border-color: #3d7365;
+  background: #356e5e;
+  color: var(--ink);
+}
+[data-theme="dark"] .writing-form { color-scheme: dark; }
+
 /* Appearance switch on the More page. */
 .theme-choice { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 12px; }
 .theme-choice button {

@@ -68,8 +68,10 @@ public class codex_NowPlayingInstrumentedTest {
 
             evaluate("(location.hash = '/new', true)");
             await("document.querySelector('input[name=\"albumName\"]')?.value === 'codex系统专辑'");
+            assertEquals("codex系统歌曲", evaluate("document.querySelector('input[name=\"songName\"]').value"));
             assertEquals("codex系统艺人", evaluate("document.querySelector('input[name=\"artistName\"]').value"));
             assertEquals("codex系统专辑", evaluate("document.querySelector('input[name=\"title\"]').value"));
+            await("document.querySelector('.assist-panel [role=status]')?.textContent.includes('codex系统歌曲')");
 
             // Exercise the real bridge with video-style display title and no album/artist.
             music.setMetadata(new MediaMetadata.Builder()
@@ -95,7 +97,7 @@ public class codex_NowPlayingInstrumentedTest {
             await("document.querySelector('form.writing-form') === null");
             evaluate("(location.hash = '/new', true)");
             await("document.querySelector('.assist-panel [role=status]')?.textContent.includes('没有读到正在播放')");
-            evaluate("(document.querySelector('.writing-extras').open = true, true)");
+            assertEquals("true", evaluate("document.querySelector('.writing-extras').open"));
             music.setPlaybackState(new PlaybackState.Builder().setState(PlaybackState.STATE_PLAYING, 1000, 1).build());
             evaluate("(document.querySelector('.assist-panel button').click(), true)");
             await("document.querySelector('input[name=title]')?.value === 'codex视频标题'");

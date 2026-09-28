@@ -48,7 +48,7 @@ export function quickCaptureToEntryInput(input: QuickCaptureInput): EntryInput {
     year: date.getFullYear(),
     month: date.getMonth() + 1,
     albumName: clean(albumFirst?.fields.albumName) ?? clean(input.albumName),
-    songName: type === "album" ? null : songName,
+    songName,
     artistName: clean(albumFirst?.fields.artistName) ?? clean(input.artistName),
     musicMetadata: albumFirst?.musicMetadata ?? input.musicMetadata ?? null,
     content,

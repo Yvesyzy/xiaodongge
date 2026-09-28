@@ -210,6 +210,7 @@ async function checkQuickCapture() {
   });
   await sameIdentityPage.goto(`${origin}/#/capture?draft=same-identity`);
   await sameIdentityPage.getByText("表单已有当前歌曲信息，未覆盖用户输入。", { exact: true }).waitFor({ timeout: 5000 });
+  assert.equal(await sameIdentityPage.locator(".quick-track-card + .quick-playback-status [role=status]").textContent(), "表单已有当前歌曲信息，未覆盖用户输入。", "播放读取结果应紧贴读取按钮显示");
   assert.equal(await sameIdentityPage.locator("details.quick-identity-fields input").first().inputValue(), "用户自定义标题");
   assert.equal(await sameIdentityPage.locator("textarea").first().inputValue(), "只属于旧专辑的草稿正文");
   result.m1.sameIdentityUserEdit = { title: await sameIdentityPage.locator("details.quick-identity-fields input").first().inputValue(), content: await sameIdentityPage.locator("textarea").first().inputValue(), pageErrors: sameIdentityPage.__captureErrors };
@@ -225,11 +226,25 @@ async function checkQuickCapture() {
   await switchPage.getByRole("button", { name: "保存并切换", exact: true }).click();
   await switchPage.getByText("原草稿已保存，已切换到新的当前播放", { exact: true }).waitFor({ timeout: 5000 });
   assert.equal(await switchPage.locator(".quick-track-card strong").innerText(), "切换专辑");
+  assert.equal(await switchPage.locator('details.quick-identity-fields input').nth(1).inputValue(), "切换歌曲", "速记应保留当前歌曲名");
   const savedDrafts = await switchPage.evaluate(() => Object.entries(localStorage)
     .filter(([key]) => key.startsWith("music-feelings-entry-draft:v1:new:"))
     .map(([, value]) => JSON.parse(value).fields.content));
   assert.ok(savedDrafts.includes("只属于旧专辑的草稿正文"));
   result.m1.explicitSwitch = { track: await switchPage.locator(".quick-track-card strong").innerText(), preservedDraft: true, pageErrors: switchPage.__captureErrors };
+  await switchPage.locator('textarea').first().fill('这首歌让我想起今晚。');
+  await switchPage.getByRole('button', { name: '保存专辑听感' }).click();
+  await switchPage.waitForURL(/#\/entries\/[^/]+/);
+  const savedQuick = await switchPage.evaluate(async () => (await (await import('/src/store.ts')).store.listEntries()).find(entry => entry.title === '切换专辑'));
+  assert.equal(savedQuick?.songName, '切换歌曲', '保存专辑听感时仍需保留当前歌曲名');
+  const similarAlbumId = await switchPage.evaluate(async () => {
+    const { store } = await import('/src/store.ts');
+    const { findSimilarEntry } = await import('/src/entryDuplicate.ts');
+    const entries = await store.listEntries();
+    const saved = entries.find(entry => entry.title === '切换专辑');
+    return findSimilarEntry(entries, { ...saved, songName: '同专辑另一首歌' })?.id;
+  });
+  assert.equal(similarAlbumId, savedQuick?.id, '同一专辑的不同播放曲目仍应提示相似乐评');
   await switchPage.close();
 
   const guardedSwitchPage = await newPage({ native: {
@@ -289,15 +304,18 @@ async function checkFullReviewPlayback() {
     { value: { accessEnabled: true, title: "播放歌曲", artistName: "播放艺人", albumName: "播放专辑" } },
   ] } });
   await page.goto(`${origin}/#/new`);
-  await page.locator('.writing-extras > summary').click();
+  const albumOnly = await page.evaluate(async () => (await import('/src/albumFirst.ts')).toAlbumFirstRecognition({ type: 'album', title: '仅有专辑', albumName: '仅有专辑' }, null));
+  assert.equal(albumOnly.fields.songName, null, '纯专辑识别不能把专辑标题误填成歌曲');
   await page.getByText('请先授予通知使用权；本应用只读取系统媒体会话中的歌曲信息。', { exact: true }).waitFor();
   await page.getByRole('button', { name: '打开系统设置', exact: true }).click();
   await page.getByRole('button', { name: '读取当前播放', exact: true }).click();
   await page.getByText('没有读到正在播放的歌曲，请确认网易云音乐正在播放后重试。', { exact: true }).waitFor();
   await page.getByRole('button', { name: '读取当前播放', exact: true }).click();
   await page.waitForFunction(() => document.querySelector('input[name="albumName"]')?.value === '播放专辑');
+  assert.equal(await page.locator('input[name="songName"]').inputValue(), '播放歌曲', '完整乐评应同时填入歌曲名');
   assert.equal(await page.locator('input[name="artistName"]').inputValue(), '播放艺人');
   assert.equal(await page.locator('input[name="title"]').inputValue(), '播放专辑');
+  assert.match(await page.locator('.assist-panel [role="status"]').first().textContent(), /播放歌曲.*播放专辑.*播放艺人/, '读取反馈应列出歌曲、专辑和歌手');
   assert.deepEqual(page.__captureErrors, []);
   result.fullReviewPlayback = { permissionPrompt: true, missingSessionPrompt: true, retryFillsIdentity: true, evidenceLevel: 'synthetic native bridge; phone fault remains unconfirmed' };
   await page.close();
@@ -309,7 +327,6 @@ async function checkFullReviewPlayback() {
   ] } });
   await failure.setViewportSize({ width: 390, height: 844 });
   await failure.goto(`${origin}/#/new`);
-  await failure.locator('.writing-extras > summary').click();
   await failure.getByText('没有读到正在播放的歌曲，请确认网易云音乐正在播放后重试。', { exact: true }).waitFor();
   const playbackPanel = failure.locator('.assist-panel').filter({ has: failure.getByText('当前播放', { exact: true }) });
   await playbackPanel.getByRole('button', { name: '读取当前播放', exact: true }).click();
@@ -335,7 +352,6 @@ async function checkFullReviewPlayback() {
     catalog: [{ hold: true, value: { results: [{ trackName: '旧播放歌曲', artistName: '旧播放艺人', collectionName: '旧播放专辑', trackId: 'old-track', collectionId: 'old-album' }] } }],
   } });
   await stale.goto(`${origin}/#/new`);
-  await stale.locator('.writing-extras > summary').click();
   await stale.waitForFunction(() => window.codexCatalogStarted === 1);
   await stale.locator('input[name="artistName"]').fill('手动新艺人');
   await stale.locator('input[name="albumName"]').fill('手动新专辑');

@@ -76,7 +76,7 @@ try {
   report.checks.push("Backup round-trip and deleted source records preserve an empty-year ranking and export");
 
   await page.goto(`${origin}/#/new`);
-  await page.getByText("补充作品信息、评分与日期（选填）", { exact: true }).click();
+  assert.equal(await page.locator("details.writing-extras").evaluate(element => element.open), true, "完整乐评应直接显示补充字段");
   const slider = page.getByRole("slider", { name: "评分" });
   await slider.waitFor({ timeout: 5000 });
   assert.equal(await slider.getAttribute("tabindex"), "0");
@@ -150,7 +150,7 @@ try {
   const saved = await page.evaluate(async id => (await (await import("/src/store.ts")).store.listEntries()).find(entry => entry.id === id), savedId);
   assert.deepEqual([saved.rating, saved.ratingProduction, saved.ratingSongwriting, saved.ratingOriginality, saved.ratingResonance, saved.compositeRatingLocked], [0.8, 1, 0.5, 0.5, 1, false]);
   await page.goto(`${origin}/#/entries/${savedId}/edit`);
-  await page.getByText("补充作品信息、评分与日期（选填）", { exact: true }).click();
+  assert.equal(await page.locator("details.writing-extras").evaluate(element => element.open), true, "编辑乐评应直接显示补充字段");
   await page.getByRole("slider", { name: "综合评分" }).press("End");
   await page.getByRole("button", { name: "保存正式乐评" }).click();
   await page.waitForURL(/\?saved=1/);
@@ -172,7 +172,7 @@ try {
   touchContext = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
   const touchPage = await touchContext.newPage();
   await touchPage.goto(`${origin}/#/new`);
-  await touchPage.getByText("补充作品信息、评分与日期（选填）", { exact: true }).click();
+  assert.equal(await touchPage.locator("details.writing-extras").evaluate(element => element.open), true, "触屏完整乐评应直接显示补充字段");
   const touchSlider = touchPage.getByRole("slider", { name: "评分" });
   const touchBounds = await touchSlider.boundingBox();
   assert.ok(touchBounds);
