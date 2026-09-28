@@ -9,3 +9,9 @@ v2.8.0、v2.9、v3.0 正式包在删除本地副本前与 GitHub Release 资产�
 两套项目 AVD、五个注册 Git worktree、签名材料、个人备份、历史测试结果 JSON 与截图均保留。历史文档若引用已清理的本地旧 APK/缓存，应从相应 GitHub Release 取得正式包或重新运行旧检查；清理没有改变应用源码、版本号、标签或任何 GitHub Release。
 
 验证：npm.cmd run typecheck:mobile 通过，Git 工作区在记录前干净，五个注册 worktree 均仍存在。
+
+## 后续仅保留一套 AVD
+
+Yves 随后指示仅保留一套。检查发现现行多个 Android 验证脚本明确使用 codex_np1_api36，而且此前网易云游客在线实播也在 NP1 完成，因此保留 release/codex_np1_android_20260922/avd。删除精确目录 release/codex_t18_upgrade_20260924/avd（34 个文件，11,147,914,074 字节，约 10.38 GiB）；删除前确认目录无重解析链接、不是注册 Git worktree，关键镜像文件可独占打开。
+
+T18 的升级前后备份、截图、恢复与诊断结果仍在其父目录；最新版 v3.0.1 APK、网易云媒体会话证据、五个 Git worktree 和签名材料未动。复核 release 中仅剩 codex_np1_api36.avd 一套，移动端类型检查通过。旧交接中“两套 AVD 保留”描述的是此前状态，以本补记为当前状态。
