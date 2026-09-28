@@ -156,15 +156,7 @@ npm.cmd run android:build:release
 
 脚本会在当前进程变量缺失时加载 Windows 用户签名变量，重新构建 Web 资源并同步 Android，随后执行 `assembleRelease`。只有正式发布证书、包名 `com.yves.musicarchive`、版本验证全部通过，才会输出 release APK 和 SHA-256；缺少任一签名变量时会在构建前失败。
 
-在本机直连 `dl.google.com` 超时的网络环境下，Gradle 需要附加镜像注入脚本（capacitor 插件模块自带 `google()` 优先的仓库，不继承根项目镜像）：
-
-```bash
-cd android
-JAVA_HOME="C:\Program Files\Eclipse Adoptium\jdk-21.0.11.10-hotspot" \
-  ./gradlew -I abu_init_mirror.gradle assembleRelease
-```
-
-`cap sync` 在部分环境会在 update 阶段被中断，建议分步执行 `capacitor copy android` 与 `capacitor update android`，并用 `mobile/dist` 与 `android/app/src/main/assets/public` 的资源哈希比对确认同步完整。详细构建注意事项见 `docs/abu_handoff_2026-09-12_v2.md`。
+在本机直连 `dl.google.com` 超时的网络环境下，正式构建脚本会注入 `scripts/gradle-mirrors.init.gradle`。`cap sync` 在部分环境会在 update 阶段被中断，建议分步执行 `capacitor copy android` 与 `capacitor update android`，并用 `mobile/dist` 与 `android/app/src/main/assets/public` 的资源哈希比对确认同步完整。
 
 ## 本地数据
 
