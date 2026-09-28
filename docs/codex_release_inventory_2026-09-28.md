@@ -44,3 +44,15 @@ JSON 与 LOG 按扩展名统计，包含工作树配置和构建文件，不能�
 3. 再按完整测试轮次筛选重复截图；保留最终验收轮次、文档直接引用的路径以及失败/修复对照证据，生成精确清单后再清理。
 
 当前保留 NP1 AVD、五个注册 worktree、正式 APK、网易云实播材料、playback-triad.apk、私人备份与签名材料。本轮没有执行删除。
+
+## 后续执行：清理三个旧播放测试 APK
+
+Yves 随后明确要求删除三个旧包。删除前逐项核对文件位于 release/codex_playback_regression_20260926/、不是重解析链接，且长度和 SHA-256 与盘点一致；三个文件均未被 Git 跟踪。已删除：
+
+- codex_xiaodongge-v3.0-28-playback-test.apk：76,185,534 字节，SHA-256 B196A991AF4BFBA825B4C564F22ABBEF9DC9A5AD14F8CCADB09981EC29AF50BF。
+- codex_xiaodongge-v3.0-28-playback-test-final.apk：76,185,534 字节，SHA-256 B196A991AF4BFBA825B4C564F22ABBEF9DC9A5AD14F8CCADB09981EC29AF50BF。
+- codex_xiaodongge-v3.0-28-playback-verified.apk：76,391,874 字节，SHA-256 5904EA144E775D5089DFF69145F83950F92E9DCDACC717E5A1449F6BABAFEB11。
+
+合计删除 228,762,942 字节（218.17 MiB）。复核三个旧路径均不存在，播放回归目录仅余 codex_xiaodongge-v3.0-28-playback-triad.apk 一份 APK，其 SHA-256 仍为 DDB9537E456F905055A59EF98259FCEE05B79612744FD165B49A1DC2175E9DF2。正式 v3.0.1 APK 与官方网易云测试 APK 的哈希也未变化。
+
+当前 release 为 10,434 文件、14,242,603,106 字节（约 13.27 GiB）；排除 NP1 AVD 后为 1,639,738,552 字节（约 1.53 GiB）。APK 余 5 个，共 544,554,372 字节。上文“总量”表是删除前盘点快照，以本节为当前状态。
