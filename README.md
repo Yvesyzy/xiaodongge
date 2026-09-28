@@ -66,6 +66,8 @@
 
 发布页：[小懂哥 v3.0](https://github.com/Yvesyzy/xiaodongge/releases/tag/v3.0)。
 
+`main` 已包含 v3.0 发布后的当前播放信息显示、10 份新建草稿上限和深色乐评表单修补；上面的 v3.0 Release APK 是原发布包，尚不包含这些后续改动。需要这些修补时请从当前源码构建，或使用后续正式发布包。
+
 签名证书 SHA-256：`6386734ef9b4a3fe106d690a8d31ae952697c2ea652ea1ee82f3f7ab488f1022`。
 
 APK SHA-256：`2c095e43341bddb7833321a23b504d93fb43cacef860c2aae416d0fff3984f92`；大小 75,772,930 字节。
