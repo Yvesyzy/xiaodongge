@@ -106,6 +106,18 @@ Windows 端的开发、构建与验收命令（`npm.cmd run windows:build`、`wi
 
 `npm.cmd run dev` / `npm.cmd run start` 是保留的 Next.js/Prisma 旧网页端，仅绑定 `127.0.0.1`，不提供远程登录和授权。它使用独立的 Prisma 数据库，仍采用整数评分及手动年份/月份归档，不具备手机端全部草稿、半分评分和备份能力。不要把网页端数据库或导出文件当成手机备份直接覆盖导入。该入口保留安全维护，不作为当前手机界面的预览。
 
+`npm.cmd run typecheck` 只检查本仓库的网页端源码。`codex_video/`、`desktop/`、`android/` 和 `scripts/` 已在 `tsconfig.json` 的 `exclude` 中排除：视频工程是自带 remotion 依赖的独立 npm 工程，桌面端源码已迁至独立仓库 `D:\codex\workspaces\xiaodongge-windows`，两者都不应被根类型检查越界覆盖。移动端请用 `typecheck:mobile`。
+
+## 应用商店上架
+
+个人开发者主体（无软著、无 APP 备案、无商店账号），目标渠道为 OPPO 个人 APK 首发、华为 Android APK 第二。审查与整改材料：
+
+- [上架缺口审查（2026-10-08）](docs/codex_android_store_gap_audit_20261008.md)
+- [六家个人渠道比较（2026-10-08）](docs/codex_android_store_personal_channels_20261008.md)
+- [整改落地清单（2026-10-08）](docs/codex_android_store_remediation_checklist_20261008.md)
+
+当前状态：整改清单已编制，产品代码尚未整改。三项最关键的前置项是首次隐私同意流程（未实现）、公开隐私政策 URL（零产物）、以及移除 ML Kit 自动初始化与生物识别权限（后两项直接决定能否通过审核）。**提审前必须完成抓包验证，未验证前不得对外声称合规。**
+
 ### 可重复检查
 
 ```cmd
@@ -312,10 +324,13 @@ docs/                       项目说明、发布说明、审查记录和设计�
   superpowers/               计划与规格文档
 release/                    本地 APK 与 SHA-256 文件（不提交 Git）
 node_modules/                本机安装的依赖
+codex_video/                 宣传片独立制作工程（自带 npm 依赖，不参与根类型检查）
 codex_status.txt             Codex 工作记录与交接状态
-claude_status.txt            Claude 工作记录与交接状态
-zcode_status.txt             ZCode 工作记录与交接状态
+claude_status.txt            Claude 工作记录与交接状态（最后更新 2026-08-15，已过期）
+zcode_status.txt             ZCode 工作记录与交接状态（最后更新 2026-10-08）
 ```
+
+`claude_status.txt` 与 `zcode_status.txt` 属于跨工具协作约定文件，不由 Codex 维护；内容滞后属正常状态，跨会话进度以 `docs/session-summaries/` 的最新交接为准。
 
 ## 本地 APK 备份
 
