@@ -66,7 +66,7 @@
 | 完整入口 | 18 组全部通过，退出 0，含 32 项基础测试；版本差异为 0 | `release/codex_validation_locked_final_20260922/codex_results.json` 及同目录日志/截图/结果 JSON |
 | 反向故障注入 | 月报动作、年记分页、PNG 宽度破坏均被拒绝 | 上述目录 `guards/codex_guard_results.json` |
 | 当前源码快照 | 33 个修改/新增代码及检查文件 SHA-256 | 上述目录 `codex_source_manifest.json`；基线 HEAD 加未提交工作区 |
-| 独立复查 | 数据、采集、原生/旧网页初审完成；确认问题已闭合，播放链路与检查入口复核完成 | `docs/codex_session_summary_2026-09-22_playback_review.md`；隔离数据返工经过主代理差异检查及最终主目录回归 |
+| 独立复查 | 数据、采集、原生/旧网页初审完成；确认问题已闭合，播放链路与检查入口复核完成 | `docs/session-summaries/codex_session_summary_2026-09-22_playback_review.md`；隔离数据返工经过主代理差异检查及最终主目录回归 |
 | Android 系统播放链路 | 最终代码/依赖编译通过，instrumentation `OK (1 test)` | `release/codex_netease_playback_20260922/codex_android_build.log`、`codex_instrumentation_clean.log`；音乐/视频/暂停恢复/撤权重授权/实际按钮 |
 | 网易云实际 App | 官方9.5.95在Android36模拟器读取、填入与按钮提示通过 | 上述目录 `codex_netease_result.json`、`codex_media_session_online.txt`、`codex_netease_form.png`；21个APK资源匹配见 `codex_package_evidence.json` |
 | 依赖审计 | 重建后全依赖/生产均3 high、0 critical，退出1 | `release/codex_validation_locked_final_20260922/codex_npm_audit_all.json`、`codex_npm_audit_prod.json`；Prisma配置链适用范围见安全记录 |
@@ -85,7 +85,7 @@ T06 按 `docs/codex_draft_backup_contract.md` 实施。外部 JSON 升为 v6，�
 | 草稿/备份矩阵 | Web 和 Node SQLite 模拟桥均通过；31 个场景、31 个故障点，含 Web 16 个真实持久写入边界强制中断、重启恢复 | `release/codex_t06_full_acceptance_20260923/draft-backup/codex_draft_backup_results.json` |
 | 真实 Android SQLite | v6 导入、清空草稿、撤销；实际 SQLite COMMIT 后阻断后续写入并强制结束进程，重启后主表、Undo、草稿原文及日志屏障均恢复/清除 | `release/codex_t06_native_acceptance_20260923/codex_native_draft_backup_results.json`、同目录截图 |
 | 最终调试 APK | Android `assembleDebug` 成功，安装到项目专用 `codex_np1_api36` 验证；82,563,081 字节，SHA-256 `485FD6349A5529E02218F6146BCDA3C31F48811C96F8CFBAF325DB23F494CE05` | `release/codex_t06_native_acceptance_20260923/codex_t06_debug.apk` |
-| 独立复查 | 先发现 1 个 P1、3 个 P2；封面代次、页面重挂载、多窗口竞态及拒绝反馈均修补，最终只读复核确认关闭 | `docs/codex_session_summary_2026-09-23_t06.md` |
+| 独立复查 | 先发现 1 个 P1、3 个 P2；封面代次、页面重挂载、多窗口竞态及拒绝反馈均修补，最终只读复核确认关闭 | `docs/session-summaries/codex_session_summary_2026-09-23_t06.md` |
 | 差异检查 | `git diff --check` 退出 0；只有 Git LF/CRLF 换行提示 | 主工作区 |
 
 两名隔离执行者因代理额度错误中断；主代理检查其遗留代码后选择性集成并完成验证，未把执行者中断记为独立通过。最终复查由 `review_data` 只读完成。旧 APK 不能读取 v6 备份，当前没有自动降级工具，不能通过卸载应用回退。正式签名测试版、发布和 Yves 手机数据均未操作。项目专用模拟器已停止、转发已清理。后续仍是 S2 T07/T08/T10，之后继续 S3–S5；T06 完成不代表全部 28 项完成。
@@ -98,7 +98,7 @@ T06 按 `docs/codex_draft_backup_contract.md` 实施。外部 JSON 升为 v6，�
 |---|---|---|
 | 主目录完整入口 | 最终代码 21 组全部通过，退出 0；含根/mobile 类型、质量门槛、构建、全部页面与故障矩阵 | `release/codex_t07_full_acceptance_final_20260923/codex_results.json` |
 | 身份对照 | 23 条合成记录，12 张专辑、7 首歌曲，6 条评分记录平均 7.5；列表/详情、首页/年记一致，覆盖链接失效回退及封面 | 同目录 `identity/codex_music_identity_results.json` |
-| 独立复查 | 两轮只读反馈中的旧文本链接、代表记录删除后链接失效已修补，最终无新 P1/P2 | `docs/codex_session_summary_2026-09-23_t07.md` |
+| 独立复查 | 两轮只读反馈中的旧文本链接、代表记录删除后链接失效已修补，最终无新 P1/P2 | `docs/session-summaries/codex_session_summary_2026-09-23_t07.md` |
 | 差异检查 | `git diff --check` 退出 0；只有 Git 换行转换提示 | 主工作区 |
 
 T07 未构建或安装新的 Android APK；T06 调试包不包含 T07。没有触及 Yves 手机、正式签名包、提交或发布。接续 S2 T08/T10，之后 S3–S5；28 项总计划尚未完成。
@@ -111,14 +111,14 @@ T07 未构建或安装新的 Android APK；T06 调试包不包含 T07。没有�
 |---|---|---|
 | 主目录完整入口 | 最终代码 22 组全部通过，退出 0；含构建、榜单海报、备份、T07 身份与 T08 新交互检查 | `release/codex_t08_full_acceptance_reviewed_20260923/codex_results.json` |
 | 交互与数据 | 六项通过：移除/排序、备份与空年、键盘和鼠标/触控、四维均值及正式保存/重载、损坏榜单 | 同目录 `accessibility/codex_interaction_accessibility_results.json` 与浅/深焦点截图 |
-| 独立复查 | 两个 P2（损坏榜单误显创建、默认 affected 漏检查）均修补并复核关闭；无新 P1/P2 | `docs/codex_session_summary_2026-09-23_t08.md` |
+| 独立复查 | 两个 P2（损坏榜单误显创建、默认 affected 漏检查）均修补并复核关闭；无新 P1/P2 | `docs/session-summaries/codex_session_summary_2026-09-23_t08.md` |
 | 差异检查 | `git diff --check` 退出 0；只有 Git LF/CRLF 换行提示 | 主工作区 |
 
 T08 的读屏真机体验留在 T18；本次浏览器触控模拟不代表 Android TalkBack 通过。T07/T08 尚未打入新 APK，未触及 Yves 手机、提交或发布。接续 S2 T10，再进入 S3–S5。
 
 ## 2026-09-24 T10 OCR 输入与内存保护
 
-前端在读取文件及桥接前限制图片为 12 MiB；原生以同一字节预算和 600 万解码像素预算执行 bounds decode、采样与最终像素检查，并在识别结束或异常时关闭识别器、释放 bitmap。失败保留表单和先前 OCR 文本。阈值来自项目 Android36 AVD 的普通图、长图、高分图基线，完整表见 `docs/codex_session_summary_2026-09-24_t10.md`。
+前端在读取文件及桥接前限制图片为 12 MiB；原生以同一字节预算和 600 万解码像素预算执行 bounds decode、采样与最终像素检查，并在识别结束或异常时关闭识别器、释放 bitmap。失败保留表单和先前 OCR 文本。阈值来自项目 Android36 AVD 的普通图、长图、高分图基线，完整表见 `docs/session-summaries/codex_session_summary_2026-09-24_t10.md`。
 
 | 检查 | 结果 | 证据 |
 |---|---|---|
@@ -126,7 +126,7 @@ T08 的读屏真机体验留在 T18；本次浏览器触控模拟不代表 Andro
 | Android JUnit | 8 项通过，含字节/像素三边界与极端尺寸 | `release/codex_t10_android_unit_final_20260924/` |
 | 项目 AVD 真实桥接 | 普通/长/高分图识别专辑与艺人；高分图 24 MP 解码为 6 MP，峰值 PSS 429,787→331,065 KiB；损坏图与巨大声明尺寸拒绝；12 MiB−1/等于接受，+1 拒绝 | `release/codex_t10_native_initial_20260923/codex_profile_*.json` |
 | 连续识别 | 同图 20 次成功且字段 20/20 保留；每次结束 PSS 170,842–173,679 KiB，未见持续增长 | `release/codex_t10_native_initial_20260923/codex_profile_repeat20.json` |
-| 独立复查 | 无确认的资源泄漏；字段保持断言和内存采样有效性两项证据反馈已修补并复核关闭；ML Kit task 失败注入未直接测试 | `docs/codex_session_summary_2026-09-24_t10.md`、`release/codex_t10_capture_reviewed_20260924/codex_capture_regressions.json`、`release/codex_t10_native_initial_20260923/codex_profile_over_limit_reviewed.json` |
+| 独立复查 | 无确认的资源泄漏；字段保持断言和内存采样有效性两项证据反馈已修补并复核关闭；ML Kit task 失败注入未直接测试 | `docs/session-summaries/codex_session_summary_2026-09-24_t10.md`、`release/codex_t10_capture_reviewed_20260924/codex_capture_regressions.json`、`release/codex_t10_native_initial_20260923/codex_profile_over_limit_reviewed.json` |
 | 调试 APK | 81,180,420 字节，SHA-256 `B6D5B36F9EABA3E23ACB3733FA654CD4B689023CB80B5B95CC73A6F7B8B7F234`，与构建输出相同 | `release/codex_t10_native_initial_20260923/codex_t10_debug.apk` |
 | 差异检查 | `git diff --check` 退出 0；只有 Git 换行转换提示 | 主工作区 |
 
@@ -142,7 +142,7 @@ T08 的读屏真机体验留在 T18；本次浏览器触控模拟不代表 Andro
 | 发布前质量门槛 | 22/22 全量检查、8/8 Android JUnit、Gradle `assembleRelease`/`lintVitalRelease` 通过 | 同目录 `checks/codex_results.json`、`android-unit/`、五份分步日志 |
 | APK 资源 | 9 个 public、3 个平台受控文件逐字节匹配；39 个资产逐项列哈希，无旧 JS | 同目录 `assets.json` |
 | 负向注入 | 旧 JS、篡改文件、类型失败、版本 26、伪造签名预期、越界输出与报告覆盖均被拒绝 | `release/codex_t11_negative_assets_20260924/` 与 `release/codex_t11_negative_type_20260924/` |
-| 独立复查 | 祖先 junction 与 `release` 自身链接风险修补后复核关闭；实际 junction 注入被自动审批拒绝 | `docs/codex_session_summary_2026-09-24_t11.md` |
+| 独立复查 | 祖先 junction 与 `release` 自身链接风险修补后复核关闭；实际 junction 注入被自动审批拒绝 | `docs/session-summaries/codex_session_summary_2026-09-24_t11.md` |
 | 差异与原发布包 | `git diff --check` 退出 0；原发布 v2.9 APK 哈希未改变 | 主工作区和发布原包 |
 
 草稿回归固定 9 月 23 日导致跨日误报，改用浏览器本地今日后定向及最终全量通过。未安装 Yves 手机、未提交/推送/公开发布。接续 T12 性能与字体评估，再按计划进入 S4–S5。
@@ -151,15 +151,15 @@ T08 的读屏真机体验留在 T18；本次浏览器触控模拟不代表 Andro
 
 按实际导入图把年度年记、听感页、分享与洞察延后加载；完整 Noto/Montserrat 字库无损转换为 WOFF2，旧 WOFF 与 OFL 原文保留。项目专用 Android36 AVD 离线、15 条合成记录/15 张榜单、每版冷暖启动各 10 次和三轮榜单三页预览。首页初始 JS 减少 18.60%，仅请求 JS/CSS；30,890 字符映射、字形顺序、字重、可变轴均与原字体一致。22/22 全量检查通过，最终源码针对年记/榜单/分享/无障碍再次定向检查。当时生成的调试 APK 大小 88,531,483 字节，SHA-256 `E6580F615D924A3355375923BC0115F1031CA524756659D94187551BB173E642`；本地 APK 已在后续旧测试包清理中移除。
 
-三轮 WOFF2 对照中，暖启 P90 和导出峰值 PSS 均未恶化；冷启 WebView 就绪 P90 为 6,176 / 6,120 / 3,788 ms，对比基线 3,485 ms，首次 15 张三页预览为 4,078 / 3,388 / 3,980 ms，对比 3,395 ms。无法证明两项均满足 ≤10% 不恶化目标。一次额外重启复测时宿主可用物理内存约 611 MiB，测量中止并清理转发；未以此轮放行。详情与原始 JSON 见 `docs/codex_session_summary_2026-09-24_t12.md` 和 `release/codex_t12_performance_20260924/`。项目 AVD 网络状态已恢复并停止；没有触及 Yves 手机、提交、推送或公开发布。继续 T13，T12 两项门槛保留到低干扰集成验收。
+三轮 WOFF2 对照中，暖启 P90 和导出峰值 PSS 均未恶化；冷启 WebView 就绪 P90 为 6,176 / 6,120 / 3,788 ms，对比基线 3,485 ms，首次 15 张三页预览为 4,078 / 3,388 / 3,980 ms，对比 3,395 ms。无法证明两项均满足 ≤10% 不恶化目标。一次额外重启复测时宿主可用物理内存约 611 MiB，测量中止并清理转发；未以此轮放行。详情与原始 JSON 见 `docs/session-summaries/codex_session_summary_2026-09-24_t12.md` 和 `release/codex_t12_performance_20260924/`。项目 AVD 网络状态已恢复并停止；没有触及 Yves 手机、提交、推送或公开发布。继续 T13，T12 两项门槛保留到低干扰集成验收。
 
 ## 2026-09-24 T13–T15 创新功能
 
 | 编号 | 已实现与验证 | 剩余边界 |
 |---|---|---|
-| T13 专辑盲重听 | 专辑详情和每日重逢入口使用现有重听记录；提交前隐藏旧评分、情绪与正文，提交后对照。23/23 全量通过：`release/codex_t13_full_20260924/codex_results.json`；交接 `docs/codex_session_summary_2026-09-24_t13.md` | Android 专项留 T18 |
-| T14 恢复差异与预演 | 七类数据四向差异，SHA 与本机摘要绑定；Web 独立 Storage 和 Android36 隔离 SQLite 实写回读，正式数据前后一致。24/24 全量及原生插件成功/故障注入通过：`release/codex_t14_full_20260924/`、`release/codex_t14_android_final_20260924/`；交接 `docs/codex_session_summary_2026-09-24_t14.md` | 临时数据库保留；系统文件提供器留 T18 |
-| T15 跨年专辑轨迹 | 保存名次与当前乐评/重听关联，缺年和孤立榜单如实展示；同名异人、编辑、备份往返定向通过：`release/codex_t15_final_20260924/`；交接 `docs/codex_session_summary_2026-09-24_t15.md` | 最终全量结果见 `release/codex_t15_full_retry_20260924/`；Android 导航留 T18 |
+| T13 专辑盲重听 | 专辑详情和每日重逢入口使用现有重听记录；提交前隐藏旧评分、情绪与正文，提交后对照。23/23 全量通过：`release/codex_t13_full_20260924/codex_results.json`；交接 `docs/session-summaries/codex_session_summary_2026-09-24_t13.md` | Android 专项留 T18 |
+| T14 恢复差异与预演 | 七类数据四向差异，SHA 与本机摘要绑定；Web 独立 Storage 和 Android36 隔离 SQLite 实写回读，正式数据前后一致。24/24 全量及原生插件成功/故障注入通过：`release/codex_t14_full_20260924/`、`release/codex_t14_android_final_20260924/`；交接 `docs/session-summaries/codex_session_summary_2026-09-24_t14.md` | 临时数据库保留；系统文件提供器留 T18 |
+| T15 跨年专辑轨迹 | 保存名次与当前乐评/重听关联，缺年和孤立榜单如实展示；同名异人、编辑、备份往返定向通过：`release/codex_t15_final_20260924/`；交接 `docs/session-summaries/codex_session_summary_2026-09-24_t15.md` | 最终全量结果见 `release/codex_t15_full_retry_20260924/`；Android 导航留 T18 |
 
 三项均在未提交工作区；未接触 Yves 手机、提交、推送或公开发布。T12 两项性能门槛仍未关闭，接续 T16。
 
@@ -167,8 +167,8 @@ T08 的读屏真机体验留在 T18；本次浏览器触控模拟不代表 Andro
 
 | 编号 | 已实现与验证 | 剩余边界 |
 |---|---|---|
-| T16 导出预检/附页 | 同一规划报告名次、文字裁切和实际封面占位；可定位编辑；完整理由分页参与全选、页码、保存/分享。1–15 张、emoji、16 种隐私组合、明暗主题和脱敏复制通过。25/25 全量及最终受影响复测见 `release/codex_t16_full_20260924/`、`release/codex_t16_replan_final_20260924/`；交接 `docs/codex_session_summary_2026-09-24_t16.md` | Android 系统接收应用留 T18 |
-| T17 本机诊断 | 版本/构建、备份时间、草稿计数、恢复只读屏障和通知授权只读展示；复制字段白名单。Web 离线/敏感标记与 Android36 实际 PackageManager、权限撤销/恢复通过。26/26 全量、定向、Android JUnit/插件证据见 `release/codex_t17_full_20260924/`、`release/codex_t17_final_targeted_20260924/`、`release/codex_t17_native_permission_20260924/`；交接 `docs/codex_session_summary_2026-09-24_t17.md` | 调试 APK 未同步最新 Web 页面；完整签名测试包留 T18 |
+| T16 导出预检/附页 | 同一规划报告名次、文字裁切和实际封面占位；可定位编辑；完整理由分页参与全选、页码、保存/分享。1–15 张、emoji、16 种隐私组合、明暗主题和脱敏复制通过。25/25 全量及最终受影响复测见 `release/codex_t16_full_20260924/`、`release/codex_t16_replan_final_20260924/`；交接 `docs/session-summaries/codex_session_summary_2026-09-24_t16.md` | Android 系统接收应用留 T18 |
+| T17 本机诊断 | 版本/构建、备份时间、草稿计数、恢复只读屏障和通知授权只读展示；复制字段白名单。Web 离线/敏感标记与 Android36 实际 PackageManager、权限撤销/恢复通过。26/26 全量、定向、Android JUnit/插件证据见 `release/codex_t17_full_20260924/`、`release/codex_t17_final_targeted_20260924/`、`release/codex_t17_native_permission_20260924/`；交接 `docs/session-summaries/codex_session_summary_2026-09-24_t17.md` | 调试 APK 未同步最新 Web 页面；完整签名测试包留 T18 |
 
 项目 AVD 已停止并恢复权限，ADB 转发为空；没有连接 Yves 手机、提交、推送或公开发布。T12 性能门槛仍未关闭，接续 T18 集成验收。
 

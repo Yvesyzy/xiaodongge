@@ -1,6 +1,6 @@
 # T18 集成与验收交接（2026-09-25）
 
-工作区 `D:\codex\workspaces\小懂哥`，分支 `codex/v29-p1`，HEAD `b563e3249424cb72ff08846ce3c9698c20fc0d98`；所有本轮修改仍未提交。原计划 T00–T18 共 19 个工作包，27 个追踪项加 NP1 共 28 项。完整逐项判断见 [`codex_v29_upgrade_acceptance.md`](codex_v29_upgrade_acceptance.md)，不可仅凭此交接把全量技术或 Yves 体验验收标为完成。
+工作区 `D:\codex\workspaces\小懂哥`，分支 `codex/v29-p1`，HEAD `b563e3249424cb72ff08846ce3c9698c20fc0d98`；所有本轮修改仍未提交。原计划 T00–T18 共 19 个工作包，27 个追踪项加 NP1 共 28 项。完整逐项判断见 [`codex_v29_upgrade_acceptance.md`](../codex_v29_upgrade_acceptance.md)，不可仅凭此交接把全量技术或 Yves 体验验收标为完成。
 
 T13 每日专辑重听标题改用专辑名；T14 旧 v5 备份差异排除设备专属备份健康键；T15 轨迹纳入当前正文/重听正文，同名不同目录 ID 在详情分离并提示榜单缺 ID 归属不明；T16 榜单来源匹配规范化，复制预检遵守全部隐私开关；T17 存储读取失败显示状态未知且复制 API 缺失可见。定向检查 `release/codex_t18_review2_targeted_20260925/codex_results.json` 通过；T13/T14、T15–T17 两轮独立只读复查确认已指出的 P2 闭合。T15 顶层卡片按名称/艺人聚合这一展示边界已在界面说明，没有把不同目录 ID 的名次强行分配。
 
