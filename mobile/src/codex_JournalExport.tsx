@@ -7,6 +7,7 @@ import { planJournalPages, renderJournalPage, type JournalExportKind, type Journ
 import type { JournalEdition, YearTopAlbums } from "../../shared/backupAppData";
 import type { JournalImageOptions } from "./codex_yearbookPages";
 import type { ReviewEntry } from "./types";
+import "./codex_yearbook.css";
 
 export type JournalExportProps = {
   year: number;

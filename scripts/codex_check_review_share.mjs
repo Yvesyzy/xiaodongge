@@ -93,6 +93,7 @@ try {
   assert.deepEqual(empty, { pages: 1, excerpt: '' }, 'empty original content remains exportable');
 
   await page.goto(`${origin}/#/entries/${entries[0].id}?share=1`);
+  await page.reload();
   await page.locator('.review-share-dialog[open]').waitFor();
   await page.locator('.review-share-preview').waitFor();
   assert.equal(await page.locator('input[type="radio"][name="review-share-mode"]').first().isChecked(), true, 'excerpt mode is default');
@@ -151,6 +152,68 @@ try {
   await page.getByLabel('完整分页', { exact: true }).check();
   await page.locator('.review-journal-export .journal-export-preview').waitFor();
   assert.ok(await page.locator('.review-journal-export [aria-label="导出页码"] option').count() > 1, 'full review preview exposes all pages');
+  for (const [appearance, colorScheme] of [['light', 'light'], ['dark', 'dark'], ['dark', 'light'], ['light', 'dark']]) {
+    await page.emulateMedia({ colorScheme });
+    await page.evaluate(async appearance => {
+      const { setThemeChoice } = await import('/src/abu_theme.ts');
+      setThemeChoice(appearance);
+    }, appearance);
+    for (const width of [390, 320, 1280]) {
+      await page.setViewportSize({ width, height: 844 });
+      await page.locator('.review-journal-export').scrollIntoViewIfNeeded();
+      await page.locator('.review-share-dialog').screenshot({ path: path.join(output, `codex_review_share_pages_${appearance}_${colorScheme}_${width}.png`) });
+      const layout = await page.locator('.review-journal-export').evaluate(exporter => {
+        // ponytail: this panel uses opaque or fully transparent fills; blend colors before adding translucent surfaces.
+        const channel = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+        const luminance = value => {
+          const [r, g, b] = value.match(/[\d.]+/g).map(Number);
+          return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+        };
+        const readable = element => {
+          let painted = element;
+          while (getComputedStyle(painted).backgroundColor === 'rgba(0, 0, 0, 0)') painted = painted.parentElement;
+          const [hi, lo] = [luminance(getComputedStyle(element).color), luminance(getComputedStyle(painted).backgroundColor)].sort((a, b) => b - a);
+          return (hi + 0.05) / (lo + 0.05) >= 4.5;
+        };
+        const rect = selector => exporter.querySelector(selector).getBoundingClientRect();
+        const previous = rect('.journal-page-controls button:first-child');
+        const next = rect('.journal-page-controls button:last-child');
+        const scroll = rect('.journal-export-scroll');
+        const preview = rect('.journal-export-preview');
+        const footer = rect('.journal-export-footer');
+        const thumbs = [...exporter.querySelectorAll('.journal-thumbnails > div')].map(el => el.getBoundingClientRect());
+        const checkbox = rect('.journal-thumbnails input');
+        return {
+          inlineNavigation: Math.abs(previous.top - next.top) < 1,
+          horizontalThumbnails: thumbs.every((item, index) => !index || item.left >= thumbs[index - 1].right),
+          compactCheckbox: checkbox.width <= 24 && checkbox.height <= 24,
+          fittedPreview: preview.width <= scroll.width,
+          separateFooter: footer.top >= scroll.bottom - 1,
+          noOverflow: [exporter, exporter.querySelector('.journal-export-scroll'), exporter.querySelector('.journal-export-footer')].every(el => el.scrollWidth <= el.clientWidth),
+          readableText: [...exporter.querySelectorAll('h2, .journal-muted, label, select, button:not(:disabled)')].every(readable),
+        };
+      });
+      for (const [check, passed] of Object.entries(layout)) assert.equal(passed, true, `Cold-start full review ${check} in ${appearance}, OS ${colorScheme}, at ${width}px`);
+    }
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole('button', { name: '下一页', exact: true }).click();
+  await page.getByAltText('完整乐评第 2 页预览', { exact: true }).waitFor();
+  assert.equal(await page.getByLabel('导出页码', { exact: true }).inputValue(), '1');
+  await page.getByRole('button', { name: '上一页', exact: true }).click();
+  await page.getByAltText('完整乐评第 1 页预览', { exact: true }).waitFor();
+  assert.equal(await page.getByLabel('导出页码', { exact: true }).inputValue(), '0');
+  const currentHash = await page.locator('.journal-export-preview').evaluate(async image => {
+    const bytes = await (await fetch(image.src)).arrayBuffer();
+    return Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)), byte => byte.toString(16).padStart(2, '0')).join('');
+  });
+  const currentDownloadEvent = page.waitForEvent('download');
+  await page.getByRole('button', { name: '下载当前页 PNG', exact: true }).click();
+  const currentDownload = await currentDownloadEvent;
+  assert.equal(createHash('sha256').update(await readFile(await currentDownload.path())).digest('hex'), currentHash, 'full review download matches the current preview exactly');
+  await page.evaluate(() => { window.__codexSharePayload = null; });
+  await page.getByRole('button', { name: '系统分享', exact: true }).click();
+  assert.deepEqual(await page.evaluate(() => window.__codexSharePayload), { hasText: false, files: 1 }, 'full review sharing passes the selected image');
   await page.locator('.journal-export-preview').scrollIntoViewIfNeeded();
   await page.locator('.review-share-dialog').screenshot({ path: path.join(output, 'codex_review_share_song.png') });
 
@@ -163,7 +226,7 @@ try {
   assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem('music-feelings-mobile-entries')), entries), entries, 'stored entries remain unchanged');
   assert.deepEqual(JSON.stringify(entries), sourceBefore, 'fixture objects remain unchanged');
   assert.deepEqual(errors, [], 'no browser errors');
-  console.log(`PASS: four entry types, contiguous selectable excerpt, full-body paginated review, paper/dark themes, privacy, copy, cancellation preservation. Screenshots: ${output}`);
+  console.log(`PASS: four entry types, contiguous selectable excerpt, cold-start full-review layout and text contrast at 320/390/1280px across app/OS light/dark combinations, page navigation, preview-identical PNG downloads, image sharing, privacy, copy, cancellation preservation. Screenshots: ${output}`);
 } finally {
   await browser.close();
 }
