@@ -900,7 +900,7 @@ class Store {
     }
     const after = await this.previewRestoreDiff(raw, options);
     if (after.localSha256 !== diff.localSha256 || after.inputSha256 !== diff.inputSha256) throw new Error("预演期间正式数据已变化，请重新预演");
-    return { ...diff, verified: true, target: Capacitor.isNativePlatform() ? "android-isolated-sqlite" : "web-isolated-storage",
+    return { ...diff, verified: true, target: Capacitor.getPlatform() === "electron" ? "windows-isolated-sqlite" : Capacitor.isNativePlatform() ? "android-isolated-sqlite" : "web-isolated-storage",
       ...(isolationDatabase ? { isolationDatabase } : {}) };
   }
 
@@ -1225,7 +1225,7 @@ export type RestoreDiffReport = {
   sourceVersion: number;
   groups: Record<"entries" | "summaries" | "monthlySummaries" | "listeningMoments" | "covers" | "appData" | "drafts", RestoreDiffCounts>;
 };
-export type RestoreRehearsal = RestoreDiffReport & { verified: true; target: "web-isolated-storage" | "android-isolated-sqlite"; isolationDatabase?: string };
+export type RestoreRehearsal = RestoreDiffReport & { verified: true; target: "web-isolated-storage" | "android-isolated-sqlite" | "windows-isolated-sqlite"; isolationDatabase?: string };
 
 function parseBackup(raw: string, options: { includeCovers?: boolean } = {}): BackupData {
   let parsed: unknown;

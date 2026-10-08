@@ -93,7 +93,7 @@ export function YearbookExport({ snapshot, entries }: YearbookExportProps) {
           content: await blobToBase64(poster.blob),
           encoding: "base64",
         });
-        setStatus("已打开系统分享，可发送这张年度海报");
+        setStatus(Capacitor.getPlatform() === "electron" ? "已打开导出文件夹，可以复制或发送这张年度海报" : "已打开系统分享，可发送这张年度海报");
       } else {
         const file = new File([poster.blob], fileName, { type: YEARBOOK_POSTER_MIME });
         const shareAvailable = typeof navigator.share === "function"
@@ -140,7 +140,7 @@ export function YearbookExport({ snapshot, entries }: YearbookExportProps) {
               {action === "save" ? "准备保存……" : Capacitor.isNativePlatform() ? "保存到设备" : "下载 PNG"}
             </button>
             <button type="button" className="codex-yearbook-export-secondary" onClick={() => void sharePoster()} disabled={!!action}>
-              {action === "share" ? "准备分享……" : "系统分享"}
+              {action === "share" ? "准备文件……" : Capacitor.getPlatform() === "electron" ? "打开导出文件夹" : "系统分享"}
             </button>
           </div>
         </>

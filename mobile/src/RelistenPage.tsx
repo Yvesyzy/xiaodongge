@@ -173,7 +173,7 @@ export default function RelistenPage() {
       const fileName = relistenFileName(moment.id);
       if (Capacitor.isNativePlatform()) {
         await NativeExport.shareFile({ fileName, mimeType: "image/png", encoding: "base64", content: await blobToBase64(blob) });
-        setMessage("已打开系统分享，可发送这张重听对比卡");
+        setMessage(Capacitor.getPlatform() === "electron" ? "已打开导出文件夹，可以复制或发送这张重听对比卡" : "已打开系统分享，可发送这张重听对比卡");
       } else {
         const file = new File([blob], fileName, { type: "image/png" });
         const shareAvailable = typeof navigator.share === "function"
@@ -233,7 +233,7 @@ export default function RelistenPage() {
         </div>
         <div className="export-output-actions native-export-actions">
           <button type="button" className="primary-button" onClick={() => void saveCard()} disabled={saving}>{saving ? "生成中" : Capacitor.isNativePlatform() ? "保存重听对比卡" : "下载重听对比卡"}</button>
-          <button type="button" className="secondary-button" onClick={() => void shareCard()} disabled={saving}>系统分享</button>
+          <button type="button" className="secondary-button" onClick={() => void shareCard()} disabled={saving}>{Capacitor.getPlatform() === "electron" ? "打开导出文件夹" : "系统分享"}</button>
         </div>
       </section>
       {message ? <p className="hint" role="status">{message}</p> : null}

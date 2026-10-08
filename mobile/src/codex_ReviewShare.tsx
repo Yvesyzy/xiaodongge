@@ -138,7 +138,7 @@ export default function ReviewShare({ entry, onClose }: ReviewShareProps) {
     try {
       if (native) {
         await NativeExport.shareFile({ fileName, mimeType: "image/png", encoding: "base64", content: await blobToBase64(card.blob) });
-        setStatus("已打开系统分享，可发送这张摘录卡");
+        setStatus(Capacitor.getPlatform() === "electron" ? "已打开导出文件夹，可以复制或发送这张摘录卡" : "已打开系统分享，可发送这张摘录卡");
       } else {
         const file = new File([card.blob], fileName, { type: "image/png" });
         const shareAvailable = typeof navigator.share === "function"
@@ -223,7 +223,7 @@ export default function ReviewShare({ entry, onClose }: ReviewShareProps) {
         <ReviewSharePreview entry={entry} imageUrl={card?.url ?? null} privacy={privacy} theme={theme} excerpt={excerpt} />
         <div className="review-share-actions">
           <button type="button" className="review-share-primary" onClick={() => void saveExcerpt()} disabled={!card || busy}>{busy ? "处理中…" : native ? "保存摘录卡" : "下载摘录卡"}</button>
-          <button type="button" onClick={() => void shareExcerpt()} disabled={!card || busy}>系统分享</button>
+          <button type="button" onClick={() => void shareExcerpt()} disabled={!card || busy}>{Capacitor.getPlatform() === "electron" ? "打开导出文件夹" : "系统分享"}</button>
           <button type="button" onClick={() => void copyShareText()} disabled={busy}>复制分享文字</button>
         </div>
       </> : <JournalExport year={entry.year} entries={[entry]} kind="works" review imageOptions={imageOptions} onClose={() => setMode("excerpt")} />}

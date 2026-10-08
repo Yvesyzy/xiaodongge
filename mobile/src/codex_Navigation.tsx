@@ -13,6 +13,10 @@ export function requestBack(backTo?: string) {
   window.dispatchEvent(new CustomEvent(BACK_EVENT, { detail: backTo }));
 }
 
+export function canLeavePage() {
+  return guards.every(check => check());
+}
+
 export function useBackGuard(check: () => boolean) {
   const current = useRef(check);
   useLayoutEffect(() => { current.current = check; });
@@ -56,6 +60,17 @@ export default function NavigationController() {
   const pending = useRef(false);
   const [notice, setNotice] = useState("");
 
+  useEffect(() => {
+    if (Capacitor.getPlatform() !== "electron") return;
+    const close = (event: BeforeUnloadEvent) => {
+      if (canLeavePage()) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", close);
+    return () => window.removeEventListener("beforeunload", close);
+  }, []);
+
   useLayoutEffect(() => {
     const record = { key: location.key, path: routeIdentity(location.pathname, location.search), idx: Number(window.history.state?.idx ?? 0) };
     const found = trail.current.findIndex(item => item.key === record.key);
@@ -89,12 +104,12 @@ export default function NavigationController() {
       if (sheet) { sheet.querySelector<HTMLButtonElement>('[data-codex-back], button[aria-label="关闭"]')?.click(); return; }
       const menu = Array.from(document.querySelectorAll<HTMLDetailsElement>("details.codex-reader-menu[open], details.codex-list-share[open]")).at(-1);
       if (menu) { menu.open = false; menu.querySelector("summary")?.focus(); return; }
-      if (guards.some(check => !check())) return;
+      if (!canLeavePage()) return;
       const fallback = (event as CustomEvent<string | undefined>).detail;
       const rootTab = ["/", "/albums", "/songs", "/timeline", "/search", "/more"].includes(location.pathname)
         || location.pathname === "/summary" && ["", "cover", "months"].includes(new URLSearchParams(location.search).get("view") ?? "");
       if (location.pathname === "/") {
-        if (!Capacitor.isNativePlatform()) return;
+        if (Capacitor.getPlatform() !== "android") return;
         const now = Date.now();
         if (lastExit.current && now - lastExit.current < 2000) {
           lastExit.current = 0;
@@ -116,7 +131,7 @@ export default function NavigationController() {
   }, [location, navigate]);
 
   useEffect(() => {
-    if (!Capacitor.isNativePlatform()) return;
+    if (Capacitor.getPlatform() !== "android") return;
     let active = true;
     let handle: PluginListenerHandle | undefined;
     void NativeNavigation.addListener("backRequested", () => requestBack()).then(value => {

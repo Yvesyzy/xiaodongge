@@ -55,6 +55,7 @@
 - Capacitor
 - Android
 - Capacitor SQLite
+- Windows 桌面版：Electron、Node 内置 SQLite、Windows WinRT 媒体会话与 OCR
 
 ## 下载 APK
 
@@ -86,6 +87,16 @@ v3.0.1 的历史验证为 26 组完整检查、8 项 Android JUnit、正式签�
 榜单字体采用 Noto Sans SC 和 Montserrat 900 数字子集，OFL授权随包提供于 `mobile/public/codex_font_licenses.txt`；未使用 Spotify 专有字体。中文保留完整字库，支持离线导出。
 
 JSON v6 默认包含封面与有效草稿；取消「JSON 包含封面」可生成无封面文件。导入时勾选「跳过备份封面，保留当前封面」，其他内容照常恢复；导入前可查看差异并在隔离数据库预演，正式导入保存可撤销快照。v1–v5 旧备份仍可读取，因旧格式没有草稿字段，导入时保留本机草稿；旧版 APK 不能读取 v6 备份。
+
+## Windows 桌面版
+
+Windows 后续开发、安装器和正式发布在[独立 Windows 仓库](https://github.com/Yvesyzy/xiaodongge-windows)进行，维护目录为 `D:\codex\workspaces\xiaodongge-windows`。本目录保留首版移植源码及历史验收记录。
+
+Windows x64 便携测试版复用当前存储、六项评分与 JSON v6，重做桌面首页、侧栏、档案列表/阅读和双栏写作。通过安卓导出的 JSON 迁移，支持 v1–v6 预演、覆盖恢复与撤销；正式档案和草稿保存在固定的应用数据目录，运行包不含演示或个人数据。
+
+解压完整目录后双击 `codex_xiaodongge.exe`，无需安装 Node 或数据库。Windows 使用系统文件对话框保存；分享入口生成本地文件并打开资源管理器。当前播放依赖播放器提供系统媒体会话；网易云音乐需在「设置 → 系统」勾选「开启SMTC」，本机已验证真实播放、暂停与恢复播放。网易云专辑和完整合作歌手可从本机播放队列唯一匹配补全，歧义或读取失败时保留系统结果；读取不覆盖已有输入，也不自动保存正式乐评。OCR 语言取决于 Windows 语言包。[使用、迁移、开发和验收说明](desktop/codex_README.md)。
+
+开发命令：`npm.cmd run windows:build`、`npm.cmd run windows:start`、`npm.cmd run windows:check`、`npm.cmd run windows:package`。产物与逐项校验清单位于 `release/`，最新包路径和 SHA-256 记录在 `release/codex_windows_latest.json`。解压后的程序已通过 Windows 11 的18组验收，详见 [首版交付与验收](docs/session-summaries/codex_session_summary_2026-10-05_windows_port.md)。2026-10-07 新版通过网易云专辑、完整合作歌手、手填保护和暂停/恢复实播检查，详见 [当前播放修复及验收](docs/session-summaries/codex_session_summary_2026-10-05_windows_now_playing.md)。Windows 10 和其他播放器尚待实测，测试包未签名。
 
 ## 构建 APK
 

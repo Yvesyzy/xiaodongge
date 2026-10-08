@@ -3,6 +3,7 @@ import { Capacitor } from "@capacitor/core";
 import { Directory, Filesystem } from "@capacitor/filesystem";
 import { blobToBase64, buildQuickMemoryCard, DEFAULT_PRIVACY, downloadBlob, renderMemoryCard, type MemoryCardPrivacy } from "./shareCard";
 import type { ReviewEntry } from "./types";
+import { NativeExport } from "./nativeExport";
 
 
 export default function QuickMemoryCardPanel({ entry, coverUrl, emphasized = false }: { entry: ReviewEntry; coverUrl: string | null; emphasized?: boolean }) {
@@ -18,7 +19,10 @@ export default function QuickMemoryCardPanel({ entry, coverUrl, emphasized = fal
     try {
       const blob = await renderMemoryCard(buildQuickMemoryCard(entry, privacy), coverUrl);
       const fileName = "xiaodongge-quick-" + dateStamp() + ".png";
-      if (Capacitor.isNativePlatform()) {
+      if (Capacitor.getPlatform() === "electron") {
+        const result = await NativeExport.saveFile({ fileName, mimeType: "image/png", encoding: "base64", content: await blobToBase64(blob) });
+        setMessage(result.status === "saved" ? "快速记录卡已保存" : "已取消保存");
+      } else if (Capacitor.isNativePlatform()) {
         await Filesystem.writeFile({ path: fileName, data: await blobToBase64(blob), directory: Directory.Documents });
         setMessage("已保存到 Documents/" + fileName);
       } else {

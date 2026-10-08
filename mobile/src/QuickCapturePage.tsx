@@ -6,7 +6,7 @@ import { toAlbumFirstRecognition } from "./albumFirst";
 import { countNewDrafts, createNewDraftId, MAX_NEW_DRAFTS, readEntryDraft, removeEntryDraft, writeEntryDraft, type EntryDraft, type EntryDraftCaptureMode } from "./entryDraft";
 import { findEntryIdentityMatches, sameMusicIdentity, type MusicIdentity } from "./musicIdentity";
 import { mergeMusicMetadata } from "./musicMetadata";
-import { NowPlaying } from "./nativeNowPlaying";
+import { NowPlaying, supportsCurrentPlayback } from "./nativeNowPlaying";
 import { readSharedMusic } from "./nativeSharedMusic";
 import { applyAppleCatalogMatch, findAppleCatalogMatch, parseCatalogSearchResult, parseNowPlayingResult, type ParsedNowPlayingResult } from "./nowPlaying";
 import { quickCaptureToEntryInput, recentSavedMoods } from "./quickCapture";
@@ -40,7 +40,7 @@ export default function QuickCapturePage() {
   const [entries, setEntries] = useState<ReviewEntry[]>([]);
   const [recentMoods, setRecentMoods] = useState<string[]>([]);
   const [matches, setMatches] = useState<ReviewEntry[]>([]);
-  const [identityOpen, setIdentityOpen] = useState(!Capacitor.isNativePlatform());
+  const [identityOpen, setIdentityOpen] = useState(Capacitor.getPlatform() !== "android");
   const [pendingTrack, setPendingTrack] = useState<ParsedNowPlayingResult | null>(null);
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -97,7 +97,7 @@ export default function QuickCapturePage() {
   }, []);
 
   useEffect(() => {
-    if (ready && Capacitor.isNativePlatform()) void refreshNowPlaying();
+    if (ready && supportsCurrentPlayback) void refreshNowPlaying();
   }, [ready, shareId]);
 
   useEffect(() => {
@@ -117,7 +117,7 @@ export default function QuickCapturePage() {
   }, [albumName, artistName, content, draftId, entryType, listenedOn, moods, musicMetadata, rating, ratingModifier, ready, songName, title]);
 
   useEffect(() => {
-    if (!ready || !Capacitor.isNativePlatform()) return;
+    if (!ready || !supportsCurrentPlayback) return;
     const onVisible = () => {
       if (document.visibilityState === "visible") void refreshNowPlaying();
     };
@@ -412,9 +412,9 @@ export default function QuickCapturePage() {
         {artwork ? <img src={artwork} alt="" /> : <div className="quick-record-placeholder" aria-hidden="true"><span /></div>}
         <div>
           <strong>{albumName || title || "还没有专辑信息"}</strong>
-          <span>{[artistName, musicMetadata?.displayTitle || songName].filter(Boolean).join(" · ") || "读取当前播放，或手动填写"}</span>
+          <span>{[artistName, musicMetadata?.displayTitle || songName].filter(Boolean).join(" · ") || (supportsCurrentPlayback ? "读取当前播放，或手动填写" : "手动填写或粘贴作品信息")}</span>
         </div>
-        {Capacitor.isNativePlatform() ? <button type="button" className="secondary-button" onClick={() => refreshNowPlaying()} disabled={busy}>{busy ? "读取中" : "读取当前播放"}</button> : null}
+        {supportsCurrentPlayback ? <button type="button" className="secondary-button" onClick={() => refreshNowPlaying()} disabled={busy}>{busy ? "读取中" : "读取当前播放"}</button> : null}
       </section>
       <div className="quick-playback-status">
         {playbackStatus ? <p className={playbackStatus.error ? "error" : "hint"} role="status" aria-live="polite">{playbackStatus.text}</p> : null}

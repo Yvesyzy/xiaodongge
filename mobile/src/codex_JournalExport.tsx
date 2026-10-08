@@ -152,7 +152,7 @@ export function JournalExport({ year, entries, kind, edition, topAlbums, onClose
           const blob = index === image.page ? image.blob : await render(index);
           const result = await NativeExport.stageFile({ fileName: fileName(index), mimeType: "image/png", encoding: "base64", content: await blobToBase64(blob) }); tokens.push(result.token);
         }
-        await NativeExport.shareFiles({ tokens }); setStatus(`已打开系统分享 · 本批 ${tokens.length} 页`);
+        await NativeExport.shareFiles({ tokens }); setStatus(`${Capacitor.getPlatform() === "electron" ? "已打开导出文件夹，可复制或发送" : "已打开系统分享"} · 本批 ${tokens.length} 页`);
       } else {
         // Prepare multiple images before the next click to preserve Web Share user activation.
         let ready = prepared;
@@ -202,7 +202,7 @@ export function JournalExport({ year, entries, kind, edition, topAlbums, onClose
     <footer className="journal-export-footer">
       <p className="journal-muted">已选 {selected.length} 页 · {native ? "已保存" : "已发起下载"} {saved.length} / {pages.length} 页</p>
       {selected.length > 9 && <label className="journal-share-batch">每批最多 9 张 · 分享批次<select aria-label="分享批次" value={batch} disabled={busy} onChange={(e) => { setBatch(Number(e.target.value)); setPrepared(null); setStatus(""); }}>{Array.from({ length: Math.ceil(selected.length / 9) }, (_, i) => <option key={i} value={i}>第 {i + 1} 批</option>)}</select></label>}
-      <div className="journal-actions"><button className="journal-primary" disabled={!image || busy || !selected.length || selected.length > 5000} onClick={() => void saveImages(selectedPages)}>{busy ? "处理中…" : `保存所选 ${selected.length} 页`}</button><button disabled={!image || busy || !selected.length} onClick={() => void shareImages()}>{prepared ? "系统分享（已准备）" : "系统分享"}</button></div>
+      <div className="journal-actions"><button className="journal-primary" disabled={!image || busy || !selected.length || selected.length > 5000} onClick={() => void saveImages(selectedPages)}>{busy ? "处理中…" : `保存所选 ${selected.length} 页`}</button><button disabled={!image || busy || !selected.length} onClick={() => void shareImages()}>{Capacitor.getPlatform() === "electron" ? "打开导出文件夹" : prepared ? "系统分享（已准备）" : "系统分享"}</button></div>
       <button className="journal-save-current" disabled={image?.page !== page || busy} onClick={() => void saveImages([page])}>{native ? "保存当前页" : "下载当前页 PNG"}</button>
       {selected.length > 5000 && <p role="alert">单次文件夹保存最多 5000 页，请减少所选页数。</p>}
       {status && <p role="status">{status}</p>}{error && <p className="journal-error" role="alert">{error}</p>}

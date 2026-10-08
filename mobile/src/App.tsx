@@ -14,8 +14,9 @@ import type { Insight } from "./insights";
 import { journalRating } from "./codex_yearbookModel";
 import { mergeMusicMetadata } from "./musicMetadata";
 import { groupMusicEntries, normalizeMusicIdentityText, sameAlbumIdentity, sameMusicIdentity } from "./musicIdentity";
-import { NowPlaying } from "./nativeNowPlaying";
+import { NowPlaying, supportsCurrentPlayback } from "./nativeNowPlaying";
 import { NativeExport } from "./nativeExport";
+import { desktopPlugin } from "./codex_desktopBridge";
 import { parseSharedMusicPayload, rememberSharedMusic, SharedMusic } from "./nativeSharedMusic";
 import { applyAppleCatalogMatch, findAppleCatalogMatch, parseCatalogSearchResult, parseNowPlayingResult } from "./nowPlaying";
 import { parseMusicInfoText, type MusicInfoFields } from "./ocr";
@@ -30,6 +31,9 @@ import { entryCoverTarget, parseList, store, type RestoreRehearsal } from "./sto
 import { clearStorageCorruption, readStorageCorruptions, STORAGE_CORRUPTION_EVENT, type StorageCorruption } from "./storageSafety";
 import { ENTRY_TYPE_LABELS, ENTRY_TYPES, type AlbumAggregate, type EntryInput, type ListeningMoment, type ListeningMomentInput, type MusicMetadata, type RatingModifier, type ReviewEntry, type SongAggregate, type YearStats } from "./types";
 import { version as APP_VERSION } from "../../package.json";
+
+// Desktop owns its shell and keeps these existing page rules in one place.
+export { EntryFormPage, EntryDetailPage, AlbumsPage, SongsPage, AggregateDetail, SearchPage, DraftsPage, BackupPage, MorePage, PrivacyPage, InsightsPage, AbstractMusicMapPage, StorageIntegrityNotice };
 
 const nav = [
   ["/", "首页"],
@@ -64,7 +68,7 @@ const GROUP_BY_LABELS: Record<UniverseGroupBy, string> = {
 };
 const MOOD_GROUPS = MOOD_CATEGORIES;
 
-const ScreenshotOcr = registerPlugin<ScreenshotOcrPlugin>("ScreenshotOcr");
+const ScreenshotOcr = registerPlugin<ScreenshotOcrPlugin>("ScreenshotOcr", { electron: () => desktopPlugin("ScreenshotOcr") });
 const DailyListeningNote = lazy(() => import("./ListeningYearbookView").then(module => ({ default: module.DailyListeningNote })));
 const MonthlyListeningPage = lazy(() => import("./ListeningYearbookView").then(module => ({ default: module.MonthlyListeningPage })));
 const YearlyListeningPage = lazy(() => import("./ListeningYearbookView").then(module => ({ default: module.YearlyListeningPage })));
@@ -90,7 +94,7 @@ export default function App() {
   }, [location.pathname]);
 
   useEffect(() => {
-    if (!Capacitor.isNativePlatform()) return;
+    if (Capacitor.getPlatform() !== "android") return;
     let active = true;
     let listener: { remove(): Promise<void> } | null = null;
     const accept = (value: unknown) => {
@@ -229,7 +233,7 @@ function HomePage() {
       if (savedState !== nextState) await store.setStoredAppData(DAILY_RESURFACING_KEY, nextState);
       const nextResurfacing = resolved.entry ? await loadHomeCover(resolved.entry) : null;
       let currentMatches = false;
-      if (nextResurfacing && Capacitor.isNativePlatform()) {
+      if (nextResurfacing && Capacitor.getPlatform() === "android") {
         try {
           const current = parseNowPlayingResult(await NowPlaying.getCurrentTrack());
           if (current.fields) {
@@ -650,7 +654,7 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
   }, [draftReady, id, mode, draftId]);
 
   useEffect(() => {
-    if (draftReady && Capacitor.isNativePlatform()) void readNowPlaying();
+    if (draftReady && supportsCurrentPlayback) void readNowPlaying();
     return () => { nowPlayingRequestRef.current += 1; };
   }, [draftReady, mode, id, draftId]);
 
@@ -796,7 +800,9 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
         return;
       }
       if (!result.fields) {
-        setNowPlayingMessage("没有读到正在播放的歌曲，请确认网易云音乐正在播放后重试。");
+        setNowPlayingMessage(Capacitor.getPlatform() === "electron"
+          ? "没有读到正在播放的歌曲，请确认播放器正在播放并支持 Windows 系统媒体会话。"
+          : "没有读到正在播放的歌曲，请确认网易云音乐正在播放后重试。");
         return;
       }
       if (!musicIdentityCompatible(formRef.current, result.fields)) {
@@ -894,7 +900,7 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
     setNotice("");
     setOcrBusy(true);
     try {
-      if (!Capacitor.isNativePlatform()) throw new Error("截图识别请在 Android APK 中使用");
+      if (!Capacitor.isNativePlatform()) throw new Error("截图识别请在 Windows 或 Android 应用中使用");
       const dataUrl = await fileToDataUrl(file);
       if (!input.isConnected) return;
       const result = await ScreenshotOcr.recognize({ dataUrl });
@@ -1041,14 +1047,14 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
           <div>
             <strong>封面照片</strong>
             <label className="secondary-button file-button">
-              从相册选择
+              {Capacitor.getPlatform() === "electron" ? "选择封面图片" : "从相册选择"}
               <input type="file" accept="image/*" onChange={chooseCover} />
             </label>
           </div>
         </section>
         <label>正文<textarea className="note-editor" name="content" rows={10} defaultValue={source?.content ?? ""} placeholder="像写备忘录一样，记录此刻的感受……" required /></label>
         <details className="writing-extras" open><summary>补充作品信息、评分与日期（选填）</summary>
-        {Capacitor.isNativePlatform() ? (
+        {supportsCurrentPlayback ? (
           <section className="assist-panel">
             <div className="assist-panel-head">
               <strong>当前播放</strong>
@@ -2217,7 +2223,7 @@ function BackupPage() {
   async function shareExportFile() {
     if (!exported) return;
     setExportAction("share");
-    setExportStatus({ tone: "success", text: "正在打开系统分享……" });
+    setExportStatus({ tone: "success", text: Capacitor.getPlatform() === "electron" ? "正在打开导出文件夹……" : "正在打开系统分享……" });
     try {
       if (Capacitor.isNativePlatform()) {
         await NativeExport.shareFile(exported);
@@ -2228,7 +2234,7 @@ function BackupPage() {
         }
         await navigator.share({ files: [file], title: exported.fileName, text: "小懂哥导出文件" });
       }
-      setExportStatus({ tone: "success", text: "已打开系统分享" });
+      setExportStatus({ tone: "success", text: Capacitor.getPlatform() === "electron" ? "已打开导出文件夹，可以复制或发送文件" : "已打开系统分享" });
     } catch (err) {
       if (err instanceof DOMException && err.name === "AbortError") {
         setExportStatus({ tone: "success", text: "已取消分享" });
@@ -2286,7 +2292,7 @@ function BackupPage() {
     try {
       const report = await store.rehearseRestore(importText, { includeCovers: !skipCovers });
       setRestoreRehearsal(report);
-      setMessage(report.target === "android-isolated-sqlite"
+      setMessage(report.target === "windows-isolated-sqlite" ? "Windows 隔离数据库写入及回读通过；正式数据未覆盖" : report.target === "android-isolated-sqlite"
         ? "Android 隔离数据库写入及回读通过；正式数据未覆盖"
         : "Web 隔离存储模拟恢复及回读通过；正式数据未覆盖");
     } catch (err) {
@@ -2349,7 +2355,7 @@ function BackupPage() {
       setError(err instanceof Error ? err.message : "备份预览失败");
       return;
     }
-    if (!confirm(`导入会覆盖当前手机本地数据。备份包含 ${nextPreview.entryCount} 条记录、${nextPreview.summaryCount} 个年度总结、${nextPreview.monthlySummaryCount} 个月度作品。${draftImportImpact(nextPreview)}${skipCovers ? "跳过备份封面，保留当前封面；草稿的待保存封面也会移除。" : `封面将替换为备份中的 ${nextPreview.coverCount} 张封面。`}确认继续？`)) return;
+    if (!confirm(`导入会覆盖本机数据。备份包含 ${nextPreview.entryCount} 条记录、${nextPreview.summaryCount} 个年度总结、${nextPreview.monthlySummaryCount} 个月度作品。${draftImportImpact(nextPreview)}${skipCovers ? "跳过备份封面，保留当前封面；草稿的待保存封面也会移除。" : `封面将替换为备份中的 ${nextPreview.coverCount} 张封面。`}确认继续？`)) return;
     setMessage("");
     setError("");
     setBusy(true);
@@ -2389,7 +2395,7 @@ function BackupPage() {
   }
 
   return (
-    <Page title="备份" text="JSON 用于恢复备份；TXT 和 CSV 用于手机查看。">
+    <Page title="备份" text="JSON 用于恢复备份；TXT 和 CSV 用于查看和整理记录。">
       <section className="form-card backup-health-card">
         <div className="assist-panel-head">
           <strong>备份健康</strong>
@@ -2437,7 +2443,7 @@ function BackupPage() {
           <textarea readOnly rows={10} value={exported.content} />
           <div className="export-output-actions native-export-actions">
             <button className="primary-button" type="button" onClick={saveExportFile} disabled={exportAction !== null}>保存到文件夹</button>
-            <button className="secondary-button" type="button" onClick={shareExportFile} disabled={exportAction !== null}>系统分享</button>
+            <button className="secondary-button" type="button" onClick={shareExportFile} disabled={exportAction !== null}>{Capacitor.getPlatform() === "electron" ? "打开导出文件夹" : "系统分享"}</button>
             <button className="secondary-button" type="button" onClick={copyExport} disabled={exportAction !== null}>复制内容</button>
           </div>
           {exportStatus ? (
@@ -2472,7 +2478,7 @@ function BackupPage() {
         <button className="secondary-button" type="button" onClick={() => void rehearseImport()} disabled={busy || !preview}>{busy ? "预演中" : "预演恢复并查看差异"}</button>
         {restoreRehearsal ? (
           <section className="backup-diff-report" aria-label="恢复差异报告">
-            <strong>{restoreRehearsal.target === "android-isolated-sqlite" ? "Android 隔离数据库恢复与回读通过" : "Web 隔离存储模拟恢复与回读通过"}</strong>
+            <strong>{restoreRehearsal.target === "windows-isolated-sqlite" ? "Windows 隔离数据库恢复与回读通过" : restoreRehearsal.target === "android-isolated-sqlite" ? "Android 隔离数据库恢复与回读通过" : "Web 隔离存储模拟恢复与回读通过"}</strong>
             <p className="hint">报告绑定当前备份、封面选项和本机数据；任一变化后需重新预演。预演不能保证正式恢复时仍有足够存储空间。</p>
             <ul>{([
               ["正式记录", "entries"], ["年度总结", "summaries"], ["月度作品", "monthlySummaries"],
@@ -2527,7 +2533,7 @@ function MorePage() {
     ["/songs", "歌曲", "按歌曲名称聚合记录。"],
     ["/drafts", "草稿箱", `${moreDrafts.length} 份未保存草稿（有效新建 ${moreDrafts.filter(draft => draft.status !== "invalid" && draft.mode === "create").length}、编辑 ${editDraftCount}、损坏 ${damagedDraftCount}；新建占位 ${newDraftCount}/${MAX_NEW_DRAFTS}），可续写或处理。`],
     ["/backup", "备份", "导出或导入本地 JSON 备份。"],
-    ["/diagnostics", "本机诊断", "查看版本、备份、草稿、存储与通知权限状态。"],
+    ["/diagnostics", "本机诊断", "查看版本、备份、草稿、存储与系统接口状态。"],
     ["/privacy", "隐私说明", "查看通知读取、天气联网与本地听感分析的数据范围。"],
   ];
   return (
@@ -3025,13 +3031,15 @@ function Meta({ label, value }: { label: string; value: string | null }) {
 }
 
 function PrivacyPage() {
+  const desktop = Capacitor.getPlatform() === "electron";
   return (
     <Page title="隐私说明" text="当前播放、天气背景与本地听感分析的数据使用方式。">
       <article className="content-card privacy-copy">
         <h2>本地保存</h2>
         <p>音乐记录、正文、标签、情绪、评分、封面、草稿和听感总结保存在本机。除下述明确说明的音乐目录与天气请求外，小懂哥不会主动上传这些内容。</p>
-        <h2>通知使用权</h2>
-        <p>Android 通知使用权仅用于访问系统媒体会话中的当前播放信息。应用不保存其他应用的通知正文，也不读取暂停的媒体会话。</p>
+        <h2>{desktop ? "Windows 媒体会话" : "通知使用权"}</h2>
+        <p>{desktop ? "Windows 版读取兼容播放器公开的系统媒体会话，只读取正在播放的作品信息，无需 Android 通知使用权；暂停的媒体会话不会作为当前播放。" : "Android 通知使用权仅用于访问系统媒体会话中的当前播放信息。应用不保存其他应用的通知正文，也不读取暂停的媒体会话。"}</p>
+        {desktop ? <><h2>截图识别</h2><p>选择的截图通过本机 Windows OCR 识别，识别后需确认再应用到表单，截图不会上传。识别语言取决于本机安装的 OCR 语言包。</p></> : null}
         <h2>联网补全</h2>
         <p>当当前播放同时包含歌曲名和歌手时，应用会把歌曲名、歌手和已有专辑发送给 Apple iTunes Search API，用于补全专辑、发行日期、流派、时长和曲目序号等音乐元数据。</p>
         <h2>不会发送的数据</h2>
@@ -3041,7 +3049,7 @@ function PrivacyPage() {
         <h2>天气背景</h2>
         <p>只有用户手动选择城市后，应用才会把粗略城市坐标和乐评日期发送给 Open-Meteo 查询历史天气。应用不持续定位，不读取 vivo 或其他手机的系统天气，也不会在天气请求中发送乐评正文。</p>
         <h2>导出与删除</h2>
-        <p>用户可以通过备份页导出或恢复本地数据，也可以在记录详情页删除记录。Android 系统云备份已关闭，卸载应用前请先手动导出 JSON。</p>
+        <p>用户可以通过备份页导出或恢复本地数据，也可以在记录详情页删除记录。{desktop ? "Windows 版通过文件对话框保存导出文件，分享入口会打开本机导出文件夹，文件由你选择复制或发送。" : "Android 系统云备份已关闭，"}卸载应用前请先手动导出 JSON。</p>
       </article>
     </Page>
   );
