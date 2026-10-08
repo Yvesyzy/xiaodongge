@@ -2,6 +2,8 @@
 
 日期：2026-10-08。Yves要求删除前面版本相关文件，并询问3.1.2是否已推送GitHub。本轮授权为旧版清理和状态核对，没有把“推送了吗”视为新的发布指令。
 
+后续状态：Yves随后明确授权“推吧”；3.1.2已推送源码并发布[GitHub测试预发布](https://github.com/Yvesyzy/xiaodongge/releases/tag/v3.1.2)，见[发布交接](codex_session_summary_2026-10-08_android_github_release.md)。旧版删除的工具阻断状态未改变；以下保留当时核对快照。
+
 ## GitHub实时状态
 
 - `git ls-remote origin refs/heads/main`：`ae6ef2b65973090159c33108580799d1a9275b25`。

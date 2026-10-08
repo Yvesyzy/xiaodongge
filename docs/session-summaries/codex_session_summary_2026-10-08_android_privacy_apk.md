@@ -2,6 +2,8 @@
 
 日期：2026-10-08。Yves选择构建原签名测试包；随后明确“不用，你直接构建apk”，因此本轮只构建和核验安装包，不连接或安装手机。
 
+后续状态：Yves已明确授权“推吧”；3.1.2源码与APK/SHA现已发布到[GitHub测试预发布](https://github.com/Yvesyzy/xiaodongge/releases/tag/v3.1.2)，详见[发布交接](codex_session_summary_2026-10-08_android_github_release.md)。下文保留构建与清理阶段的历史记录。
+
 ## 最终安装包
 
 - 路径：`release/codex_privacy_signed_20261008/codex_xiaodongge-v3.1.2-32-test.apk`。
