@@ -1,0 +1,590 @@
+{
+  "disclosure": "Fictional demonstration only; all works, artist names and reviews are synthetic.",
+  "entries": [
+    {
+      "id": "codex-film-album-0",
+      "type": "album",
+      "title": "晚风经过",
+      "year": 2026,
+      "month": 2,
+      "albumName": "晚风经过",
+      "songName": null,
+      "artistName": "林间电台",
+      "musicMetadata": null,
+      "content": "最先留住我的，是鼓点之间的空白。\n\n贝斯慢慢向前走，人声像隔着一扇半开的窗。那时我只觉得它很安静，适合把回家的路再走慢一点。\n\n听到最后一首，我没有立刻摘下耳机。风从身边过去，音乐留下了一点温度。",
+      "tags": [
+        "Dream Pop",
+        "空间感"
+      ],
+      "moods": [
+        "平静",
+        "怀旧"
+      ],
+      "rating": 8,
+      "ratingModifier": null,
+      "ratingProduction": 8,
+      "ratingSongwriting": null,
+      "ratingLyrics": 8,
+      "ratingComposition": 8,
+      "ratingVocals": 8,
+      "ratingOriginality": 7.5,
+      "ratingResonance": 8.5,
+      "compositeRatingLocked": false,
+      "firstListenedAt": "2026-02-18T12:00:00.000Z",
+      "listenedAt": "2026-02-18T12:00:00.000Z",
+      "createdAt": "2026-02-18T12:00:00.000Z",
+      "updatedAt": "2026-02-18T12:00:00.000Z"
+    },
+    {
+      "id": "codex-film-album-1",
+      "type": "album",
+      "title": "潮汐记",
+      "year": 2026,
+      "month": 3,
+      "albumName": "潮汐记",
+      "songName": null,
+      "artistName": "林间电台",
+      "musicMetadata": null,
+      "content": "那些克制的鼓点，把一整天的嘈杂轻轻放下。\n\n编曲并不急着铺满每一个空隙。留白里的呼吸，反而是最动人的部分。",
+      "tags": [
+        "Ambient Pop",
+        "留白"
+      ],
+      "moods": [
+        "温暖",
+        "平静"
+      ],
+      "rating": 9,
+      "ratingModifier": null,
+      "ratingProduction": null,
+      "ratingSongwriting": null,
+      "ratingLyrics": null,
+      "ratingComposition": null,
+      "ratingVocals": null,
+      "ratingOriginality": null,
+      "ratingResonance": null,
+      "compositeRatingLocked": false,
+      "firstListenedAt": "2026-03-07T12:00:00.000Z",
+      "listenedAt": "2026-03-07T12:00:00.000Z",
+      "createdAt": "2026-03-07T12:00:00.000Z",
+      "updatedAt": "2026-03-07T12:00:00.000Z"
+    },
+    {
+      "id": "codex-film-album-2",
+      "type": "album",
+      "title": "房间里的回声",
+      "year": 2026,
+      "month": 5,
+      "albumName": "房间里的回声",
+      "songName": null,
+      "artistName": "林间电台",
+      "musicMetadata": null,
+      "content": "一层一层的器乐，像夜色里的灯。\n\n今天喜欢它的温柔，也想记住自己曾经听见过这样的光。",
+      "tags": [
+        "Dream Pop",
+        "空间感"
+      ],
+      "moods": [
+        "温暖",
+        "平静"
+      ],
+      "rating": 8.5,
+      "ratingModifier": null,
+      "ratingProduction": null,
+      "ratingSongwriting": null,
+      "ratingLyrics": null,
+      "ratingComposition": null,
+      "ratingVocals": null,
+      "ratingOriginality": null,
+      "ratingResonance": null,
+      "compositeRatingLocked": false,
+      "firstListenedAt": "2026-05-08T12:00:00.000Z",
+      "listenedAt": "2026-05-08T12:00:00.000Z",
+      "createdAt": "2026-05-08T12:00:00.000Z",
+      "updatedAt": "2026-05-08T12:00:00.000Z"
+    },
+    {
+      "id": "codex-film-album-3",
+      "type": "album",
+      "title": "夜行列车",
+      "year": 2026,
+      "month": 7,
+      "albumName": "夜行列车",
+      "songName": null,
+      "artistName": "林间电台",
+      "musicMetadata": null,
+      "content": "最先留住我的，是鼓点之间的空白。\n\n贝斯慢慢向前走，人声像隔着一扇半开的窗。那时我只觉得它很安静，适合把回家的路再走慢一点。\n\n听到最后一首，我没有立刻摘下耳机。风从身边过去，音乐留下了一点温度。",
+      "tags": [
+        "Ambient Pop",
+        "留白"
+      ],
+      "moods": [
+        "释然"
+      ],
+      "rating": 8,
+      "ratingModifier": null,
+      "ratingProduction": null,
+      "ratingSongwriting": null,
+      "ratingLyrics": null,
+      "ratingComposition": null,
+      "ratingVocals": null,
+      "ratingOriginality": null,
+      "ratingResonance": null,
+      "compositeRatingLocked": false,
+      "firstListenedAt": "2026-07-09T12:00:00.000Z",
+      "listenedAt": "2026-07-09T12:00:00.000Z",
+      "createdAt": "2026-07-09T12:00:00.000Z",
+      "updatedAt": "2026-07-09T12:00:00.000Z"
+    },
+    {
+      "id": "codex-film-album-4",
+      "type": "album",
+      "title": "未完成的夏天",
+      "year": 2026,
+      "month": 9,
+      "albumName": "未完成的夏天",
+      "songName": null,
+      "artistName": "林间电台",
+      "musicMetadata": null,
+      "content": "那些克制的鼓点，把一整天的嘈杂轻轻放下。\n\n编曲并不急着铺满每一个空隙。留白里的呼吸，反而是最动人的部分。",
+      "tags": [
+        "Dream Pop",
+        "空间感"
+      ],
+      "moods": [
+        "温暖",
+        "平静"
+      ],
+      "rating": 7.5,
+      "ratingModifier": null,
+      "ratingProduction": null,
+      "ratingSongwriting": null,
+      "ratingLyrics": null,
+      "ratingComposition": null,
+      "ratingVocals": null,
+      "ratingOriginality": null,
+      "ratingResonance": null,
+      "compositeRatingLocked": false,
+      "firstListenedAt": "2026-09-10T12:00:00.000Z",
+      "listenedAt": "2026-09-10T12:00:00.000Z",
+      "createdAt": "2026-09-10T12:00:00.000Z",
+      "updatedAt": "2026-09-10T12:00:00.000Z"
+    },
+    {
+      "id": "codex-film-album-5",
+      "type": "album",
+      "title": "小岛来信",
+      "year": 2026,
+      "month": 2,
+      "albumName": "小岛来信",
+      "songName": null,
+      "artistName": "林间电台",
+      "musicMetadata": null,
+      "content": "一层一层的器乐，像夜色里的灯。\n\n今天喜欢它的温柔，也想记住自己曾经听见过这样的光。",
+      "tags": [
+        "Ambient Pop",
+        "留白"
+      ],
+      "moods": [
+        "温暖",
+        "平静"
+      ],
+      "rating": 9.5,
+      "ratingModifier": null,
+      "ratingProduction": null,
+      "ratingSongwriting": null,
+      "ratingLyrics": null,
+      "ratingComposition": null,
+      "ratingVocals": null,
+      "ratingOriginality": null,
+      "ratingResonance": null,
+      "compositeRatingLocked": false,
+      "firstListenedAt": "2026-02-11T12:00:00.000Z",
+      "listenedAt": "2026-02-11T12:00:00.000Z",
+      "createdAt": "2026-02-11T12:00:00.000Z",
+      "updatedAt": "2026-02-11T12:00:00.000Z"
+    },
+    {
+      "id": "codex-film-album-6",
+      "type": "album",
+      "title": "低速飞行",
+      "year": 2026,
+      "month": 4,
+      "albumName": "低速飞行",
+      "songName": null,
+      "artistName": "林间电台",
+      "musicMetadata": null,
+      "content": "最先留住我的，是鼓点之间的空白。\n\n贝斯慢慢向前走，人声像隔着一扇半开的窗。那时我只觉得它很安静，适合把回家的路再走慢一点。\n\n听到最后一首，我没有立刻摘下耳机。风从身边过去，音乐留下了一点温度。",
+      "tags": [
+        "Dream Pop",
+        "空间感"
+      ],
+      "moods": [
+        "释然"
+      ],
+      "rating": 9,
+      "ratingModifier": null,
+      "ratingProduction": null,
+      "ratingSongwriting": null,
+      "ratingLyrics": null,
+      "ratingComposition": null,
+      "ratingVocals": null,
+      "ratingOriginality": null,
+      "ratingResonance": null,
+      "compositeRatingLocked": false,
+      "firstListenedAt": "2026-04-12T12:00:00.000Z",
+      "listenedAt": "2026-04-12T12:00:00.000Z",
+      "createdAt": "2026-04-12T12:00:00.000Z",
+      "updatedAt": "2026-04-12T12:00:00.000Z"
+    },
+    {
+      "id": "codex-film-album-7",
+      "type": "album",
+      "title": "晴天后的房间",
+      "year": 2026,
+      "month": 6,
+      "albumName": "晴天后的房间",
+      "songName": null,
+      "artistName": "林间电台",
+      "musicMetadata": null,
+      "content": "那些克制的鼓点，把一整天的嘈杂轻轻放下。\n\n编曲并不急着铺满每一个空隙。留白里的呼吸，反而是最动人的部分。",
+      "tags": [
+        "Ambient Pop",
+        "留白"
+      ],
+      "moods": [
+        "温暖",
+        "平静"
+      ],
+      "rating": 8.5,
+      "ratingModifier": null,
+      "ratingProduction": null,
+      "ratingSongwriting": null,
+      "ratingLyrics": null,
+      "ratingComposition": null,
+      "ratingVocals": null,
+      "ratingOriginality": null,
+      "ratingResonance": null,
+      "compositeRatingLocked": false,
+      "firstListenedAt": "2026-06-13T12:00:00.000Z",
+      "listenedAt": "2026-06-13T12:00:00.000Z",
+      "createdAt": "2026-06-13T12:00:00.000Z",
+      "updatedAt": "2026-06-13T12:00:00.000Z"
+    },
+    {
+      "id": "codex-film-album-8",
+      "type": "album",
+      "title": "城市边缘",
+      "year": 2026,
+      "month": 8,
+      "albumName": "城市边缘",
+      "songName": null,
+      "artistName": "林间电台",
+      "musicMetadata": null,
+      "content": "一层一层的器乐，像夜色里的灯。\n\n今天喜欢它的温柔，也想记住自己曾经听见过这样的光。",
+      "tags": [
+        "Dream Pop",
+        "空间感"
+      ],
+      "moods": [
+        "温暖",
+        "平静"
+      ],
+      "rating": 8,
+      "ratingModifier": null,
+      "ratingProduction": null,
+      "ratingSongwriting": null,
+      "ratingLyrics": null,
+      "ratingComposition": null,
+      "ratingVocals": null,
+      "ratingOriginality": null,
+      "ratingResonance": null,
+      "compositeRatingLocked": false,
+      "firstListenedAt": "2026-08-14T12:00:00.000Z",
+      "listenedAt": "2026-08-14T12:00:00.000Z",
+      "createdAt": "2026-08-14T12:00:00.000Z",
+      "updatedAt": "2026-08-14T12:00:00.000Z"
+    },
+    {
+      "id": "codex-film-album-9",
+      "type": "album",
+      "title": "静默的河",
+      "year": 2026,
+      "month": 1,
+      "albumName": "静默的河",
+      "songName": null,
+      "artistName": "林间电台",
+      "musicMetadata": null,
+      "content": "最先留住我的，是鼓点之间的空白。\n\n贝斯慢慢向前走，人声像隔着一扇半开的窗。那时我只觉得它很安静，适合把回家的路再走慢一点。\n\n听到最后一首，我没有立刻摘下耳机。风从身边过去，音乐留下了一点温度。",
+      "tags": [
+        "Ambient Pop",
+        "留白"
+      ],
+      "moods": [
+        "释然"
+      ],
+      "rating": 7.5,
+      "ratingModifier": null,
+      "ratingProduction": null,
+      "ratingSongwriting": null,
+      "ratingLyrics": null,
+      "ratingComposition": null,
+      "ratingVocals": null,
+      "ratingOriginality": null,
+      "ratingResonance": null,
+      "compositeRatingLocked": false,
+      "firstListenedAt": "2026-01-15T12:00:00.000Z",
+      "listenedAt": "2026-01-15T12:00:00.000Z",
+      "createdAt": "2026-01-15T12:00:00.000Z",
+      "updatedAt": "2026-01-15T12:00:00.000Z"
+    },
+    {
+      "id": "codex-film-album-10",
+      "type": "album",
+      "title": "蓝色钟摆",
+      "year": 2026,
+      "month": 3,
+      "albumName": "蓝色钟摆",
+      "songName": null,
+      "artistName": "林间电台",
+      "musicMetadata": null,
+      "content": "那些克制的鼓点，把一整天的嘈杂轻轻放下。\n\n编曲并不急着铺满每一个空隙。留白里的呼吸，反而是最动人的部分。",
+      "tags": [
+        "Dream Pop",
+        "空间感"
+      ],
+      "moods": [
+        "温暖",
+        "平静"
+      ],
+      "rating": 9.5,
+      "ratingModifier": null,
+      "ratingProduction": null,
+      "ratingSongwriting": null,
+      "ratingLyrics": null,
+      "ratingComposition": null,
+      "ratingVocals": null,
+      "ratingOriginality": null,
+      "ratingResonance": null,
+      "compositeRatingLocked": false,
+      "firstListenedAt": "2026-03-16T12:00:00.000Z",
+      "listenedAt": "2026-03-16T12:00:00.000Z",
+      "createdAt": "2026-03-16T12:00:00.000Z",
+      "updatedAt": "2026-03-16T12:00:00.000Z"
+    },
+    {
+      "id": "codex-film-album-11",
+      "type": "album",
+      "title": "远处的灯",
+      "year": 2026,
+      "month": 5,
+      "albumName": "远处的灯",
+      "songName": null,
+      "artistName": "林间电台",
+      "musicMetadata": null,
+      "content": "一层一层的器乐，像夜色里的灯。\n\n今天喜欢它的温柔，也想记住自己曾经听见过这样的光。",
+      "tags": [
+        "Ambient Pop",
+        "留白"
+      ],
+      "moods": [
+        "温暖",
+        "平静"
+      ],
+      "rating": 9,
+      "ratingModifier": null,
+      "ratingProduction": null,
+      "ratingSongwriting": null,
+      "ratingLyrics": null,
+      "ratingComposition": null,
+      "ratingVocals": null,
+      "ratingOriginality": null,
+      "ratingResonance": null,
+      "compositeRatingLocked": false,
+      "firstListenedAt": "2026-05-17T12:00:00.000Z",
+      "listenedAt": "2026-05-17T12:00:00.000Z",
+      "createdAt": "2026-05-17T12:00:00.000Z",
+      "updatedAt": "2026-05-17T12:00:00.000Z"
+    },
+    {
+      "id": "codex-film-album-12",
+      "type": "album",
+      "title": "山海之间",
+      "year": 2026,
+      "month": 7,
+      "albumName": "山海之间",
+      "songName": null,
+      "artistName": "林间电台",
+      "musicMetadata": null,
+      "content": "最先留住我的，是鼓点之间的空白。\n\n贝斯慢慢向前走，人声像隔着一扇半开的窗。那时我只觉得它很安静，适合把回家的路再走慢一点。\n\n听到最后一首，我没有立刻摘下耳机。风从身边过去，音乐留下了一点温度。",
+      "tags": [
+        "Dream Pop",
+        "空间感"
+      ],
+      "moods": [
+        "释然"
+      ],
+      "rating": 8.5,
+      "ratingModifier": null,
+      "ratingProduction": null,
+      "ratingSongwriting": null,
+      "ratingLyrics": null,
+      "ratingComposition": null,
+      "ratingVocals": null,
+      "ratingOriginality": null,
+      "ratingResonance": null,
+      "compositeRatingLocked": false,
+      "firstListenedAt": "2026-07-18T12:00:00.000Z",
+      "listenedAt": "2026-07-18T12:00:00.000Z",
+      "createdAt": "2026-07-18T12:00:00.000Z",
+      "updatedAt": "2026-07-18T12:00:00.000Z"
+    },
+    {
+      "id": "codex-film-album-13",
+      "type": "album",
+      "title": "无声散步",
+      "year": 2026,
+      "month": 9,
+      "albumName": "无声散步",
+      "songName": null,
+      "artistName": "林间电台",
+      "musicMetadata": null,
+      "content": "那些克制的鼓点，把一整天的嘈杂轻轻放下。\n\n编曲并不急着铺满每一个空隙。留白里的呼吸，反而是最动人的部分。",
+      "tags": [
+        "Ambient Pop",
+        "留白"
+      ],
+      "moods": [
+        "温暖",
+        "平静"
+      ],
+      "rating": 8,
+      "ratingModifier": null,
+      "ratingProduction": null,
+      "ratingSongwriting": null,
+      "ratingLyrics": null,
+      "ratingComposition": null,
+      "ratingVocals": null,
+      "ratingOriginality": null,
+      "ratingResonance": null,
+      "compositeRatingLocked": false,
+      "firstListenedAt": "2026-09-19T12:00:00.000Z",
+      "listenedAt": "2026-09-19T12:00:00.000Z",
+      "createdAt": "2026-09-19T12:00:00.000Z",
+      "updatedAt": "2026-09-19T12:00:00.000Z"
+    },
+    {
+      "id": "codex-film-album-14",
+      "type": "album",
+      "title": "慢行",
+      "year": 2026,
+      "month": 2,
+      "albumName": "慢行",
+      "songName": null,
+      "artistName": "林间电台",
+      "musicMetadata": null,
+      "content": "一层一层的器乐，像夜色里的灯。\n\n今天喜欢它的温柔，也想记住自己曾经听见过这样的光。",
+      "tags": [
+        "Dream Pop",
+        "空间感"
+      ],
+      "moods": [
+        "温暖",
+        "平静"
+      ],
+      "rating": 7.5,
+      "ratingModifier": null,
+      "ratingProduction": null,
+      "ratingSongwriting": null,
+      "ratingLyrics": null,
+      "ratingComposition": null,
+      "ratingVocals": null,
+      "ratingOriginality": null,
+      "ratingResonance": null,
+      "compositeRatingLocked": false,
+      "firstListenedAt": "2026-02-20T12:00:00.000Z",
+      "listenedAt": "2026-02-20T12:00:00.000Z",
+      "createdAt": "2026-02-20T12:00:00.000Z",
+      "updatedAt": "2026-02-20T12:00:00.000Z"
+    }
+  ],
+  "top": {
+    "albums": [
+      {
+        "albumName": "晚风经过",
+        "artistName": "林间电台",
+        "note": "今年反复回到的一张。每次重听，都多听见一点自己。"
+      },
+      {
+        "albumName": "潮汐记",
+        "artistName": "林间电台",
+        "note": "把那些舍不得忘记的声音，留在这一年的档案里。"
+      },
+      {
+        "albumName": "房间里的回声",
+        "artistName": "林间电台",
+        "note": "把那些舍不得忘记的声音，留在这一年的档案里。"
+      },
+      {
+        "albumName": "夜行列车",
+        "artistName": "林间电台",
+        "note": "把那些舍不得忘记的声音，留在这一年的档案里。"
+      },
+      {
+        "albumName": "未完成的夏天",
+        "artistName": "林间电台",
+        "note": "把那些舍不得忘记的声音，留在这一年的档案里。"
+      },
+      {
+        "albumName": "小岛来信",
+        "artistName": "林间电台",
+        "note": "把那些舍不得忘记的声音，留在这一年的档案里。"
+      },
+      {
+        "albumName": "低速飞行",
+        "artistName": "林间电台",
+        "note": "把那些舍不得忘记的声音，留在这一年的档案里。"
+      },
+      {
+        "albumName": "晴天后的房间",
+        "artistName": "林间电台",
+        "note": "把那些舍不得忘记的声音，留在这一年的档案里。"
+      },
+      {
+        "albumName": "城市边缘",
+        "artistName": "林间电台",
+        "note": "把那些舍不得忘记的声音，留在这一年的档案里。"
+      },
+      {
+        "albumName": "静默的河",
+        "artistName": "林间电台",
+        "note": "把那些舍不得忘记的声音，留在这一年的档案里。"
+      },
+      {
+        "albumName": "蓝色钟摆",
+        "artistName": "林间电台",
+        "note": "把那些舍不得忘记的声音，留在这一年的档案里。"
+      },
+      {
+        "albumName": "远处的灯",
+        "artistName": "林间电台",
+        "note": "把那些舍不得忘记的声音，留在这一年的档案里。"
+      },
+      {
+        "albumName": "山海之间",
+        "artistName": "林间电台",
+        "note": "把那些舍不得忘记的声音，留在这一年的档案里。"
+      },
+      {
+        "albumName": "无声散步",
+        "artistName": "林间电台",
+        "note": "把那些舍不得忘记的声音，留在这一年的档案里。"
+      },
+      {
+        "albumName": "慢行",
+        "artistName": "林间电台",
+        "note": "把那些舍不得忘记的声音，留在这一年的档案里。"
+      }
+    ]
+  }
+}

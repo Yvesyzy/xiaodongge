@@ -1,0 +1,203 @@
+{
+  "version": "3.1.1",
+  "viewport": {
+    "width": 390,
+    "height": 844,
+    "scale": 3
+  },
+  "capture": "Actual theme buttons; isolated synthetic data and original light covers",
+  "assets": {
+    "theme_home_light": {
+      "file": "codex_theme_home_light.png",
+      "globalTheme": "light",
+      "route": "/#/",
+      "source": "Unmodified current mobile DOM"
+    },
+    "theme_appearance_light": {
+      "file": "codex_theme_appearance_light.png",
+      "globalTheme": "light",
+      "route": "/#/more",
+      "source": "Actual DOM crop; only app header and bottom navigation hidden during capture",
+      "selector": "locator('.theme-choice').locator('..')"
+    },
+    "theme_appearance_dark": {
+      "file": "codex_theme_appearance_dark.png",
+      "globalTheme": "dark",
+      "route": "/#/more",
+      "source": "Actual DOM crop; only app header and bottom navigation hidden during capture",
+      "selector": "locator('.theme-choice').locator('..')"
+    },
+    "theme_home_dark": {
+      "file": "codex_theme_home_dark.png",
+      "globalTheme": "dark",
+      "route": "/#/",
+      "source": "Unmodified current mobile DOM"
+    },
+    "theme_appearance_light_after": {
+      "file": "codex_theme_appearance_light_after.png",
+      "globalTheme": "light",
+      "route": "/#/more",
+      "source": "Actual DOM crop; only app header and bottom navigation hidden during capture",
+      "selector": "locator('.theme-choice').locator('..')"
+    },
+    "theme_home_light_after": {
+      "file": "codex_theme_home_light_after.png",
+      "globalTheme": "light",
+      "route": "/#/",
+      "source": "Unmodified current mobile DOM"
+    },
+    "theme_reader_light": {
+      "file": "codex_theme_reader_light.png",
+      "globalTheme": "light",
+      "route": "/#/entries/codex-film-album-0",
+      "source": "Unmodified current mobile DOM"
+    },
+    "theme_reader_menu_light": {
+      "file": "codex_theme_reader_menu_light.png",
+      "globalTheme": "light",
+      "route": "/#/entries/codex-film-album-0",
+      "source": "Unmodified current mobile DOM"
+    },
+    "theme_reader_controls_light": {
+      "file": "codex_theme_reader_controls_light.png",
+      "globalTheme": "light",
+      "route": "/#/entries/codex-film-album-0",
+      "source": "Actual DOM crop; only app header and bottom navigation hidden during capture",
+      "selector": "locator('.codex-reader-settings')"
+    },
+    "theme_reader_menu_dark": {
+      "file": "codex_theme_reader_menu_dark.png",
+      "globalTheme": "light",
+      "route": "/#/entries/codex-film-album-0",
+      "source": "Unmodified current mobile DOM"
+    },
+    "theme_reader_controls_dark": {
+      "file": "codex_theme_reader_controls_dark.png",
+      "globalTheme": "light",
+      "route": "/#/entries/codex-film-album-0",
+      "source": "Actual DOM crop; only app header and bottom navigation hidden during capture",
+      "selector": "locator('.codex-reader-settings')"
+    },
+    "theme_reader_dark": {
+      "file": "codex_theme_reader_dark.png",
+      "globalTheme": "light",
+      "route": "/#/entries/codex-film-album-0",
+      "source": "Unmodified current mobile DOM"
+    },
+    "theme_reader_menu_light_after": {
+      "file": "codex_theme_reader_menu_light_after.png",
+      "globalTheme": "light",
+      "route": "/#/entries/codex-film-album-0",
+      "source": "Unmodified current mobile DOM"
+    },
+    "theme_reader_controls_light_after": {
+      "file": "codex_theme_reader_controls_light_after.png",
+      "globalTheme": "light",
+      "route": "/#/entries/codex-film-album-0",
+      "source": "Actual DOM crop; only app header and bottom navigation hidden during capture",
+      "selector": "locator('.codex-reader-settings')"
+    },
+    "theme_reader_light_after": {
+      "file": "codex_theme_reader_light_after.png",
+      "globalTheme": "light",
+      "route": "/#/entries/codex-film-album-0",
+      "source": "Unmodified current mobile DOM"
+    }
+  },
+  "palette": {
+    "light": {
+      "--paper-soft": "#f3f6f0",
+      "--paper": "#fffdf8",
+      "--ink": "#161712",
+      "--muted": "#5d6b62",
+      "--amber": "#c9973f",
+      "--amber-ink": "#7d5a1f",
+      "--line": "#dfe5dc",
+      "--neu-ink": "#245448",
+      "--on-deep": "#fffdf8",
+      "--green-900": "#0b3029"
+    },
+    "dark": {
+      "--paper-soft": "#0b0f0d",
+      "--paper": "#222924",
+      "--ink": "#e9e7de",
+      "--muted": "#a3b1a8",
+      "--amber": "#e0b567",
+      "--amber-ink": "#e0b567",
+      "--line": "#333d37",
+      "--neu-ink": "#a9c5ae",
+      "--on-deep": "#fffdf8",
+      "--green-900": "#dde3d9"
+    }
+  },
+  "layout": {
+    "appearance": {
+      "跟随系统": {
+        "centerX": 201,
+        "centerY": 547
+      },
+      "浅色": {
+        "centerX": 525,
+        "centerY": 547
+      },
+      "深色": {
+        "centerX": 849,
+        "centerY": 547
+      }
+    },
+    "readerHeroTop": 545,
+    "readerControl": {
+      "centerX": 246,
+      "centerY": 300
+    }
+  },
+  "globalEvents": [
+    {
+      "choice": "dark",
+      "label": "深色",
+      "globalTheme": "dark",
+      "pressed": true,
+      "dataIntact": true
+    },
+    {
+      "choice": "light",
+      "label": "浅色",
+      "globalTheme": "light",
+      "pressed": true,
+      "dataIntact": true
+    }
+  ],
+  "readerEvents": [
+    {
+      "globalTheme": "light",
+      "dark": true,
+      "classDark": true,
+      "paper": "#17211e",
+      "ink": "#e9e9dd",
+      "pressed": true,
+      "clicked": "深色"
+    },
+    {
+      "globalTheme": "light",
+      "dark": false,
+      "classDark": false,
+      "paper": "#fffdf8",
+      "ink": "#161712",
+      "pressed": false,
+      "clicked": "浅色"
+    }
+  ],
+  "recordCount": 16,
+  "readerInitial": {
+    "globalTheme": "light",
+    "dark": false,
+    "classDark": false,
+    "paper": "#fffdf8",
+    "ink": "#161712"
+  },
+  "dataIntact": true,
+  "syntheticOnly": true,
+  "errors": [],
+  "generatedAt": "2026-10-02T16:01:39.119Z",
+  "cleanup": "Unused captures removed by Yves request on 2026-10-03; retained image bytes unchanged."
+}
