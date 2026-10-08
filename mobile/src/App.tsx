@@ -1536,7 +1536,7 @@ function EntryDetailPage() {
       </div>
       {error ? <p className="error">{error}</p> : null}
       {searchParams.get("draftCleanup") === "failed" ? <p className="hint">记录已保存，但原快速草稿未能清理；可稍后在草稿箱手动删除。</p> : null}
-      <article className="content-card">{entry.content}</article>
+      <article className="content-card">{entry.content}<footer className="content-word-count">字数：{entry.content.trim().length}</footer></article>
       <Suspense fallback={<p role="status">正在整理当日听感…</p>}><DailyListeningNote entry={entry} /></Suspense>
       <div className="detail-card">
         <Meta label="专辑" value={entry.albumName} />
@@ -1763,9 +1763,9 @@ function AggregateDetail({ kind }: { kind: "album" | "song" }) {
         </div>
       </div>
       {entries.some(entry => entry.type === kind) ? (
-        <Link className="primary-button full aggregate-relisten-link" to={`/relisten/${oldestEntry(entries.filter(entry => entry.type === kind)).id}`}>再次听见这{kind === "album" ? "张专辑" : "首歌"}</Link>
+        <Link className="primary-button full aggregate-action-link" to={`/relisten/${oldestEntry(entries.filter(entry => entry.type === kind)).id}`}>再次听见这{kind === "album" ? "张专辑" : "首歌"}</Link>
       ) : null}
-      {kind === "album" && albumName ? <Link className="secondary-button full" to={`/albums/timeline?${new URLSearchParams({ albumName, artistName: artistName ?? "" }).toString()}`}>查看跨年轨迹</Link> : null}
+      {kind === "album" && albumName ? <Link className="secondary-button full aggregate-action-link" to={`/albums/timeline?${new URLSearchParams({ albumName, artistName: artistName ?? "" }).toString()}`}>查看跨年轨迹</Link> : null}
       <EntryList entries={entries} />
     </Page>
   );

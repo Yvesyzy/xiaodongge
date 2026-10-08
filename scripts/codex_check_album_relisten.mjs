@@ -81,6 +81,33 @@ try {
   await page.goto(`${origin}/#/albums`);
   await page.locator(".cover-row").filter({ hasText: "艺人甲" }).click();
   assert.ok((await page.getByRole("link", { name: "再次听见这张专辑" }).getAttribute("href")).includes(albumA.id));
+  const spacing = [];
+  for (const [kind, item] of [["album", albumA], ["song", song]]) {
+    if (kind === "song") {
+      await page.goto(`${origin}/#/songs`);
+      await page.locator(".cover-row").filter({ hasText: song.songName }).click();
+    }
+    for (const theme of ["light", "dark"]) {
+      await page.evaluate(async value => (await import("/src/abu_theme.ts")).setThemeChoice(value), theme);
+      for (const width of [320, 390, 430, 768]) {
+        await page.setViewportSize({ width, height: 844 });
+        const metrics = await page.locator(".cover-editor").evaluate(cover => {
+          const nodes = [cover, ...cover.parentElement.querySelectorAll(":scope > a.full"), cover.parentElement.querySelector(".card-list")];
+          const boxes = nodes.map(el => el.getBoundingClientRect());
+          return { gaps: boxes.slice(1).map((box, i) => box.top - boxes[i].bottom), fits: document.documentElement.scrollWidth <= innerWidth };
+        });
+        spacing.push({ kind, theme, width, ...metrics });
+        assert.ok(metrics.gaps.every(gap => Math.abs(gap - 18) < 1), `Aggregate ${kind} ${theme} ${width}px gaps: ${JSON.stringify(metrics.gaps)}`);
+        assert.ok(metrics.fits, `Aggregate ${kind} fits ${width}px`);
+        if (width === 390) await page.screenshot({ path: join(output, `codex_${kind}_spacing_${theme}.png`) });
+      }
+    }
+    assert.ok((await page.getByRole("link", { name: kind === "album" ? "再次听见这张专辑" : "再次听见这首歌" }).getAttribute("href")).includes(item.id));
+    if (kind === "album") assert.ok((await page.getByRole("link", { name: "查看跨年轨迹" }).getAttribute("href")).includes("/albums/timeline?"));
+  }
+  report.spacing = spacing;
+  report.checks.push("album/song aggregate buttons and record cards have matching 18px gaps at four widths in light/dark themes; action links remain intact");
+  await page.setViewportSize({ width: 390, height: 844 });
   report.checks.push("album record and aggregate both open the album's own blind relisten flow");
 
   await page.goto(`${origin}/#/`);

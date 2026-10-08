@@ -195,9 +195,7 @@
 .app-shell.task-route .entry-save-actions { bottom: max(12px, env(safe-area-inset-bottom)); }
 .task-back { border: 0; background: none; color: inherit; font: inherit; padding: 0; text-align: left; cursor: pointer; }
 
-/* Touch targets. Measured with scripts/abu_a11y_check.mjs; 44px is the iOS HIG
-   and WCAG 2.5.5 figure — WCAG 2.2 AA only asks for 24px, so these are the
-   controls where a mis-tap actually costs the user something. */
+/* Touch targets. Measured with scripts/abu_a11y_check.mjs. */
 .app-shell .brand { min-height: 44px; }
 .app-shell .header-menu { width: 44px; height: 44px; top: calc(14px + env(safe-area-inset-top)); }
 .app-shell :is(.genre-tree-chip, .rating-mod-btn) { min-height: 44px; }
