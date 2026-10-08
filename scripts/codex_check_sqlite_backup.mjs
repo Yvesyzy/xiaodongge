@@ -12,7 +12,11 @@ const source = await readFile("mobile/src/store.ts", "utf8");
 const schema = source.match(/const schemaSql = `([\s\S]*?)`;/)?.[1];
 assert.ok(schema);
 const database = new DatabaseSync(":memory:");
-database.exec(schema);
+const newDimensions = ["ratingLyrics", "ratingComposition", "ratingVocals"];
+database.exec(newDimensions.reduce((sql, field) => sql.replace(`  ${field} REAL,`, ""), schema));
+database.prepare("INSERT INTO ReviewEntry (id, type, title, year, content, rating, ratingModifier, ratingProduction, ratingSongwriting, ratingOriginality, ratingResonance, compositeRatingLocked, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+  .run("codex-sqlite-legacy-score", "album", "旧表评分", 2026, "合成旧记录", 9.2, "+", 8, 6, 9, 7, 1, "2026-09-01T00:00:00Z", "2026-09-01T00:00:00Z");
+const legacyBefore = database.prepare("SELECT * FROM ReviewEntry WHERE id = ?").get("codex-sqlite-legacy-score");
 database.exec("PRAGMA foreign_keys = ON");
 const browser = await chromium.launch({ headless: true, channel: "chrome" });
 let failNextUndoWrite = false;
@@ -23,6 +27,7 @@ try {
   const page = await browser.newPage({ timezoneId: "Asia/Shanghai" });
   await page.route("**/*", (route) => new URL(route.request().url()).origin === origin ? route.continue() : route.abort());
   await page.exposeFunction("codexSQLite", ({ method, statement, values = [], set, transaction }) => {
+    if (method === "execute") { database.exec(statement); return { changes: { changes: 0 } }; }
     if (method === "query") return { values: database.prepare(statement).all(...values) };
     if (method === "run") {
       if (failNextUndoWrite && statement.includes("UndoBackup")) {
@@ -57,7 +62,26 @@ try {
   });
 
   await page.goto(`${origin}/#/privacy`);
+  await page.evaluate(async () => {
+    const { store } = await import("/src/store.ts");
+    const connection = {
+      isDBOpen: async () => ({ result: true }),
+      execute: statement => window.codexSQLite({ method: "execute", statement }),
+      query: (statement, values) => window.codexSQLite({ method: "query", statement, values }),
+      run: (statement, values) => window.codexSQLite({ method: "run", statement, values }),
+    };
+    store.sqlite = { isConnection: async () => ({ result: true }), retrieveConnection: async () => connection };
+    window.Capacitor.isNativePlatform = () => true;
+    await store.init();
+    await store.init();
+  });
+  const legacyAfter = database.prepare("SELECT * FROM ReviewEntry WHERE id = ?").get("codex-sqlite-legacy-score");
+  for (const [key, value] of Object.entries(legacyBefore)) assert.deepEqual(legacyAfter[key], value, `Old-table migration preserves ${key}`);
+  for (const field of newDimensions) assert.equal(legacyAfter[field], null, "new columns start empty without splitting legacy scores");
   const entries = makeJournalFixtures("6");
+  entries[0] = { ...entries[0], rating: 7.3, ratingProduction: 8, ratingLyrics: 6.5, ratingComposition: 7.5,
+    ratingVocals: 8, ratingOriginality: 7, ratingResonance: 7, ratingSongwriting: 6, compositeRatingLocked: false };
+  for (const field of newDimensions) delete entries[1][field];
   const now = new Date().toISOString();
   const raw = backupPath
     ? await readFile(backupPath, "utf8")
@@ -87,6 +111,20 @@ try {
   assert.deepEqual(result.summaries, original.summaries);
   assert.deepEqual(result.listeningMoments, original.listeningMoments);
   assert.deepEqual(result.appData, original.appData);
+  if (!backupPath) {
+    const legacy = result.entries.find(entry => entry.id === entries[1].id);
+    for (const field of newDimensions) assert.equal(legacy[field], null, "absent fields in legacy backups read back as null");
+  }
+
+  for (const field of newDimensions) {
+    for (const invalid of [0, 10.5, 7.2, "8"]) {
+      const damaged = structuredClone(original);
+      damaged.entries[0][field] = invalid;
+      await assert.rejects(page.evaluate(value => import("/src/store.ts").then(({ store }) => store.importBackup(value)), JSON.stringify(damaged)), /评分|必须是有效数字/);
+    }
+  }
+  const afterInvalid = await page.evaluate(async () => JSON.parse(await (await import("/src/store.ts")).store.exportBackup()));
+  assert.deepEqual({ ...afterInvalid, exportedAt: result.exportedAt }, result, "invalid dimension imports do not mutate stored data");
 
   failNextEntryInsert = true;
   await assert.rejects(page.evaluate(async (input) => (await import("/src/store.ts")).store.importBackup(input), raw), /模拟 ReviewEntry 写入失败/);
@@ -142,7 +180,7 @@ try {
   assert.deepEqual(coverless.restored.entries, result.entries);
   assert.deepEqual(coverless.restored.covers, original.covers);
 
-  result = { entries: result.entries.length, covers: result.covers.length, monthlySummaries: result.monthlySummaries.length, summaries: result.summaries.length, transactionRollback: true, undoAtomicFailure: true, undoRoundTrip: true, coverlessRoundTrip: true, engine: "Node SQLite with Android executeSet contract" };
+  result = { entries: result.entries.length, covers: result.covers.length, monthlySummaries: result.monthlySummaries.length, summaries: result.summaries.length, oldTableUpgrade: true, dimensionValidation: true, transactionRollback: true, undoAtomicFailure: true, undoRoundTrip: true, coverlessRoundTrip: true, engine: "Node SQLite with Android executeSet contract" };
 } finally {
   await browser.close();
   database.close();

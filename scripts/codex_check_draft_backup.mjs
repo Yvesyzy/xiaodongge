@@ -230,6 +230,12 @@ const TARGET_DRAFTS = [
   makeDraft({ key: `${DRAFT_PREFIX}edit:${BASE_ENTRIES[0].id}`, title: "导入编辑", mode: "edit", entryId: BASE_ENTRIES[0].id, baseUpdatedAt: BASE_ENTRIES[0].updatedAt, draftId: null, savedAt: "2026-09-23T00:01:03.000Z" }),
 ];
 
+for (const draft of [BASE_DRAFTS[1], TARGET_DRAFTS[1]]) {
+  const parsed = JSON.parse(draft.raw);
+  Object.assign(parsed.fields, { ratingLyrics: "7", ratingComposition: "8", ratingVocals: "9" });
+  draft.raw = JSON.stringify(parsed);
+}
+
 function makePayload(version, drafts = undefined, suffix = "") {
   const entries = clone(BASE_ENTRIES);
   if (suffix) entries[0].content += ` ${suffix}`;
@@ -274,6 +280,12 @@ function withoutExportedAt(value) {
 function normalizeBackup(value) {
   const copy = clone(value);
   delete copy.exportedAt;
+  // Missing optional fields in pre-six-dimension backups normalize to SQL NULL.
+  for (const entry of copy.entries) {
+    entry.ratingLyrics ??= null;
+    entry.ratingComposition ??= null;
+    entry.ratingVocals ??= null;
+  }
   if (copy.drafts) copy.drafts.sort((a, b) => a.key.localeCompare(b.key));
   return copy;
 }

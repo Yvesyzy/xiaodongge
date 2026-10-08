@@ -13,6 +13,7 @@ export function makeJournalFixtures(scenario = '6') {
         content: `模拟记录 ${i + 1}。最先留住我的，是鼓点之间的空白。\n\n整张作品的编曲比较克制，器乐层次很清楚。目前最喜欢的是它的空间感，也想再留意一下人声和鼓点的配合。`,
         tags: ['编曲', '器乐', '留白'], moods: ['平静'], rating: i % 4 === 0 ? null : 7.5,
         ratingModifier: null, ratingProduction: null, ratingSongwriting: null, ratingOriginality: null, ratingResonance: null, compositeRatingLocked: false,
+        ratingLyrics: null, ratingComposition: null, ratingVocals: null,
         firstListenedAt: '2020-01-01T00:00:00.000Z', listenedAt: '2025-12-01T00:00:00.000Z', createdAt, updatedAt: createdAt });
     }
   });

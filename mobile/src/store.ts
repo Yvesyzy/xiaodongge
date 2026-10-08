@@ -44,6 +44,9 @@ CREATE TABLE IF NOT EXISTS ReviewEntry (
   ratingModifier TEXT,
   ratingProduction REAL,
   ratingSongwriting REAL,
+  ratingLyrics REAL,
+  ratingComposition REAL,
+  ratingVocals REAL,
   ratingOriginality REAL,
   ratingResonance REAL,
   compositeRatingLocked INTEGER NOT NULL DEFAULT 0,
@@ -163,7 +166,7 @@ class Store {
     if (!(columns.values ?? []).some((column) => column.name === "firstListenedAt")) {
       await this.db.run("ALTER TABLE ReviewEntry ADD COLUMN firstListenedAt TEXT");
     }
-    for (const dim of ["ratingProduction", "ratingSongwriting", "ratingOriginality", "ratingResonance"] as const) {
+    for (const dim of ["ratingProduction", "ratingSongwriting", "ratingLyrics", "ratingComposition", "ratingVocals", "ratingOriginality", "ratingResonance"] as const) {
       if (!(columns.values ?? []).some((column) => column.name === dim)) {
         await this.db.run(`ALTER TABLE ReviewEntry ADD COLUMN ${dim} REAL`);
       }
@@ -207,7 +210,7 @@ class Store {
       return entry;
     }
     await this.dbReady().run(
-      `INSERT INTO ReviewEntry (id, type, title, year, month, albumName, songName, artistName, musicMetadata, content, tags, moods, rating, ratingModifier, ratingProduction, ratingSongwriting, ratingOriginality, ratingResonance, compositeRatingLocked, firstListenedAt, listenedAt, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO ReviewEntry (id, type, title, year, month, albumName, songName, artistName, musicMetadata, content, tags, moods, rating, ratingModifier, ratingProduction, ratingSongwriting, ratingLyrics, ratingComposition, ratingVocals, ratingOriginality, ratingResonance, compositeRatingLocked, firstListenedAt, listenedAt, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       entryValues(entry),
     );
     await this.markGeneratedSummariesStale([entry]);
@@ -226,8 +229,8 @@ class Store {
       return entry;
     }
     await this.dbReady().run(
-      `UPDATE ReviewEntry SET type=?, title=?, year=?, month=?, albumName=?, songName=?, artistName=?, musicMetadata=?, content=?, tags=?, moods=?, rating=?, ratingModifier=?, ratingProduction=?, ratingSongwriting=?, ratingOriginality=?, ratingResonance=?, compositeRatingLocked=?, firstListenedAt=?, listenedAt=?, updatedAt=? WHERE id=?`,
-      [entry.type, entry.title, entry.year, entry.month, entry.albumName, entry.songName, entry.artistName, encodeMusicMetadata(entry.musicMetadata), entry.content, JSON.stringify(entry.tags), JSON.stringify(entry.moods), entry.rating, entry.ratingModifier, entry.ratingProduction, entry.ratingSongwriting, entry.ratingOriginality, entry.ratingResonance, entry.compositeRatingLocked ? 1 : 0, entry.firstListenedAt, entry.listenedAt, entry.updatedAt, id],
+      `UPDATE ReviewEntry SET type=?, title=?, year=?, month=?, albumName=?, songName=?, artistName=?, musicMetadata=?, content=?, tags=?, moods=?, rating=?, ratingModifier=?, ratingProduction=?, ratingSongwriting=?, ratingLyrics=?, ratingComposition=?, ratingVocals=?, ratingOriginality=?, ratingResonance=?, compositeRatingLocked=?, firstListenedAt=?, listenedAt=?, updatedAt=? WHERE id=?`,
+      [entry.type, entry.title, entry.year, entry.month, entry.albumName, entry.songName, entry.artistName, encodeMusicMetadata(entry.musicMetadata), entry.content, JSON.stringify(entry.tags), JSON.stringify(entry.moods), entry.rating, entry.ratingModifier, entry.ratingProduction, entry.ratingSongwriting, entry.ratingLyrics ?? null, entry.ratingComposition ?? null, entry.ratingVocals ?? null, entry.ratingOriginality, entry.ratingResonance, entry.compositeRatingLocked ? 1 : 0, entry.firstListenedAt, entry.listenedAt, entry.updatedAt, id],
     );
     await this.markGeneratedSummariesStale([old, entry]);
     return entry;
@@ -914,14 +917,14 @@ class Store {
     }
 
     const set: capSQLiteSet[] = [
-      // Android executeSet requires values even for statements without parameters.
+      // Native executeSet requires values even for statements without parameters.
       { statement: "DELETE FROM ListeningMoment", values: [] },
       { statement: "DELETE FROM ReviewEntry", values: [] },
       { statement: "DELETE FROM YearlySummary", values: [] },
       { statement: "DELETE FROM MonthlySummary", values: [] },
       { statement: "DELETE FROM CoverImage", values: [] },
       { statement: "DELETE FROM AppData", values: [] },
-      ...backup.entries.map((entry) => ({ statement: "INSERT INTO ReviewEntry (id, type, title, year, month, albumName, songName, artistName, musicMetadata, content, tags, moods, rating, ratingModifier, ratingProduction, ratingSongwriting, ratingOriginality, ratingResonance, compositeRatingLocked, firstListenedAt, listenedAt, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", values: entryValues(entry) })),
+      ...backup.entries.map((entry) => ({ statement: "INSERT INTO ReviewEntry (id, type, title, year, month, albumName, songName, artistName, musicMetadata, content, tags, moods, rating, ratingModifier, ratingProduction, ratingSongwriting, ratingLyrics, ratingComposition, ratingVocals, ratingOriginality, ratingResonance, compositeRatingLocked, firstListenedAt, listenedAt, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", values: entryValues(entry) })),
       ...backup.listeningMoments.map((moment) => ({ statement: "INSERT INTO ListeningMoment (id, entryId, listenedAt, rating, ratingModifier, moods, content, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", values: listeningMomentValues(moment) })),
       ...backup.summaries.map((summary) => ({ statement: "INSERT INTO YearlySummary (id, year, title, content, analysisJson, analysisVersion, sourceFingerprint, sourceEntryCount, generatedAt, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", values: summaryValues(summary) })),
       ...backup.monthlySummaries.map((summary) => ({ statement: "INSERT INTO MonthlySummary (id, year, month, title, content, themeId, analysisJson, analysisVersion, sourceFingerprint, sourceEntryCount, generatedAt, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", values: monthlySummaryValues(summary) })),
@@ -1088,6 +1091,9 @@ function rowToEntry(row: Record<string, unknown>): ReviewEntry {
     ratingModifier: safeParseRatingModifier(nullableString(row.ratingModifier)),
     ratingProduction: row.ratingProduction === null || row.ratingProduction === undefined ? null : Number(row.ratingProduction),
     ratingSongwriting: row.ratingSongwriting === null || row.ratingSongwriting === undefined ? null : Number(row.ratingSongwriting),
+    ratingLyrics: row.ratingLyrics === null || row.ratingLyrics === undefined ? null : Number(row.ratingLyrics),
+    ratingComposition: row.ratingComposition === null || row.ratingComposition === undefined ? null : Number(row.ratingComposition),
+    ratingVocals: row.ratingVocals === null || row.ratingVocals === undefined ? null : Number(row.ratingVocals),
     ratingOriginality: row.ratingOriginality === null || row.ratingOriginality === undefined ? null : Number(row.ratingOriginality),
     ratingResonance: row.ratingResonance === null || row.ratingResonance === undefined ? null : Number(row.ratingResonance),
     compositeRatingLocked: Number(row.compositeRatingLocked) === 1,
@@ -1159,7 +1165,7 @@ function rowToListeningMoment(row: Record<string, unknown>): ListeningMoment {
 }
 
 function entryValues(entry: ReviewEntry) {
-  return [entry.id, entry.type, entry.title, entry.year, entry.month, entry.albumName, entry.songName, entry.artistName, encodeMusicMetadata(entry.musicMetadata), entry.content, JSON.stringify(entry.tags), JSON.stringify(entry.moods), entry.rating, entry.ratingModifier, entry.ratingProduction, entry.ratingSongwriting, entry.ratingOriginality, entry.ratingResonance, entry.compositeRatingLocked ? 1 : 0, entry.firstListenedAt, entry.listenedAt, entry.createdAt, entry.updatedAt];
+  return [entry.id, entry.type, entry.title, entry.year, entry.month, entry.albumName, entry.songName, entry.artistName, encodeMusicMetadata(entry.musicMetadata), entry.content, JSON.stringify(entry.tags), JSON.stringify(entry.moods), entry.rating, entry.ratingModifier, entry.ratingProduction, entry.ratingSongwriting, entry.ratingLyrics ?? null, entry.ratingComposition ?? null, entry.ratingVocals ?? null, entry.ratingOriginality, entry.ratingResonance, entry.compositeRatingLocked ? 1 : 0, entry.firstListenedAt, entry.listenedAt, entry.createdAt, entry.updatedAt];
 }
 
 function summaryValues(summary: YearlySummary) {
@@ -1188,8 +1194,8 @@ function validateEntry(entry: ReviewEntry) {
   // ponytail: 综合分允许 0.1 步进（多维度均值自动计算），不再强制 0.5 步进
   if (entry.ratingModifier !== null && entry.ratingModifier !== "+" && entry.ratingModifier !== "-") throw new Error("评分修饰符必须是 + 或 -");
   if (entry.rating === null && entry.ratingModifier !== null) throw new Error("评分修饰符只能与评分一起使用");
-  for (const [dim, label] of [["ratingProduction", "制作"], ["ratingSongwriting", "词曲"], ["ratingOriginality", "原创性"], ["ratingResonance", "共鸣"]] as const) {
-    const value = entry[dim];
+  for (const [dim, label] of [["ratingProduction", "制作"], ["ratingSongwriting", "词曲"], ["ratingLyrics", "词"], ["ratingComposition", "曲"], ["ratingVocals", "人声"], ["ratingOriginality", "原创性"], ["ratingResonance", "共鸣"]] as const) {
+    const value = entry[dim] ?? null;
     if (value !== null && (typeof value !== "number" || !Number.isFinite(value) || value < 0.5 || value > 10)) throw new Error(`${label}评分范围必须是 0.5-10`);
     if (value !== null && !isHalfStep(value)) throw new Error(`${label}评分必须是 0.5 的整数倍`);
   }
@@ -1433,6 +1439,9 @@ function readEntry(value: unknown, metadataRequired = false): ReviewEntry {
     ratingModifier: parseRatingModifier(readNullableField(value.ratingModifier, "entries.ratingModifier")),
     ratingProduction: readNullableNumber(value.ratingProduction, "entries.ratingProduction"),
     ratingSongwriting: readNullableNumber(value.ratingSongwriting, "entries.ratingSongwriting"),
+    ratingLyrics: readNullableNumber(value.ratingLyrics, "entries.ratingLyrics"),
+    ratingComposition: readNullableNumber(value.ratingComposition, "entries.ratingComposition"),
+    ratingVocals: readNullableNumber(value.ratingVocals, "entries.ratingVocals"),
     ratingOriginality: readNullableNumber(value.ratingOriginality, "entries.ratingOriginality"),
     ratingResonance: readNullableNumber(value.ratingResonance, "entries.ratingResonance"),
     compositeRatingLocked: value.compositeRatingLocked === true,
