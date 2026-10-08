@@ -1,4 +1,5 @@
 import { Capacitor } from "@capacitor/core";
+import { privacyFetch, requirePrivacyConsent } from "./codex_privacy";
 import { CapacitorSQLite, SQLiteConnection, type capSQLiteSet, type SQLiteDBConnection } from "@capacitor-community/sqlite";
 import { buildAbstractMusicMap, buildVisualizationOptions, type VisualizationFilters } from "../../shared/visualizations";
 import { fetchHistoricalWeather, fetchHistoricalWeatherRange, parseWeatherLocation, parseWeatherRecord, searchWeatherLocations, type WeatherLocation, type WeatherRecord } from "../../shared/listeningContext";
@@ -499,7 +500,7 @@ class Store {
   }
 
   async searchWeatherLocations(query: string) {
-    return searchWeatherLocations(query);
+    return searchWeatherLocations(query, privacyFetch);
   }
 
   async getWeatherLocation() {
@@ -563,7 +564,8 @@ class Store {
   async refreshWeatherForDate(date: string) {
     const location = await this.getWeatherLocation();
     if (!location) throw new Error("请先选择天气城市");
-    const weather = await fetchHistoricalWeather(location, date);
+    const weather = await fetchHistoricalWeather(location, date, privacyFetch);
+    requirePrivacyConsent();
     await this.setAppData(weatherKey(location, date), JSON.stringify(weather));
     await this.markContextSummariesStale(date);
     return weather;
@@ -948,7 +950,8 @@ class Store {
     const missing = dates.filter((_, index) => !cached[index]);
     if (missing.length) {
       try {
-        const fetched = await fetchHistoricalWeatherRange(location, missing[0], missing[missing.length - 1]);
+        const fetched = await fetchHistoricalWeatherRange(location, missing[0], missing[missing.length - 1], privacyFetch);
+        requirePrivacyConsent();
         const wanted = new Set(missing);
         for (const weather of fetched) {
           if (!wanted.has(weather.date)) continue;

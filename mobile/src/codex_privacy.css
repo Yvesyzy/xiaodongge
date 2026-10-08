@@ -1,0 +1,11 @@
+.codex-privacy-screen { max-width: 48rem; margin: 0 auto; padding: max(24px, env(safe-area-inset-top)) 20px 32px; }
+.codex-privacy-choice { margin-bottom: 20px; }
+.codex-privacy-choice p, .codex-privacy-policy p { line-height: 1.8; overflow-wrap: anywhere; }
+.codex-privacy-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 20px; }
+.codex-privacy-actions button { flex: 1 1 13rem; min-height: 48px; }
+.codex-privacy-policy h3 { margin-top: 24px; }
+.codex-privacy-policy a { color: var(--green-800); text-decoration: underline; }
+.codex-privacy-local { margin: 0 0 16px; padding: 12px; border: 1px solid var(--line); border-radius: 12px; color: var(--muted); }
+[data-theme="dark"] .codex-privacy-actions .primary-button { border-color: #3d7365; background: linear-gradient(145deg, #356e5e, #27584a); color: #fff; }
+[data-theme="dark"] .codex-privacy-actions .secondary-button { background: var(--paper); border-color: var(--line); color: var(--ink); }
+.app-shell:has(.codex-reader) .codex-privacy-local { display: none; }

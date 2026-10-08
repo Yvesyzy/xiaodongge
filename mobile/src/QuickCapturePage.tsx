@@ -7,6 +7,7 @@ import { countNewDrafts, createNewDraftId, MAX_NEW_DRAFTS, readEntryDraft, remov
 import { findEntryIdentityMatches, sameMusicIdentity, type MusicIdentity } from "./musicIdentity";
 import { mergeMusicMetadata } from "./musicMetadata";
 import { NowPlaying, supportsCurrentPlayback } from "./nativeNowPlaying";
+import { hasPrivacyConsent, privacyAllowsImage } from "./codex_privacy";
 import { readSharedMusic } from "./nativeSharedMusic";
 import { applyAppleCatalogMatch, findAppleCatalogMatch, parseCatalogSearchResult, parseNowPlayingResult, type ParsedNowPlayingResult } from "./nowPlaying";
 import { quickCaptureToEntryInput, recentSavedMoods } from "./quickCapture";
@@ -202,6 +203,10 @@ export default function QuickCapturePage() {
   });
 
   async function refreshNowPlaying() {
+    if (!hasPrivacyConsent()) {
+      setPlaybackStatus({ text: "仅使用本地功能，仍可手动填写；可在隐私说明中开启当前播放读取。", error: false });
+      return;
+    }
     if (pendingSwitchRef.current) return;
     const requestId = ++nowPlayingRequestRef.current;
     const startRevision = formRevisionRef.current;
@@ -399,7 +404,8 @@ export default function QuickCapturePage() {
     </section>
   );
 
-  const artwork = musicMetadata?.artworkUri ?? null;
+  const artworkUri = musicMetadata?.artworkUri;
+  const artwork = artworkUri && privacyAllowsImage(artworkUri) ? artworkUri : null;
   return (
     <section className="page quick-capture-page">
       <div className="page-heading">
@@ -414,7 +420,7 @@ export default function QuickCapturePage() {
           <strong>{albumName || title || "还没有专辑信息"}</strong>
           <span>{[artistName, musicMetadata?.displayTitle || songName].filter(Boolean).join(" · ") || (supportsCurrentPlayback ? "读取当前播放，或手动填写" : "手动填写或粘贴作品信息")}</span>
         </div>
-        {supportsCurrentPlayback ? <button type="button" className="secondary-button" onClick={() => refreshNowPlaying()} disabled={busy}>{busy ? "读取中" : "读取当前播放"}</button> : null}
+        {supportsCurrentPlayback ? <button type="button" className="secondary-button" onClick={() => refreshNowPlaying()} disabled={busy || !hasPrivacyConsent()}>{busy ? "读取中" : "读取当前播放"}</button> : null}
       </section>
       <div className="quick-playback-status">
         {playbackStatus ? <p className={playbackStatus.error ? "error" : "hint"} role="status" aria-live="polite">{playbackStatus.text}</p> : null}

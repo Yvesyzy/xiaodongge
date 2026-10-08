@@ -1,5 +1,6 @@
 package com.yves.musicarchive;
 
+import android.content.Context;
 import android.graphics.Rect;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -10,6 +11,7 @@ import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import com.google.mlkit.common.MlKit;
 import com.google.mlkit.vision.common.InputImage;
 import com.google.mlkit.vision.text.Text;
 import com.google.mlkit.vision.text.TextRecognition;
@@ -21,6 +23,8 @@ public class ScreenshotOcrPlugin extends Plugin {
     // ponytail: Android36 AVD peaked at 430 MiB PSS for a 24 MP image; remeasure low-memory devices before raising either bound.
     static final int MAX_IMAGE_BYTES = 12 * 1024 * 1024;
     static final long MAX_DECODED_PIXELS = 6_000_000L;
+    private static final Object ML_KIT_LOCK = new Object();
+    private static boolean mlKitInitialized;
 
     static boolean withinByteBudget(int length) {
         return length >= 0 && length <= MAX_IMAGE_BYTES;
@@ -37,6 +41,7 @@ public class ScreenshotOcrPlugin extends Plugin {
 
     @PluginMethod
     public void recognize(PluginCall call) {
+        if (!codex_PrivacyPlugin.requireConsent(getContext(), call)) return;
         String dataUrl = call.getString("dataUrl");
         if (dataUrl == null || dataUrl.isEmpty()) {
             call.reject("缺少图片数据");
@@ -86,9 +91,14 @@ public class ScreenshotOcrPlugin extends Plugin {
             call.reject("图片尺寸过大，请裁剪或更换图片");
             return;
         }
+        if (!codex_PrivacyPlugin.requireConsent(getContext(), call)) {
+            bitmap.recycle();
+            return;
+        }
 
         TextRecognizer recognizer = null;
         try {
+            initializeMlKit(getContext());
             InputImage image = InputImage.fromBitmap(bitmap, 0);
             recognizer = TextRecognition.getClient(new ChineseTextRecognizerOptions.Builder().build());
             final TextRecognizer worker = recognizer;
@@ -120,6 +130,15 @@ public class ScreenshotOcrPlugin extends Plugin {
         } catch (OutOfMemoryError error) {
             try { if (recognizer != null) recognizer.close(); } finally { bitmap.recycle(); }
             call.reject("图片占用内存过大，请裁剪或更换图片");
+        }
+    }
+
+    private static void initializeMlKit(Context context) {
+        synchronized (ML_KIT_LOCK) {
+            if (mlKitInitialized) return;
+            Context applicationContext = context.getApplicationContext();
+            MlKit.initialize(applicationContext == null ? context : applicationContext);
+            mlKitInitialized = true;
         }
     }
 

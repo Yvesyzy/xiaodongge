@@ -15,6 +15,8 @@ import { journalRating } from "./codex_yearbookModel";
 import { mergeMusicMetadata } from "./musicMetadata";
 import { groupMusicEntries, normalizeMusicIdentityText, sameAlbumIdentity, sameMusicIdentity } from "./musicIdentity";
 import { NowPlaying, supportsCurrentPlayback } from "./nativeNowPlaying";
+import { hasPrivacyConsent, requirePrivacyConsent } from "./codex_privacy";
+import { AndroidPrivacySettings, usePrivacyStatus } from "./codex_PrivacyGate";
 import { NativeExport } from "./nativeExport";
 import { desktopPlugin } from "./codex_desktopBridge";
 import { parseSharedMusicPayload, rememberSharedMusic, SharedMusic } from "./nativeSharedMusic";
@@ -80,6 +82,7 @@ const DiagnosticsPage = lazy(() => import("./codex_DiagnosticsPage"));
 const MAX_OCR_IMAGE_BYTES = 12 * 1024 * 1024;
 
 export default function App() {
+  const privacyStatus = usePrivacyStatus();
   const [createSheetOpen, setCreateSheetOpen] = useState(false);
   const createButtonRef = useRef<HTMLButtonElement | null>(null);
   const lastShareIdRef = useRef("");
@@ -128,6 +131,7 @@ export default function App() {
         <Link to="/more" className="header-menu" aria-label="更多"><span /></Link>
       </header>
       <main className="app-main">
+        {Capacitor.getPlatform() === "android" && privacyStatus === "declined" ? <p className="codex-privacy-local" role="status">仅使用本地功能，记录照常保留。<Link to="/privacy">查看隐私与增强功能</Link></p> : null}
         <StorageIntegrityNotice />
         <Suspense fallback={<p role="status">正在打开页面…</p>}><Routes>
           <Route path="/" element={<HomePage />} />
@@ -233,7 +237,7 @@ function HomePage() {
       if (savedState !== nextState) await store.setStoredAppData(DAILY_RESURFACING_KEY, nextState);
       const nextResurfacing = resolved.entry ? await loadHomeCover(resolved.entry) : null;
       let currentMatches = false;
-      if (nextResurfacing && Capacitor.getPlatform() === "android") {
+      if (nextResurfacing && Capacitor.getPlatform() === "android" && hasPrivacyConsent()) {
         try {
           const current = parseNowPlayingResult(await NowPlaying.getCurrentTrack());
           if (current.fields) {
@@ -654,7 +658,7 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
   }, [draftReady, id, mode, draftId]);
 
   useEffect(() => {
-    if (draftReady && supportsCurrentPlayback) void readNowPlaying();
+    if (draftReady && supportsCurrentPlayback && hasPrivacyConsent()) void readNowPlaying();
     return () => { nowPlayingRequestRef.current += 1; };
   }, [draftReady, mode, id, draftId]);
 
@@ -900,10 +904,12 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
     setNotice("");
     setOcrBusy(true);
     try {
+      requirePrivacyConsent();
       if (!Capacitor.isNativePlatform()) throw new Error("截图识别请在 Windows 或 Android 应用中使用");
       const dataUrl = await fileToDataUrl(file);
       if (!input.isConnected) return;
       const result = await ScreenshotOcr.recognize({ dataUrl });
+      requirePrivacyConsent();
       if (!input.isConnected) return;
       const text = result.text.trim();
       if (!text) throw new Error("没有识别到文字");
@@ -1059,26 +1065,26 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
             <div className="assist-panel-head">
               <strong>当前播放</strong>
               {nowPlayingAccessEnabled === false ? (
-                <button className="secondary-button" type="button" onClick={openNotificationSettings}>打开系统设置</button>
+                <button className="secondary-button" type="button" onClick={openNotificationSettings} disabled={!hasPrivacyConsent()}>打开系统设置</button>
               ) : (
                 <button className="secondary-button" type="button" onClick={(event) => {
                   event.currentTarget.closest("section")?.scrollIntoView({ block: "center" });
                   void readNowPlaying();
-                }} disabled={nowPlayingBusy}>
+                }} disabled={nowPlayingBusy || !hasPrivacyConsent()}>
                   {nowPlayingBusy ? "读取中" : "读取当前播放"}
                 </button>
               )}
             </div>
-            <p role="status" aria-live="polite">{nowPlayingMessage || "打开新建记录时会自动读取并联网补全，只填充空白字段，不会自动保存。"}</p>
+            <p role="status" aria-live="polite">{nowPlayingMessage || (hasPrivacyConsent() ? "打开新建记录时会自动读取并联网补全，只填充空白字段，不会自动保存。" : "仅使用本地功能；可在隐私说明中开启当前播放读取。")}</p>
             <small>联网补全只会把当前歌曲名、歌手和专辑发送给 Apple 音乐目录。</small>
           </section>
         ) : null}
         <section className="assist-panel">
           <div className="assist-panel-head">
             <strong>截图识别</strong>
-            <label className={`secondary-button file-button${ocrBusy ? " disabled" : ""}`}>
+            <label className={`secondary-button file-button${ocrBusy || !hasPrivacyConsent() ? " disabled" : ""}`}>
               {ocrBusy ? "识别中" : "上传信息截图"}
-              <input type="file" accept="image/*" onChange={recognizeScreenshot} disabled={ocrBusy} />
+              <input type="file" accept="image/*" onChange={recognizeScreenshot} disabled={ocrBusy || !hasPrivacyConsent()} />
             </label>
           </div>
           {ocrText ? (
@@ -3031,6 +3037,7 @@ function Meta({ label, value }: { label: string; value: string | null }) {
 }
 
 function PrivacyPage() {
+  if (Capacitor.getPlatform() === "android") return <Page title="隐私说明" text="本地记录、增强功能与个人信息处理。"><AndroidPrivacySettings /></Page>;
   const desktop = Capacitor.getPlatform() === "electron";
   return (
     <Page title="隐私说明" text="当前播放、天气背景与本地听感分析的数据使用方式。">

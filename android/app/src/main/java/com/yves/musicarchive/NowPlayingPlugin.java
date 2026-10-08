@@ -51,6 +51,7 @@ public class NowPlayingPlugin extends Plugin {
 
     @PluginMethod
     public void getCurrentTrack(PluginCall call) {
+        if (!codex_PrivacyPlugin.requireConsent(getContext(), call)) return;
         JSObject response = new JSObject();
         boolean accessEnabled = NotificationManagerCompat.getEnabledListenerPackages(getContext())
             .contains(getContext().getPackageName());
@@ -92,6 +93,7 @@ public class NowPlayingPlugin extends Plugin {
 
     @PluginMethod
     public void searchCatalog(PluginCall call) {
+        if (!codex_PrivacyPlugin.requireConsent(getContext(), call)) return;
         String title = clean(call.getString("title"));
         String artistName = clean(call.getString("artistName"));
         String albumName = clean(call.getString("albumName"));
@@ -124,6 +126,7 @@ public class NowPlayingPlugin extends Plugin {
 
     @PluginMethod
     public void openNotificationSettings(PluginCall call) {
+        if (!codex_PrivacyPlugin.requireConsent(getContext(), call)) return;
         Intent intent = new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS);
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         getContext().startActivity(intent);

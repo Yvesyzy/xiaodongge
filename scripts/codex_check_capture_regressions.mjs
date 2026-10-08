@@ -87,11 +87,13 @@ function nativeInitScript({ tracks = [], catalog = [], ocr = [] } = {}) {
     window.codexOcrCalls = 0;
     window.Capacitor = {
       PluginHeaders: [
+        { name: "CodexPrivacy", methods: ["getState", "setConsent"].map(name => ({ name, rtype: "promise" })) },
         { name: "NowPlaying", methods: [{ name: "getCurrentTrack", rtype: "promise" }, { name: "searchCatalog", rtype: "promise" }, { name: "openNotificationSettings", rtype: "promise" }] },
         { name: "ScreenshotOcr", methods: [{ name: "recognize", rtype: "promise" }] },
         { name: "CapacitorSQLite", methods: ["createConnection", "isDBOpen", "open", "execute", "query", "run"].map(name => ({ name, rtype: "promise" })) },
       ],
       nativePromise: async (plugin, method, options) => {
+        if (plugin === "CodexPrivacy") return { status: "accepted", policyVersion: "2026-10-08" };
         if (plugin === "CapacitorSQLite") return window.codexCaptureSQLite(method, options);
         if (plugin === "NowPlaying" && method === "getCurrentTrack") {
           window.codexTrackStarted++;

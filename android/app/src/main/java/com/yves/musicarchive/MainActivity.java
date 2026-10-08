@@ -6,8 +6,10 @@ import com.getcapacitor.BridgeActivity;
 public class MainActivity extends BridgeActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
+        codex_PrivacyPlugin.syncRuntimeState(this);
         registerPlugin(ScreenshotOcrPlugin.class);
         registerPlugin(NowPlayingPlugin.class);
+        registerPlugin(codex_PrivacyPlugin.class);
         registerPlugin(SharedMusicPlugin.class);
         registerPlugin(NativeExportPlugin.class);
         registerPlugin(codex_NavigationPlugin.class);
