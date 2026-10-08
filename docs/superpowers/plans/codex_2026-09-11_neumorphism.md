@@ -20,4 +20,4 @@
 - [x] 截图：scripts/codex_check_neumorphism.mjs 使用 makeJournalFixtures 合成数据、独立浏览器，保存修改前后截图到 release/codex_neumorphism_qa；不得读取手机数据。
 - [x] 布局：320/390/430/768/1280px、三档字号、深浅阅读；检查正文左右留白、长标题、长英文断行、无横向溢出、工具栏与底栏、按压及焦点状态。
 - [x] 回归：npm.cmd run typecheck、现有阅读/首页/回顾/分享/移动体验浏览器检查、npm.cmd run mobile:build。
-- [x] 验收截图后更新本计划、docs/session_summary_2026-09-11_codex.md 与 codex_status.txt；交付可运行页面与效果截图，真机与 APK 仍为后续步骤。
+- [x] 验收截图后更新本计划、docs/session-summaries/session_summary_2026-09-11_codex.md 与 codex_status.txt；交付可运行页面与效果截图，真机与 APK 仍为后续步骤。

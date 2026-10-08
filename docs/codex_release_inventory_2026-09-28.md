@@ -110,3 +110,13 @@ T10 旧目录含一个指向项目根 `node_modules` 的 Junction。先只移除
 | `codex_worktrees_20260917` | 1,359 / 115.919 | 176 | `capture`、`data`、`native` 三个已登记 Git worktree；保留。 |
 
 `codex_v301_build_20260928` 内的测试 APK 与顶层 `codex_xiaodongge-v3.0.1.apk` SHA-256 同为 `83e623d3092c3a2f84e463c4ecea4a5550c214795c4a10792d9a3da631870525`。清理缓存或重复包可释放空间，但本轮按盘点要求未执行删除。`codex_worktrees/share`、`year` 的 37.74 MiB 源码副本需先比较其文件与 Git 历史后再决定是否清理。
+
+## 2026-09-28 执行：清理 release 下全部历史目录
+
+Yves 指示删除其列出的 release 目录并只保留 main 工作树。实际核对清单与 release 下 62 个目录完全一致，已全部删除。删除前这些目录共含 6,110 个普通文件、13,708,131,358 字节；统计没有跟随 28 个共享 Junction。
+
+28 个 Junction 链接项已逐项移除，目标主项目 node_modules 与 Cordova 插件仍存在；node_modules 顶层仍为 226 项。release 根目录原有 28 个文件均逐个复核哈希未变，包括正式 v3.0.1 APK、校验文件、签名恢复记录与备份。
+
+5 个非 main 注册工作树虽基于已合入 main 的提交，但有未提交内容。它们的改动已保存在 5 条 Git stash 中后再移除工作树；改动没有合入 main。4 个已合并的本地 codex/v29-p1* 分支已删除，当前仅 main 工作树和本地 main 分支。GitHub 远端分支未修改。
+
+本次也删除了唯一 NP1 模拟器以及历史网易云播放测试、截图和验收目录；之后需要模拟器测试时需重新创建模拟器。精确执行结果与 stash 编号见 [codex_session_summary_2026-09-28_release_directories_cleanup.md](codex_session_summary_2026-09-28_release_directories_cleanup.md)。

@@ -101,7 +101,7 @@ PowerShell 定向复查示例：`pwsh -NoProfile -File scripts/codex_verify_proj
 
 `verify:android` 使用本机 JDK/Android SDK 编译原生测试，然后直接把 Gradle 提供的运行类路径传给 JUnit，绕过本机 Java 启动器读取 Gradle 参数文件中中文路径失败的问题。它验证写入、刷新、关闭失败和空输出流，不启动系统文件选择器；真机验收另行记录。
 
-v3.0.1 的当前播放读取会在按钮附近显示结果，并在成功时列出歌曲、专辑、歌手；通知访问被撤销时提供设置入口，过期的目录补全不会覆盖正在编辑的作品。读取依赖播放器提供处于播放状态的系统媒体会话，暂停内容不会被当作当前播放。Android36 模拟器已通过系统会话检查；官方网易云 9.5.95 的实播读取记录来自先前测试，本版未重新完成在线实播。实际 B 站和其他手机系统未验，详见[播放回归交接](docs/codex_session_summary_2026-09-26_playback_review_regression.md)。
+v3.0.1 的当前播放读取会在按钮附近显示结果，并在成功时列出歌曲、专辑、歌手；通知访问被撤销时提供设置入口，过期的目录补全不会覆盖正在编辑的作品。读取依赖播放器提供处于播放状态的系统媒体会话，暂停内容不会被当作当前播放。Android36 模拟器已通过系统会话检查；官方网易云 9.5.95 的实播读取记录来自先前测试，本版未重新完成在线实播。实际 B 站和其他手机系统未验，详见[播放回归交接](docs/session-summaries/codex_session_summary_2026-09-26_playback_review_regression.md)。
 
 首次安装依赖：
 
@@ -279,17 +279,22 @@ OpenAI 调用失败时，系统会回退到本地基础总结，不影响记录�
 ## 项目结构
 
 ```text
-mobile/                           安卓 APK 的前端界面和本地存储逻辑
-mobile/src/ListeningYearbookView.tsx 每日注记、月度作品和年度标本册界面
-mobile/src/listeningYearbook.ts   日/月/年结构化结果与防重复汇总
-android/                          Capacitor 生成的 Android 工程
-shared/listeningAnalysis.ts       本地语义词典、规则、证据和校正
-shared/listeningContext.ts        日期分类、节假日、城市与历史天气
-shared/visualizations.ts          v2 可视化归类、筛选和抽象地图规则
-scripts/build-android-debug.ps1   debug APK 构建脚本
-prisma/schema.prisma              电脑端网页的数据模型
-src/app                           电脑端 Next.js 页面和 API
-docs/superpowers/specs            设计说明
+src/app/                    电脑端 Next.js 页面与 API
+mobile/                     移动端界面、本地存储与 Vite/Capacitor 构建
+android/                    Capacitor Android 原生工程与插件
+shared/                     跨端共用的分析、备份和领域逻辑
+prisma/                     Prisma 数据模型
+scripts/                    构建、检查和验证脚本（package.json 直接引用这些路径）
+docs/                       项目说明、发布说明、审查记录和设计资料
+  session-summaries/         历次会话交接总结
+  designs/                   交互与视觉方案
+  shots/                     本地截图资料（不提交 Git）
+  superpowers/               计划与规格文档
+release/                    本地 APK 与 SHA-256 文件（不提交 Git）
+node_modules/                本机安装的依赖
+codex_status.txt             Codex 工作记录与交接状态
+claude_status.txt            Claude 工作记录与交接状态
+zcode_status.txt             ZCode 工作记录与交接状态
 ```
 
 ## 本地 APK 备份

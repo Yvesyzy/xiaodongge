@@ -257,7 +257,7 @@ T04 与移动数据修补可并行；T10 可在独立原生文件范围内并行
 
 - [x] 将专辑加入详情重听入口与每日重逢筛选；沿用当前 30/90 天、周年、每日稳定选择等规则，保留歌曲行为。已有 ListeningMoment.entryId 能直接关联专辑，无需新表。
 - [x] 提交前 UI/无障碍树不显示旧评分和正文；提交后显示有来源的对比，取消不创建 ListeningMoment。
-- [x] 验证同名不同艺人、闰日/跨年、连续点击、无旧评分、源记录删除、备份/撤销；日期差计算与歌曲回归通过。证据见 `release/codex_t13_full_20260924/` 与 `docs/codex_session_summary_2026-09-24_t13.md`。
+- [x] 验证同名不同艺人、闰日/跨年、连续点击、无旧评分、源记录删除、备份/撤销；日期差计算与歌曲回归通过。证据见 `release/codex_t13_full_20260924/` 与 `docs/session-summaries/codex_session_summary_2026-09-24_t13.md`。
 
 ### T14 — I2：恢复差异与实际预演
 
@@ -268,7 +268,7 @@ T04 与移动数据修补可并行；T10 可在独立原生文件范围内并行
 - [x] Web 使用独立内存 Storage；Android 使用单独测试连接的隔离临时 SQLite 数据库与隔离草稿存储。Web 明确标“模拟恢复”，Android 实际插件通过才标“Android 隔离数据库恢复”。
 - [x] 临时库用专用随机名称、先核对不存在再创建，完成后关闭连接；真实 Android 测试确认仅创建本次名称，正式库零写入。没有删除任何数据库，隔离证据保留。
 - [x] 预演报告绑定输入备份 SHA-256、封面选项和本机数据摘要；修改后失效，正式导入在独占锁内再次比对状态。容量不足与系统文件选择器另行检查。
-- [x] 坏引用、重复 ID、错误封面键、跳过封面、无草稿旧版、隔离 SQLite 写失败及 Web 配额失败已验证；错误不标成功，正式导入仍独立确认。证据见 `release/codex_t14_full_20260924/`、`release/codex_t14_android_final_20260924/` 与 `docs/codex_session_summary_2026-09-24_t14.md`。
+- [x] 坏引用、重复 ID、错误封面键、跳过封面、无草稿旧版、隔离 SQLite 写失败及 Web 配额失败已验证；错误不标成功，正式导入仍独立确认。证据见 `release/codex_t14_full_20260924/`、`release/codex_t14_android_final_20260924/` 与 `docs/session-summaries/codex_session_summary_2026-09-24_t14.md`。
 
 ### T15 — I3：跨年专辑轨迹
 
@@ -287,7 +287,7 @@ T04 与移动数据修补可并行；T10 可在独立原生文件范围内并行
 - [x] 导出前列出具体项与原因；可定位到来源乐评或榜单理由编辑，修改并重新进入后重新规划。缺封面继续使用现有文字占位。
 - [x] 用户选择完整理由附页时保留榜单顺序、正文与换行；hideContent/hideRating/hideDate 等设置同时作用于预检、海报、附页、预检复制与实际图片分享。
 - [x] 导出前等待字体加载；保存/分享总页数使用实际规划，超过九页使用现有分批机制，附页仍在所选页面中。
-- [x] 1–15 张、长中文/emoji/标题、明暗主题、16 种隐私组合和定位编辑已验证；代表附页与预检截图人工检查。证据见 `release/codex_t16_full_20260924/`、`release/codex_t16_replan_final_20260924/` 和 `docs/codex_session_summary_2026-09-24_t16.md`；Android 系统分享体验留 T18。
+- [x] 1–15 张、长中文/emoji/标题、明暗主题、16 种隐私组合和定位编辑已验证；代表附页与预检截图人工检查。证据见 `release/codex_t16_full_20260924/`、`release/codex_t16_replan_final_20260924/` 和 `docs/session-summaries/codex_session_summary_2026-09-24_t16.md`；Android 系统分享体验留 T18。
 
 ### T17 — I5：本机诊断页
 
