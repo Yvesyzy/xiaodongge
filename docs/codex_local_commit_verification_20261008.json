@@ -1,0 +1,104 @@
+{
+  "date": "2026-10-08",
+  "branch": "main",
+  "originalBase": "9ae4e01a037690e59aed1e9ac71091baa0e27acc",
+  "functionalCommits": [
+    {
+      "hash": "6e73e5ecbe2ce322ca5cb309d86a6896ab2bf6f6",
+      "subject": "docs: archive session notes and cleanup records"
+    },
+    {
+      "hash": "44dd6cfc3012c378ed3144b1f3029448bd1954d8",
+      "subject": "fix(share): load full-review styles and theme colors"
+    },
+    {
+      "hash": "a3a674b4f6311ad6421d24e2f1051aae7d482315",
+      "subject": "feat(ratings): add six-part scores with legacy preservation"
+    },
+    {
+      "hash": "da19d0a07a2f7dd083abb75b5a8ee457dd8be758",
+      "subject": "fix(reading): show body counts and align action spacing"
+    },
+    {
+      "hash": "ccfa3756de35335c450633d21a8a3c3e9e95b7a5",
+      "subject": "fix(android): run unit checks without a nested shell"
+    },
+    {
+      "hash": "db6a716ae67a820f2a360b88fbc4040b03a1c5c8",
+      "subject": "feat(desktop): preserve Windows port and native bridges"
+    },
+    {
+      "hash": "a4045972fb97641d21019325bf20bf6a7a2ed175",
+      "subject": "feat(video): add promotional source and assets"
+    }
+  ],
+  "resumedAtLocalCommit": "8b7c6bc07bdf34546da8ebb46ecc8bb971a77725",
+  "remoteCommitFetched": "73d1630748a1b26619a33d853edfa46799830eb2",
+  "collaboration": {
+    "userConfirmedWorkBuddyCommits": true,
+    "otherSessionCommitsPreserved": true,
+    "concurrentPrivacyChangesExcluded": true
+  },
+  "historyMerge": {
+    "commit": "ee368f0281b203482d8f537c7d939fc4c6d8e725",
+    "parents": [
+      "8b7c6bc07bdf34546da8ebb46ecc8bb971a77725",
+      "73d1630748a1b26619a33d853edfa46799830eb2"
+    ],
+    "beforeTree": "dca6c5c091665015b673abaf9cbce3d275fef316",
+    "afterTree": "dca6c5c091665015b673abaf9cbce3d275fef316",
+    "committedFilesUnchanged": true,
+    "aheadBeforeCloseout": 14,
+    "behindBeforeCloseout": 0
+  },
+  "verification": {
+    "originalFunctionalStage": {
+      "fullGatePassed": 27,
+      "ratingsSnapshotChecksPassed": 8,
+      "readingSnapshotChecksPassed": 7,
+      "desktopUnitTestsPassed": 16,
+      "desktopTypecheckPassed": true,
+      "desktopBuildPassed": true,
+      "videoPngAssetsChecked": 54,
+      "videoJsonFilesParsed": 8,
+      "powershellFilesParsed": 4,
+      "evidence": "Successful tool output in this chat; original local report directory was removed by a later session."
+    },
+    "resumedSnapshot": {
+      "base": "8b7c6bc07bdf34546da8ebb46ecc8bb971a77725",
+      "unitCommand": "node --test shared/listeningAnalysis.test.ts shared/listeningContext.test.ts shared/backupAppData.test.ts",
+      "unitPassed": 32,
+      "unitExitCode": 0,
+      "rootTypeCommand": "node node_modules/typescript/bin/tsc --noEmit --incremental false",
+      "rootTypeExitCode": 0,
+      "mobileTypeCommand": "node node_modules/typescript/bin/tsc --noEmit -p mobile/tsconfig.json --incremental false",
+      "mobileTypeExitCode": 0,
+      "coversSubsequentConcurrentPrivacyEdits": false
+    },
+    "gitConnectivityExitCode": 0,
+    "productCodeChangedByThisCloseout": false
+  },
+  "retainedPackage": {
+    "path": "codex_xiaodongge_video_final_2026-10-07.zip",
+    "sha256": "fb6b68808bfc0f3d04e2bc3c4ac41968508298d05d677f2f8220a3e0980c5756",
+    "ignoreRule": "/codex_xiaodongge_video_final_2026-10-07.zip",
+    "fileRetained": true,
+    "checksumFileTracked": true
+  },
+  "cleanup": {
+    "automaticThresholdExceeded": true,
+    "observedGeneratedBytesLowerBound": 229804395,
+    "originalTaskDirectory": "release/codex_git_commit_20261008",
+    "originalTaskDirectoryExistsAtResumption": false,
+    "deletedFilesByThisCloseout": 0,
+    "deletedBytesByThisCloseout": 0,
+    "reason": "The original verification directory was already removed by another session. No temporary files are created by this closeout. Original packages, dependencies and other sessions' files are preserved."
+  },
+  "correctionsRecorded": [
+    "Added a condition wait before the existing ranking-export button assertion; product behavior unchanged.",
+    "A zero-context staged patch failed snapshot type checking and was never committed. It was replaced with contextual staging; the validated snapshot was committed.",
+    "Original font-license bytes and intentional Markdown hard line breaks were retained."
+  ],
+  "closeoutCommitSubject": "docs: record local commit verification and handover",
+  "pushedByThisChat": false
+}
