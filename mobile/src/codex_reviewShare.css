@@ -59,9 +59,12 @@
 .review-share-status { margin: 13px 0 0; color: #287565; font-size: 13px; }
 .review-share-error { margin: 13px 0 0; color: #a42d2d; font-size: 13px; }
 
-.review-share-dialog .review-journal-export { width:100%;max-height:none;padding:0;margin-top: 20px; border: 1px solid #bdc9c2; border-radius: 9px; overflow: hidden; }
+.review-share-dialog .review-journal-export.journal { --journal-green: #245448; --ink: #202724; --green-950: var(--ink); color: inherit; background: inherit; width:100%;max-height:none;padding:0;margin-top: 20px; border: 1px solid #bdc9c2; border-radius: 9px; overflow: hidden; }
+.review-share-dialog .review-journal-export.journal h2 { color: inherit; }
+.review-share-dialog .review-journal-export.journal .journal-muted { color: #606b64; }
+.review-share-dialog .review-journal-export button:not(.journal-primary) { background: transparent; color: var(--journal-green); }
 .review-journal-export .journal-export-scroll { max-height: 54dvh; padding: 16px; }
-.review-journal-export .journal-export-footer { max-height: 42dvh; }
+.review-journal-export .journal-export-footer { max-height: 42dvh; background: inherit; }
 
 @media (max-width: 520px) {
   .review-share-scroll { padding: 16px; }
@@ -76,4 +79,7 @@
   .review-share-header button, .review-share-actions button { border-color: #527264; color: #c3e7d5; }
   .review-share-fieldset { border-color: #36564a; }
   .review-share-actions .review-share-primary { border-color: #9bd4bf; background: #9bd4bf; color: #142a24; }
+  .review-share-dialog .review-journal-export.journal { --journal-green: #9bd4bf; --ink: #f2f5ef; --neu-surface: #1e3a31; --neu-shade: #030504; --neu-light: #434f48; border-color: #36564a; }
+  .review-share-dialog .review-journal-export.journal .journal-muted { color: #adc0b6; }
+  .review-share-dialog .review-journal-export .journal-primary { color: #142a24; }
 }
