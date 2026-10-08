@@ -8,12 +8,12 @@ if ($releaseItem.LinkType -or (($releaseItem.Attributes -band [IO.FileAttributes
   throw "Refusing linked release directory: $releasePath"
 }
 $releaseRoot = (Resolve-Path -LiteralPath $releasePath).Path
-$baselineApk = Join-Path $releaseRoot 'codex_xiaodongge-v2.9.apk'
-$baselineHash = 'f8923da74bb59af85bf5c86fee582e6890f4327f8091ce28c5154247fa0968c0'
+$baselineApk = Join-Path $releaseRoot 'codex_xiaodongge-v3.0.1.apk'
+$baselineHash = '83e623d3092c3a2f84e463c4ecea4a5550c214795c4a10792d9a3da631870525'
 $officialSigner = '6386734ef9b4a3fe106d690a8d31ae952697c2ea652ea1ee82f3f7ab488f1022'
 
 if (-not (Test-Path -LiteralPath $baselineApk -PathType Leaf)) { throw "Published baseline APK missing: $baselineApk" }
-if ((Get-FileHash -LiteralPath $baselineApk -Algorithm SHA256).Hash.ToLowerInvariant() -ne $baselineHash) { throw 'Published v2.9 baseline APK hash changed' }
+if ((Get-FileHash -LiteralPath $baselineApk -Algorithm SHA256).Hash.ToLowerInvariant() -ne $baselineHash) { throw 'Published v3.0.1 baseline APK hash changed' }
 if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
   $OutputDirectory = Join-Path $releaseRoot ('codex_signed_test_' + (Get-Date -Format 'yyyyMMdd_HHmmss'))
 }
@@ -52,7 +52,7 @@ $versionName = $nameMatches[0].Groups[1].Value
 $applicationId = $idMatches[0].Groups[1].Value
 $npmVersion = (Get-Content -LiteralPath (Join-Path $root 'package.json') -Raw | ConvertFrom-Json).version
 $normalizedNpmVersion = if ($npmVersion -match '^(\d+\.\d+)\.0$') { $Matches[1] } else { $npmVersion }
-if ($versionName -ne $normalizedNpmVersion) { throw "Android versionName $versionName does not match npm version $npmVersion" }
+if ($versionName -ne $npmVersion -and $versionName -ne $normalizedNpmVersion) { throw "Android versionName $versionName does not match npm version $npmVersion" }
 $capacitor = Get-Content -LiteralPath (Join-Path $root 'capacitor.config.ts') -Raw
 $capMatches = [regex]::Matches($capacitor, '(?m)^\s*appId:\s*"([^"]+)"\s*,?\s*$')
 if ($capMatches.Count -ne 1 -or $capMatches[0].Groups[1].Value -ne $applicationId) { throw 'Capacitor appId differs from Android applicationId' }
@@ -118,11 +118,14 @@ Push-Location $root
 try {
   & pwsh -NoProfile -File 'scripts/codex_verify_project.ps1' -Scope full -Output (Join-Path $outputPath 'checks') 2>&1 | Tee-Object -FilePath (Join-Path $outputPath 'gate.log')
   if ($LASTEXITCODE -ne 0) { throw 'Full project gate failed; release build stopped' }
-  & pwsh -NoProfile -File 'scripts/codex_check_android_unit.ps1' -Output (Join-Path $outputPath 'android-unit') 2>&1 | Tee-Object -FilePath (Join-Path $outputPath 'android-unit-gate.log')
+  & (Join-Path $PSScriptRoot 'codex_check_android_unit.ps1') -Output (Join-Path $outputPath 'android-unit') 2>&1 | Tee-Object -FilePath (Join-Path $outputPath 'android-unit-gate.log')
   if ($LASTEXITCODE -ne 0) { throw 'Android JUnit gate failed; release build stopped' }
 
+  Write-Output 'CHECK clean-mobile-assets'
   Remove-GeneratedDirectory 'mobile/dist'
+  Write-Output 'CHECK clean-android-assets'
   Remove-GeneratedDirectory 'android/app/src/main/assets/public'
+  Write-Output 'CHECK build-fresh-web'
   & npm.cmd run mobile:build 2>&1 | Tee-Object -FilePath (Join-Path $outputPath 'mobile-build.log')
   if ($LASTEXITCODE -ne 0) { throw 'Fresh mobile build failed' }
   & npm.cmd run android:sync 2>&1 | Tee-Object -FilePath (Join-Path $outputPath 'capacitor-sync.log')
