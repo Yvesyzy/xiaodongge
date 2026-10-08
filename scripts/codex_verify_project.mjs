@@ -24,6 +24,7 @@ const checks = {
   drafts: 'codex_check_draft_records.mjs', 'draft-backup': 'codex_check_draft_backup.mjs',
   identity: 'codex_check_music_identity.mjs', 'album-relisten': 'codex_check_album_relisten.mjs',
   'album-timeline': 'codex_check_album_timeline.mjs',
+  reading: 'codex_check_reading.mjs',
   diagnostics: 'codex_check_diagnostics.mjs',
   'restore-preview': 'codex_check_restore_preview.mjs', accessibility: 'codex_check_interaction_accessibility.mjs',
 };

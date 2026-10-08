@@ -43,6 +43,8 @@
 .codex-reader .detail-hero-copy small{font-size:12px;font-weight:500;line-height:1.6}
 .codex-reader .detail-hero .cover-art.large{width:80px;height:80px;border-radius:12px}
 .codex-reader .action-row:empty{display:none}
+.codex-reader .action-row{margin-top:16px}
 .codex-reader .content-card{letter-spacing:.015em;text-align:start}
+.codex-reader .content-word-count{margin-top:16px;color:var(--muted);font-family:system-ui,sans-serif;font-size:13px;line-height:1.6;text-align:right}
 .codex-reader .journal-body>p{margin-block:1.25em}
 @media(max-width:360px){.codex-reader .detail-hero{gap:12px}.codex-reader .detail-hero .cover-art.large{width:64px;height:64px}}
