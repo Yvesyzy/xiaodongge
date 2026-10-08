@@ -1,0 +1,125 @@
+{
+  "version": "3.1.1",
+  "theme": "light",
+  "capture": "Current GenrePicker DOM; actual expand/select clicks; isolated fictional data",
+  "viewport": {
+    "width": 390,
+    "height": 844,
+    "scale": 3
+  },
+  "majorCategories": [
+    "流行",
+    "摇滚",
+    "电子",
+    "Hip-Hop / Rap",
+    "R&B / Soul",
+    "爵士",
+    "古典",
+    "蓝调",
+    "民谣 / 世界 / 乡村",
+    "雷鬼",
+    "拉丁",
+    "金属",
+    "朋克",
+    "实验 / 工业 / 噪音",
+    "影视 / 舞台",
+    "新世纪 / 轻音乐"
+  ],
+  "visibleMajorCategories": [
+    "流行",
+    "摇滚",
+    "电子",
+    "Hip-Hop / Rap",
+    "R&B / Soul",
+    "爵士",
+    "古典",
+    "蓝调"
+  ],
+  "path": [
+    "电子",
+    "House",
+    "Deep House"
+  ],
+  "assets": {
+    "genre_overview": {
+      "file": "codex_genre_overview.png",
+      "route": "/#/entries/codex-film-album-0/edit",
+      "source": "Unmodified DOM excerpt; crop only; fixed navigation hidden during capture",
+      "size": [
+        858,
+        1350
+      ]
+    },
+    "genre_electronic": {
+      "file": "codex_genre_electronic.png",
+      "route": "/#/entries/codex-film-album-0/edit",
+      "source": "Unmodified DOM excerpt; crop only; fixed navigation hidden during capture",
+      "size": [
+        858,
+        792
+      ]
+    },
+    "genre_house": {
+      "file": "codex_genre_house.png",
+      "route": "/#/entries/codex-film-album-0/edit",
+      "source": "Unmodified DOM excerpt; crop only; fixed navigation hidden during capture",
+      "size": [
+        858,
+        855
+      ]
+    },
+    "genre_selected": {
+      "file": "codex_genre_selected.png",
+      "route": "/#/entries/codex-film-album-0/edit",
+      "source": "Unmodified DOM excerpt; crop only; fixed navigation hidden during capture",
+      "size": [
+        858,
+        855
+      ]
+    }
+  },
+  "layout": {
+    "genre_overview": {
+      "centerX": 93,
+      "centerY": 408
+    },
+    "genre_electronic": {
+      "centerX": 164,
+      "centerY": 198
+    },
+    "genre_house": {
+      "centerX": 254,
+      "centerY": 330
+    }
+  },
+  "houseChildren": [
+    "Deep House",
+    "Tech House",
+    "Acid House",
+    "Progressive House",
+    "Electro House",
+    "Future House",
+    "Bass House",
+    "Afro House",
+    "Tropical House",
+    "Chicago House",
+    "French House",
+    "Garage House",
+    "Microhouse",
+    "Organic House",
+    "Vocal House",
+    "Big Room House",
+    "Speed House"
+  ],
+  "visibleHouseChildren": [
+    "Deep House",
+    "Tech House",
+    "Acid House",
+    "Progressive House",
+    "Electro House",
+    "Future House"
+  ],
+  "selectedTags": "电子, House, Deep House",
+  "errors": [],
+  "generatedAt": "2026-10-03T01:29:53.169Z"
+}

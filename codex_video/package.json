@@ -1,0 +1,32 @@
+{
+  "name": "codex-xiaodongge-film",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "capture": "npm run capture:light && npm run capture:theme && npm run capture:genre",
+    "studio": "remotion studio src/codex_index_v6.tsx",
+    "render": "node scripts/codex_render.mjs",
+    "check": "node scripts/codex_check.mjs",
+    "audio": "python -B scripts/codex_synthesize_v6.py",
+    "stills": "node scripts/codex_render.mjs --stills",
+    "render:portrait": "node scripts/codex_render.mjs --format=portrait",
+    "render:landscape": "node scripts/codex_render.mjs --format=landscape",
+    "capture:light": "node scripts/codex_capture_light.mjs",
+    "capture:theme": "node scripts/codex_capture_theme.mjs",
+    "capture:genre": "node scripts/codex_capture_genre.mjs",
+    "studio:v6": "remotion studio src/codex_index_v6.tsx",
+    "audio:v6": "python -B scripts/codex_synthesize_v6.py",
+    "stills:v6": "node scripts/codex_render.mjs --version=v6 --stills",
+    "render:v6": "node scripts/codex_render.mjs --version=v6",
+    "check:v6": "node scripts/codex_check.mjs --version=v6"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.529",
+    "@remotion/renderer": "4.0.529",
+    "@remotion/bundler": "4.0.529",
+    "remotion": "4.0.529",
+    "react": "19.2.7",
+    "react-dom": "19.2.7"
+  }
+}

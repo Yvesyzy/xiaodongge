@@ -1,0 +1,62 @@
+{
+  "codex_theme_appearance_dark.png": [
+    1050,
+    666
+  ],
+  "codex_theme_appearance_light.png": [
+    1050,
+    666
+  ],
+  "codex_theme_appearance_light_after.png": [
+    1050,
+    666
+  ],
+  "codex_theme_home_dark.png": [
+    1170,
+    2532
+  ],
+  "codex_theme_home_light.png": [
+    1170,
+    2532
+  ],
+  "codex_theme_home_light_after.png": [
+    1170,
+    2532
+  ],
+  "codex_theme_reader_controls_dark.png": [
+    492,
+    381
+  ],
+  "codex_theme_reader_controls_light.png": [
+    492,
+    381
+  ],
+  "codex_theme_reader_controls_light_after.png": [
+    492,
+    381
+  ],
+  "codex_theme_reader_dark.png": [
+    1170,
+    2532
+  ],
+  "codex_theme_reader_light.png": [
+    1170,
+    2532
+  ],
+  "codex_theme_reader_light_after.png": [
+    1170,
+    2532
+  ],
+  "codex_theme_reader_menu_dark.png": [
+    1170,
+    2532
+  ],
+  "codex_theme_reader_menu_light.png": [
+    1170,
+    2532
+  ],
+  "codex_theme_reader_menu_light_after.png": [
+    1170,
+    2532
+  ]
+}

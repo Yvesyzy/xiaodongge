@@ -1,0 +1,142 @@
+{
+  "codex_app_icon.png": [
+    192,
+    192
+  ],
+  "codex_archive_card.png": [
+    1008,
+    396
+  ],
+  "codex_comparison_score.png": [
+    936,
+    246
+  ],
+  "codex_cover_00.png": [
+    768,
+    768
+  ],
+  "codex_cover_01.png": [
+    768,
+    768
+  ],
+  "codex_cover_02.png": [
+    768,
+    768
+  ],
+  "codex_cover_03.png": [
+    768,
+    768
+  ],
+  "codex_cover_04.png": [
+    768,
+    768
+  ],
+  "codex_cover_05.png": [
+    768,
+    768
+  ],
+  "codex_cover_06.png": [
+    768,
+    768
+  ],
+  "codex_cover_07.png": [
+    768,
+    768
+  ],
+  "codex_cover_08.png": [
+    768,
+    768
+  ],
+  "codex_cover_09.png": [
+    768,
+    768
+  ],
+  "codex_cover_10.png": [
+    768,
+    768
+  ],
+  "codex_cover_11.png": [
+    768,
+    768
+  ],
+  "codex_cover_12.png": [
+    768,
+    768
+  ],
+  "codex_cover_13.png": [
+    768,
+    768
+  ],
+  "codex_cover_14.png": [
+    768,
+    768
+  ],
+  "codex_dimensions.png": [
+    948,
+    1626
+  ],
+  "codex_dimensions_after.png": [
+    948,
+    1626
+  ],
+  "codex_genre_result.png": [
+    858,
+    363
+  ],
+  "codex_months_grid.png": [
+    1050,
+    2976
+  ],
+  "codex_moods.png": [
+    948,
+    768
+  ],
+  "codex_poster_1.png": [
+    1080,
+    1680
+  ],
+  "codex_poster_2.png": [
+    1080,
+    1680
+  ],
+  "codex_poster_3.png": [
+    1080,
+    1680
+  ],
+  "codex_quick_empty.png": [
+    1170,
+    2532
+  ],
+  "codex_quick_filled.png": [
+    1170,
+    2532
+  ],
+  "codex_quick_saved.png": [
+    1170,
+    2532
+  ],
+  "codex_rating.png": [
+    948,
+    201
+  ],
+  "codex_reader.png": [
+    1170,
+    2532
+  ],
+  "codex_relisten_blind.png": [
+    1170,
+    2532
+  ],
+  "codex_relisten_words.png": [
+    936,
+    321
+  ],
+  "codex_yearbook.png": [
+    1170,
+    2532
+  ],
+  "codex_year_facts.png": [
+    1050,
+    276
+  ]
+}
