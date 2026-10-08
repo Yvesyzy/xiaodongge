@@ -1,4 +1,5 @@
 import { registerPlugin } from "@capacitor/core";
+import { desktopPlugin } from "./codex_desktopBridge";
 
 export type ExportFileOptions = {
   fileName: string;
@@ -25,4 +26,4 @@ type NativeExportPlugin = {
   copyText(options: CopyTextOptions): Promise<void>;
 };
 
-export const NativeExport = registerPlugin<NativeExportPlugin>("NativeExport");
+export const NativeExport = registerPlugin<NativeExportPlugin>("NativeExport", { electron: () => desktopPlugin("NativeExport") });

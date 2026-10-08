@@ -991,7 +991,7 @@ async function runWebUiCancelCase(harness) {
       resolve(message);
     }));
     await harness.page.getByRole("button", { name: "导入并覆盖当前数据" }).click();
-    assert.match(await confirmationReady, /导入会覆盖当前手机本地数据/);
+    assert.match(await confirmationReady, /导入会覆盖本机数据/);
     assertSnapshotEqual(await readSnapshot(harness), before, "cancelled UI import has zero writes");
     assert.equal(await harness.page.evaluate(key => localStorage.getItem(key), GATE_KEY), null, "cancelled UI import leaves no barrier");
     harness.page.once("dialog", dialog => { void dialog.accept(); });

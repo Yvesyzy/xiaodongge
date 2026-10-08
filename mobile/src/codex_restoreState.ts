@@ -30,12 +30,17 @@ export function acquireStorageSession(): Promise<void> {
   if (!navigator.locks) return Promise.resolve();
   if (sessionReady) return sessionReady;
   sessionReady = new Promise<void>((resolve, reject) => {
-    sessionRequest = navigator.locks.request(LOCK_NAME, { mode: "shared" }, async () => {
+    sessionRequest = Promise.resolve().then(() => navigator.locks.request(LOCK_NAME, { mode: "shared" }, async () => {
       const released = new Promise<void>(done => { releaseSession = done; });
       resolve();
       await released;
+    }));
+    void sessionRequest.catch(error => {
+      releaseSession = undefined;
+      sessionRequest = undefined;
+      sessionReady = undefined;
+      reject(error);
     });
-    void sessionRequest.catch(reject);
   });
   return sessionReady;
 }
@@ -57,7 +62,7 @@ export async function withStorageAccess<T>(action: () => Promise<T>): Promise<T>
 
 export async function withRestoreLock(action: () => Promise<void>) {
   if (state.busy) throw new Error("已有恢复操作进行中，请等待完成。");
-  if (!navigator.locks) throw new Error("当前环境不支持安全恢复锁，无法导入或撤销；请使用支持 Web Locks 的浏览器或新版 Android System WebView。");
+  if (!navigator.locks) throw new Error("当前环境不支持安全恢复锁，无法导入或撤销；请更新系统或使用支持 Web Locks 的浏览器。");
   const previousError = state.error;
   update({ busy: true, generation: state.generation + 1 });
   let acquired = false;

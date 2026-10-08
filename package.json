@@ -2,6 +2,7 @@
   "name": "music-feelings-archive",
   "version": "3.1.1",
   "private": true,
+  "main": "desktop/codex_main.cjs",
   "scripts": {
     "dev": "next dev --hostname 127.0.0.1",
     "build": "next build",
@@ -15,6 +16,10 @@
     "prisma:studio": "prisma studio",
     "mobile:dev": "vite --host 127.0.0.1 --config mobile/vite.config.ts",
     "mobile:build": "vite build --config mobile/vite.config.ts",
+    "windows:build": "vite build --config desktop/codex_vite.config.ts",
+    "windows:start": "electron .",
+    "windows:check": "node scripts/codex_check_windows.mjs",
+    "windows:package": "node scripts/codex_build_windows.mjs",
     "android:sync": "cap sync android",
     "android:build:debug": "powershell -ExecutionPolicy Bypass -File scripts/build-android-debug.ps1",
     "android:build:release": "pwsh -NoProfile -File scripts/build-android-release.ps1"
@@ -39,6 +44,7 @@
     "@types/three": "^0.185.0",
     "@vitejs/plugin-react": "6.0.3",
     "autoprefixer": "10.5.2",
+    "electron": "44.5.1",
     "playwright": "1.62.0",
     "postcss": "8.5.28",
     "prisma": "6.19.3",
