@@ -42,3 +42,14 @@ Yves 说明已通过 WorkBuddy 提交部分改动。恢复时本地已到 `8b7c6
 ## 当前状态与下一步
 
 原先累积的功能变更已分批提交，合并及收尾均只在本地进行。工作区中新隐私整改仍由并行会话继续处理，以实时 `git status` 为准。后续可推送已完成的提交；隐私整改完成后再单独验收、提交。Windows 后续维护继续使用 `D:\codex\workspaces\xiaodongge-windows`。
+
+
+## 后续推送核验（2026-10-08 15:36，Asia/Shanghai）
+
+Yves 明确要求推送本轮提交。使用原生 Git 的普通快进推送，将 GitHub `main` 从 `73d1630748a1b26619a33d853edfa46799830eb2` 更新到 `045e45d04ac1ea2df970c36276e9ecfc3d106029`；本次使用命令级 HTTP/1.1 与低速超时选项，全局 Git 配置未改动。
+
+Git 返回退出码 0，传输包报告为 28.08 KiB。随后独立执行 `git ls-remote --heads origin refs/heads/main`，远端 SHA 与此次推送目标及当时本地 HEAD 一致。详细命令与核验值写入 `docs/codex_local_commit_verification_20261008.json` 的 `pushVerification`。
+
+推送固定到已验收的提交，未提交的并行隐私整改仍留在工作区。此次核验记录随后作为纯文档提交同步；不重跑未变化的功能测试，不重打 APK、不打标签或创建 Release。
+
+按已触发的任务文件清理规则复查：本轮只更新三份必要交接记录，未生成临时脚本、测试副本或缓存；原验证目录仍不存在，本次删除 0 文件、0 字节。

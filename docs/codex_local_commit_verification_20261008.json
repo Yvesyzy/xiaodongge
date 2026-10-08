@@ -100,5 +100,20 @@
     "Original font-license bytes and intentional Markdown hard line breaks were retained."
   ],
   "closeoutCommitSubject": "docs: record local commit verification and handover",
-  "pushedByThisChat": false
+  "pushedByThisChat": true,
+  "pushVerification": {
+    "verifiedAt": "2026-10-08T15:36:09+08:00",
+    "remoteBefore": "73d1630748a1b26619a33d853edfa46799830eb2",
+    "pushedCommit": "045e45d04ac1ea2df970c36276e9ecfc3d106029",
+    "remoteVerifiedCommit": "045e45d04ac1ea2df970c36276e9ecfc3d106029",
+    "nativeExitCode": 0,
+    "command": "git --no-optional-locks -c http.version=HTTP/1.1 -c http.lowSpeedLimit=1 -c http.lowSpeedTime=20 push --porcelain origin 045e45d04ac1ea2df970c36276e9ecfc3d106029:refs/heads/main",
+    "forced": false,
+    "globalGitConfigChanged": false,
+    "transferredPackReported": "28.08 KiB",
+    "verificationCommand": "git ls-remote --heads origin refs/heads/main",
+    "uncommittedPrivacyChangesIncluded": false,
+    "cleanupNewTemporaryFiles": 0,
+    "cleanupDeletedFiles": 0
+  }
 }
