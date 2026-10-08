@@ -38,6 +38,10 @@
   ],
   "exclude": [
     "node_modules",
-    "release"
+    "release",
+    "codex_video",
+    "desktop",
+    "android",
+    "scripts"
   ]
 }

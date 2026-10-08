@@ -16,10 +16,6 @@
     "prisma:studio": "prisma studio",
     "mobile:dev": "vite --host 127.0.0.1 --config mobile/vite.config.ts",
     "mobile:build": "vite build --config mobile/vite.config.ts",
-    "windows:build": "vite build --config desktop/codex_vite.config.ts",
-    "windows:start": "electron .",
-    "windows:check": "node scripts/codex_check_windows.mjs",
-    "windows:package": "node scripts/codex_build_windows.mjs",
     "android:sync": "cap sync android",
     "android:build:debug": "powershell -ExecutionPolicy Bypass -File scripts/build-android-debug.ps1",
     "android:build:release": "pwsh -NoProfile -File scripts/build-android-release.ps1"
