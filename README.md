@@ -96,7 +96,7 @@ Windows x64 便携测试版复用当前存储、六项评分与 JSON v6，重做
 
 解压完整目录后双击 `codex_xiaodongge.exe`，无需安装 Node 或数据库。Windows 使用系统文件对话框保存；分享入口生成本地文件并打开资源管理器。当前播放依赖播放器提供系统媒体会话；网易云音乐需在「设置 → 系统」勾选「开启SMTC」，本机已验证真实播放、暂停与恢复播放。网易云专辑和完整合作歌手可从本机播放队列唯一匹配补全，歧义或读取失败时保留系统结果；读取不覆盖已有输入，也不自动保存正式乐评。OCR 语言取决于 Windows 语言包。[使用、迁移、开发和验收说明](desktop/codex_README.md)。
 
-开发命令：`npm.cmd run windows:build`、`npm.cmd run windows:start`、`npm.cmd run windows:check`、`npm.cmd run windows:package`。产物与逐项校验清单位于 `release/`，最新包路径和 SHA-256 记录在 `release/codex_windows_latest.json`。解压后的程序已通过 Windows 11 的18组验收，详见 [首版交付与验收](docs/session-summaries/codex_session_summary_2026-10-05_windows_port.md)。2026-10-07 新版通过网易云专辑、完整合作歌手、手填保护和暂停/恢复实播检查，详见 [当前播放修复及验收](docs/session-summaries/codex_session_summary_2026-10-05_windows_now_playing.md)。Windows 10 和其他播放器尚待实测，测试包未签名。
+Windows 端的开发、构建与验收命令（`npm.cmd run windows:build`、`windows:start`、`windows:check`、`windows:package`）**均已迁移到独立仓库** `D:\codex\workspaces\xiaodongge-windows`，本仓库不再提供这些脚本。首版交付记录见 [首版交付与验收](docs/session-summaries/codex_session_summary_2026-10-05_windows_port.md)，2026-10-07 新版通过网易云专辑、完整合作歌手、手填保护和暂停/恢复实播检查，详见 [当前播放修复及验收](docs/session-summaries/codex_session_summary_2026-10-05_windows_now_playing.md)。Windows 10 和其他播放器尚待实测，测试包未签名。
 
 ## 构建 APK
 

@@ -1,0 +1,54 @@
+{
+  "status": "passed",
+  "displayName": "任务文件清理",
+  "internalName": "codex-task-cleanup",
+  "implicitInvocation": true,
+  "thresholdBytes": 200000000,
+  "globalHookCount": 1,
+  "validationPython": "existing SkillSpector environment; no packages installed",
+  "boundaryReview": {
+    "status": "passed",
+    "cases": 8,
+    "refinements": [
+      "ownership evidence",
+      "only reproduction preservation",
+      "approval rejection handling"
+    ]
+  },
+  "cleanup": {
+    "status": "completed",
+    "thresholdPreviouslyExceeded": true,
+    "knownPriorDeletionBytes": 3902960621,
+    "deletedFiles": 3,
+    "deletedBytes": 12735,
+    "stagedCopyBytes": 8072,
+    "temporaryHelperBytes": 4663,
+    "removedPaths": [
+      "D:\\codex\\workspaces\\codex\\小懂哥\\docs\\skill-updates\\codex_2026-10-05_task_cleanup\\codex_staged_skill",
+      "D:\\codex\\workspaces\\codex\\小懂哥\\docs\\skill-updates\\codex_2026-10-05_task_cleanup\\codex_finalize_cleanup.ps1"
+    ],
+    "protectedHashesVerified": [
+      {
+        "path": "D:\\codex\\.codex-home\\skills\\codex-task-cleanup\\SKILL.md",
+        "sha256": "3ADB84FE5B903943C7E9563495A8D60CC17E49175EBB5A93A10F58434E8BE313"
+      },
+      {
+        "path": "D:\\codex\\.codex-home\\skills\\codex-task-cleanup\\agents\\openai.yaml",
+        "sha256": "246FB72A251233CD885B0AE1BFDFD9226B376343D6D850FEEB633A19E77E04EE"
+      },
+      {
+        "path": "D:\\codex\\.codex-home\\AGENTS.md",
+        "sha256": "18DA55CD6132EE0FF9F6427F4FB38D6F2043BA3FF60B5FC3413B30A36EE69F48"
+      },
+      {
+        "path": "D:\\codex\\workspaces\\codex\\小懂哥\\release\\codex_xiaodongge_windows_3.1.1_x64_20261004_171821.zip",
+        "sha256": "246E5AB276C910D3C1C4AD5DE38357E62FA32211B03905931518D811322CA5C2"
+      },
+      {
+        "path": "D:\\codex\\workspaces\\codex\\小懂哥\\docs\\skill-updates\\codex_2026-10-05_task_cleanup\\codex_task_cleanup_before.zip",
+        "sha256": "BBFB6EC9E41731E9F61D9402BB20C9704D8D78D626D00C053ED85A0889DE7BD6"
+      }
+    ],
+    "pendingTargets": []
+  }
+}
