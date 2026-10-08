@@ -70,6 +70,7 @@ try {
   await page.getByRole("heading", { name: "这一年还没有正式音乐记录" }).waitFor();
   await page.getByRole("link", { name: "查看年度专辑榜单（2 张）" }).waitFor({ timeout: 5000 });
   await page.getByRole("link", { name: "查看年度专辑榜单（2 张）" }).click();
+  await page.getByRole("button", { name: "保存榜单图片" }).waitFor();
   assert.equal(await page.getByRole("button", { name: "保存榜单图片" }).count(), 1);
   await page.getByRole("button", { name: "保存榜单图片" }).click();
   await page.locator(".journal-export-preview").waitFor();
@@ -129,34 +130,97 @@ try {
   await page.screenshot({ path: join(output, "codex_rating_focus_dark.png") });
   report.checks.push("Keyboard focus, step keys, boundaries, accessible value and clear action work");
   await page.getByRole("checkbox", { name: /多维度评分/ }).check();
-  for (const name of ["制作", "词曲", "原创性", "共鸣"]) await page.getByRole("slider", { name }).press("ArrowRight");
+  const dimensions = ["制作", "词", "曲", "人声", "原创性", "共鸣"];
+  for (const name of dimensions) await page.getByRole("slider", { name, exact: true }).press("ArrowRight");
   await page.getByRole("slider", { name: "共鸣" }).press("ArrowUp");
-  await page.waitForFunction(() => document.querySelector('[role="slider"][aria-label="综合评分"]')?.getAttribute("aria-valuenow") === "0.6");
-  assert.equal(await page.getByRole("slider", { name: "综合评分" }).getAttribute("aria-valuenow"), "0.6");
+  await page.waitForFunction(() => document.querySelector('input[name="rating"]')?.value === "0.6");
+  assert.equal(await page.getByRole("slider", { name: "综合评分" }).count(), 0, "six-dimension average cannot be overridden independently");
+  assert.match(await page.locator('output[aria-label="综合评分"]').innerText(), /0\.6/);
   assert.equal(await page.locator('input[name="rating"]').inputValue(), "0.6");
-  await page.getByRole("slider", { name: "综合评分" }).press("Home");
-  assert.equal(await page.locator('input[name="rating"]').inputValue(), "0.5");
   await page.getByRole("slider", { name: "制作" }).press("ArrowUp");
-  await page.waitForFunction(() => document.querySelector('[role="slider"][aria-label="综合评分"]')?.getAttribute("aria-valuenow") === "0.8");
+  await page.waitForFunction(() => document.querySelector('input[name="rating"]')?.value === "0.7");
   await page.locator('input[name="title"]').fill("T08 综合评分保存");
   await page.locator('input[name="artistName"]').fill("T08 艺人");
   await page.locator('input[name="albumName"]').fill("T08 专辑");
-  await page.locator('textarea[name="content"]').fill("四维评分和综合一位小数的保存回归。");
+  await page.locator('textarea[name="content"]').fill("六项评分和综合一位小数的保存回归。");
   await page.getByRole("button", { name: "保存正式乐评" }).click();
   await page.waitForURL(/#\/entries\/[^/]+\?saved=1/);
   const savedId = page.url().match(/#\/entries\/([^?]+)/)?.[1];
   assert.ok(savedId);
   await page.reload();
   const saved = await page.evaluate(async id => (await (await import("/src/store.ts")).store.listEntries()).find(entry => entry.id === id), savedId);
-  assert.deepEqual([saved.rating, saved.ratingProduction, saved.ratingSongwriting, saved.ratingOriginality, saved.ratingResonance, saved.compositeRatingLocked], [0.8, 1, 0.5, 0.5, 1, false]);
+  assert.deepEqual([saved.rating, saved.ratingProduction, saved.ratingLyrics, saved.ratingComposition, saved.ratingVocals, saved.ratingOriginality, saved.ratingResonance, saved.ratingSongwriting, saved.compositeRatingLocked], [0.7, 1, 0.5, 0.5, 0.5, 0.5, 1, null, false]);
   await page.goto(`${origin}/#/entries/${savedId}/edit`);
   assert.equal(await page.locator("details.writing-extras").evaluate(element => element.open), true, "编辑乐评应直接显示补充字段");
-  await page.getByRole("slider", { name: "综合评分" }).press("End");
+  for (const name of dimensions) await page.getByRole("slider", { name, exact: true }).press("End");
   await page.getByRole("button", { name: "保存正式乐评" }).click();
   await page.waitForURL(/\?saved=1/);
-  const locked = await page.evaluate(async id => (await (await import("/src/store.ts")).store.listEntries()).find(entry => entry.id === id), savedId);
-  assert.deepEqual([locked.rating, locked.compositeRatingLocked], [10, true]);
-  report.checks.push("Four half-step dimensions retain a one-decimal composite score and locked state after save/reload");
+  const maximum = await page.evaluate(async id => (await (await import("/src/store.ts")).store.getEntry(id)), savedId);
+  assert.deepEqual([maximum.rating, maximum.ratingModifier, maximum.compositeRatingLocked], [10, null, false]);
+  report.checks.push("Six half-step dimensions compute a read-only one-decimal average and persist across save/reload");
+
+  const legacyEntries = [false, true].map((locked, index) => ({ ...entries[index], id: `codex-legacy-score-${index}`, title: `旧评分 ${index}`,
+    rating: locked ? 9.2 : 7.4, ratingModifier: locked ? "-" : "+", ratingProduction: 8, ratingSongwriting: 6,
+    ratingOriginality: 9, ratingResonance: 7, compositeRatingLocked: locked }));
+  for (const legacy of legacyEntries) for (const key of ["ratingLyrics", "ratingComposition", "ratingVocals"]) delete legacy[key];
+  await page.evaluate(items => localStorage.setItem("music-feelings-mobile-entries", JSON.stringify(items)), legacyEntries);
+  const scoreKeys = ["rating", "ratingModifier", "ratingProduction", "ratingSongwriting", "ratingOriginality", "ratingResonance", "compositeRatingLocked"];
+  for (const legacy of legacyEntries) {
+    await page.goto(`${origin}/#/entries/${legacy.id}/edit`);
+    await page.getByRole("slider", { name: "人声", exact: true }).waitFor();
+    assert.equal(await page.locator('input[name="rating"]').inputValue(), String(legacy.rating));
+    assert.equal(await page.locator('input[name="ratingModifier"]').inputValue(), legacy.ratingModifier);
+    for (const name of ["词", "曲", "人声"]) assert.equal(await page.getByRole("slider", { name, exact: true }).getAttribute("aria-valuetext"), "未评分");
+    assert.match(await page.locator(".multi-dimension-toggle").innerText(), /旧版词曲.*6/);
+    await page.locator('textarea[name="content"]').fill(`${legacy.content}\n只修改正文。`);
+    await page.getByRole("button", { name: "保存正式乐评" }).click();
+    await page.waitForURL(/\?saved=1/);
+    const preserved = await page.evaluate(async id => (await (await import("/src/store.ts")).store.getEntry(id)), legacy.id);
+    assert.deepEqual(scoreKeys.map(key => preserved[key]), scoreKeys.map(key => legacy[key]), "body-only edits preserve every legacy score and lock flag");
+    assert.deepEqual([preserved.ratingLyrics, preserved.ratingComposition, preserved.ratingVocals], [null, null, null]);
+  }
+  const legacyId = legacyEntries[1].id;
+  await page.goto(`${origin}/#/entries/${legacyId}/edit`);
+  for (const name of ["词", "曲", "人声"]) await page.getByRole("slider", { name, exact: true }).press("Home");
+  await page.waitForFunction(() => document.querySelector('input[name="rating"]')?.value === "4.3");
+  assert.equal(await page.locator('input[name="ratingModifier"]').inputValue(), "");
+  await page.getByRole("button", { name: "保存草稿" }).click();
+  await page.waitForURL(/#\/drafts/);
+  await page.goto(`${origin}/#/entries/${legacyId}/edit`);
+  await page.reload();
+  await page.getByRole("slider", { name: "人声", exact: true }).waitFor();
+  await page.waitForFunction(() => document.querySelector('input[name="rating"]')?.value === "4.3");
+  for (const name of ["词", "曲", "人声"]) assert.equal(await page.getByRole("slider", { name, exact: true }).getAttribute("aria-valuenow"), "0.5");
+  page.once("dialog", dialog => dialog.accept());
+  await page.getByRole("button", { name: "放弃草稿", exact: true }).click();
+  await page.waitForFunction(() => document.querySelector('input[name="rating"]')?.value === "9.2");
+  assert.equal(await page.locator('input[name="ratingModifier"]').inputValue(), "-");
+  for (const name of ["词", "曲", "人声"]) assert.equal(await page.getByRole("slider", { name, exact: true }).getAttribute("aria-valuetext"), "未评分", "discarding the draft restores the saved dimensions");
+  for (const name of ["词", "曲", "人声"]) await page.getByRole("slider", { name, exact: true }).press("Home");
+  await page.getByRole("button", { name: "保存正式乐评" }).click();
+  await page.waitForURL(/\?saved=1/);
+  const converted = await page.evaluate(async id => (await (await import("/src/store.ts")).store.getEntry(id)), legacyId);
+  assert.deepEqual([converted.rating, converted.ratingModifier, converted.ratingLyrics, converted.ratingComposition, converted.ratingVocals, converted.ratingSongwriting, converted.compositeRatingLocked], [4.3, null, 0.5, 0.5, 0.5, 6, false]);
+  await page.goto(`${origin}/#/entries/${legacyId}/edit`);
+  await page.getByRole("slider", { name: "人声", exact: true }).waitFor();
+  for (const width of [320, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    for (const theme of ["light", "dark"]) {
+      await page.evaluate(async value => (await import("/src/abu_theme.ts")).setThemeChoice(value), theme);
+      assert.equal(await page.getByRole("slider").count(), 6);
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true, "six sliders fit the mobile viewport");
+      for (const name of dimensions) {
+        const rect = await page.getByRole("slider", { name, exact: true }).boundingBox();
+        assert.ok(rect && rect.width > 0 && rect.x >= 0 && rect.x + rect.width <= width + 1);
+      }
+      await page.locator(".multi-dimension-grid").screenshot({ path: join(output, `codex_six_rating_${theme}_${width}.png`), style: ".app-header, .bottom-nav { visibility: hidden; }" });
+    }
+  }
+  report.checks.push("Six rating sliders fit 320/390px light/dark mobile layouts");
+  await page.locator(".rating-slider-section").filter({ has: page.getByRole("slider", { name: "人声", exact: true }) }).getByRole("button", { name: "清除评分" }).click();
+  assert.equal(await page.locator('input[name="rating"]').inputValue(), "4.3", "partial dimensions retain the saved score instead of treating missing values as zero");
+  report.checks.push("Legacy scores and modifiers survive body edits; manual completion computes the average and survives draft restore without splitting the old joint score");
+  report.checks.push("Discarding a changed scoring draft restores all saved dimensions, total and modifier");
 
   await page.evaluate(items => {
     localStorage.setItem("music-feelings-mobile-entries", JSON.stringify(items));

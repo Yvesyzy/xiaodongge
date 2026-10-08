@@ -445,8 +445,7 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
   const pendingDraftRef = useRef<EntryDraft | null>(null);
   const draftReadyRef = useRef(false);
   const skipDraftStateSaveRef = useRef(false);
-  // 多维度评分：用户手动拖主滑块后锁定综合分，后续维度变化不再自动覆盖；
-  // 仅“自动重算”置为 false，“维度变化”保留原锁，手动改维度时解锁。
+  // 旧版锁定标记随未补齐的记录保留，六项完整后统一使用平均分。
   const compositeLockedRef = useRef(false);
   const [entry, setEntry] = useState<ReviewEntry | null>(null);
   const [error, setError] = useState("");
@@ -470,6 +469,9 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
   const [multiDimension, setMultiDimension] = useState(false);
   const [ratingProduction, setRatingProduction] = useState<number | null>(null);
   const [ratingSongwriting, setRatingSongwriting] = useState<number | null>(null);
+  const [ratingLyrics, setRatingLyrics] = useState<number | null>(null);
+  const [ratingComposition, setRatingComposition] = useState<number | null>(null);
+  const [ratingVocals, setRatingVocals] = useState<number | null>(null);
   const [ratingOriginality, setRatingOriginality] = useState<number | null>(null);
   const [ratingResonance, setRatingResonance] = useState<number | null>(null);
   const [genreSelection, setGenreSelection] = useState<GenreSelection>(() => defaultGenreSelection(null));
@@ -478,6 +480,13 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
   const [hasDraft, setHasDraft] = useState(false);
   const [draftStatus, setDraftStatus] = useState("输入内容会自动保存");
   const [draftError, setDraftError] = useState(false);
+
+  // ponytail: 六项沿用 0.5 步进，平均分保留一位小数；需要更高精度时再扩展展示与存储规则。
+  const dimensions = [ratingProduction, ratingLyrics, ratingComposition, ratingVocals, ratingOriginality, ratingResonance];
+  const meanRating = multiDimension && dimensions.every((value) => value !== null)
+    ? Math.round((dimensions as number[]).reduce((sum, value) => sum + value, 0) / dimensions.length * 10) / 10 : null;
+  const currentRating = meanRating ?? rating;
+  const currentRatingModifier = meanRating === null ? ratingModifier : null;
 
   useEffect(() => {
     if (mode !== "edit") {
@@ -513,10 +522,13 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
     setRatingModifier(entry.ratingModifier);
     setRatingProduction(entry.ratingProduction);
     setRatingSongwriting(entry.ratingSongwriting);
+    setRatingLyrics(entry.ratingLyrics ?? null);
+    setRatingComposition(entry.ratingComposition ?? null);
+    setRatingVocals(entry.ratingVocals ?? null);
     setRatingOriginality(entry.ratingOriginality);
     setRatingResonance(entry.ratingResonance);
     compositeLockedRef.current = entry.compositeRatingLocked;
-    setMultiDimension(entry.compositeRatingLocked || entry.ratingProduction !== null || entry.ratingSongwriting !== null || entry.ratingOriginality !== null || entry.ratingResonance !== null);
+    setMultiDimension(entry.compositeRatingLocked || [entry.ratingProduction, entry.ratingSongwriting, entry.ratingLyrics, entry.ratingComposition, entry.ratingVocals, entry.ratingOriginality, entry.ratingResonance].some((value) => value != null));
     void loadEntryCover(entry).then((nextCover) => {
       if (!active) return;
       setCoverDataUrl(nextCover);
@@ -585,12 +597,18 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
         setRatingModifier(result.draft.fields.ratingModifier === "+" || result.draft.fields.ratingModifier === "-" ? result.draft.fields.ratingModifier : null);
         const dimProd = result.draft.fields.ratingProduction ? Number(result.draft.fields.ratingProduction) : null;
         const dimSong = result.draft.fields.ratingSongwriting ? Number(result.draft.fields.ratingSongwriting) : null;
+        const dimLyrics = result.draft.fields.ratingLyrics ? Number(result.draft.fields.ratingLyrics) : null;
+        const dimComposition = result.draft.fields.ratingComposition ? Number(result.draft.fields.ratingComposition) : null;
+        const dimVocals = result.draft.fields.ratingVocals ? Number(result.draft.fields.ratingVocals) : null;
         const dimOrig = result.draft.fields.ratingOriginality ? Number(result.draft.fields.ratingOriginality) : null;
         const dimReso = result.draft.fields.ratingResonance ? Number(result.draft.fields.ratingResonance) : null;
-        const dimActive = dimProd !== null || dimSong !== null || dimOrig !== null || dimReso !== null;
+        const dimActive = [dimProd, dimSong, dimLyrics, dimComposition, dimVocals, dimOrig, dimReso].some((value) => value !== null);
         compositeLockedRef.current = result.draft.compositeRatingLocked;
         setRatingProduction(dimProd !== null && dimProd >= 0.5 && dimProd <= 10 ? dimProd : null);
         setRatingSongwriting(dimSong !== null && dimSong >= 0.5 && dimSong <= 10 ? dimSong : null);
+        setRatingLyrics(dimLyrics !== null && dimLyrics >= 0.5 && dimLyrics <= 10 ? dimLyrics : null);
+        setRatingComposition(dimComposition !== null && dimComposition >= 0.5 && dimComposition <= 10 ? dimComposition : null);
+        setRatingVocals(dimVocals !== null && dimVocals >= 0.5 && dimVocals <= 10 ? dimVocals : null);
         setRatingOriginality(dimOrig !== null && dimOrig >= 0.5 && dimOrig <= 10 ? dimOrig : null);
         setRatingResonance(dimReso !== null && dimReso >= 0.5 && dimReso <= 10 ? dimReso : null);
         setMultiDimension(result.draft.compositeRatingLocked || dimActive);
@@ -607,16 +625,6 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
     }
   }, [entry, entryCoverLoaded, id, mode, draftId]);
 
-  // ponytail: 四维仍用 0.5 步进，综合分保留一位小数；需要更高精度时再扩展展示与存储规则。
-  useEffect(() => {
-    if (!multiDimension) return;
-    const dims = [ratingProduction, ratingSongwriting, ratingOriginality, ratingResonance];
-    if (dims.some((d) => d === null)) return;
-    if (compositeLockedRef.current) return;
-    const avg = (dims as number[]).reduce((sum, d) => sum + d, 0) / dims.length;
-    setRating(Math.round(avg * 10) / 10);
-  }, [multiDimension, ratingProduction, ratingSongwriting, ratingOriginality, ratingResonance]);
-
   useEffect(() => {
     if (!draftReady) return;
     if (skipDraftStateSaveRef.current) {
@@ -624,7 +632,7 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
       return;
     }
     scheduleDraftSave();
-  }, [coverChanged, coverDataUrl, draftReady, genreSelection, musicMetadata, ocrText, recognizedFields, selectedGenreTags, selectedMoodGroupId, selectedMoods, rating, ratingModifier, multiDimension, ratingProduction, ratingSongwriting, ratingOriginality, ratingResonance]);
+  }, [coverChanged, coverDataUrl, draftReady, genreSelection, musicMetadata, ocrText, recognizedFields, selectedGenreTags, selectedMoodGroupId, selectedMoods, rating, ratingModifier, multiDimension, ratingProduction, ratingSongwriting, ratingLyrics, ratingComposition, ratingVocals, ratingOriginality, ratingResonance]);
 
   useEffect(() => {
     if (!draftReady) return;
@@ -668,7 +676,7 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
       ocrText,
       recognizedFields,
       musicMetadata,
-      compositeRatingLocked: multiDimension && compositeLockedRef.current,
+      compositeRatingLocked: multiDimension && meanRating === null && compositeLockedRef.current,
       inspiration: mode === "create" && inspirationRef.current,
     };
   }
@@ -758,6 +766,15 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
     setMusicMetadata(entry?.musicMetadata ?? null);
     setRating(entry?.rating ?? null);
     setRatingModifier(entry?.ratingModifier ?? null);
+    setRatingProduction(entry?.ratingProduction ?? null);
+    setRatingSongwriting(entry?.ratingSongwriting ?? null);
+    setRatingLyrics(entry?.ratingLyrics ?? null);
+    setRatingComposition(entry?.ratingComposition ?? null);
+    setRatingVocals(entry?.ratingVocals ?? null);
+    setRatingOriginality(entry?.ratingOriginality ?? null);
+    setRatingResonance(entry?.ratingResonance ?? null);
+    compositeLockedRef.current = entry?.compositeRatingLocked ?? false;
+    setMultiDimension(!!entry && (entry.compositeRatingLocked || [entry.ratingProduction, entry.ratingSongwriting, entry.ratingLyrics, entry.ratingComposition, entry.ratingVocals, entry.ratingOriginality, entry.ratingResonance].some((value) => value != null)));
     setHasDraft(false);
     setDraftStatus("草稿已清除");
     setDraftError(false);
@@ -957,13 +974,16 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
         content: readText(form, "content"),
         tags: mergeTagLists(parseList(readText(form, "genreTags")), parseList(readText(form, "tags"))),
         moods: parseList(readText(form, "moods")),
-        rating,
-        ratingModifier,
+        rating: currentRating,
+        ratingModifier: currentRatingModifier,
         ratingProduction: multiDimension ? ratingProduction : null,
-        ratingSongwriting: multiDimension ? ratingSongwriting : null,
+        ratingSongwriting,
+        ratingLyrics: multiDimension ? ratingLyrics : null,
+        ratingComposition: multiDimension ? ratingComposition : null,
+        ratingVocals: multiDimension ? ratingVocals : null,
         ratingOriginality: multiDimension ? ratingOriginality : null,
         ratingResonance: multiDimension ? ratingResonance : null,
-        compositeRatingLocked: multiDimension && compositeLockedRef.current,
+        compositeRatingLocked: multiDimension && meanRating === null && compositeLockedRef.current,
         firstListenedAt: readDate(form, "firstListenedAt"),
         listenedAt: readDate(form, "listenedAt"),
       };
@@ -1114,25 +1134,41 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
           onGroupChange={setSelectedMoodGroupId}
           onToggleMood={toggleMood}
         />
-        <RatingSlider
+        {multiDimension ? <section className="rating-slider-section">
+          <div className="rating-slider-head">
+            <strong>综合评分</strong>
+            <output className="rating-display" aria-label="综合评分">
+              {currentRating === null ? <span className="rating-placeholder">待补齐六项评分</span> : <>
+                <em className="rating-number">{currentRating}</em>
+                {currentRatingModifier ? <sup>{currentRatingModifier}</sup> : null}
+                <small>/ 10</small>
+              </>}
+            </output>
+          </div>
+          <input type="hidden" name="rating" value={currentRating ?? ""} />
+          <input type="hidden" name="ratingModifier" value={currentRatingModifier ?? ""} />
+        </section> : <RatingSlider
           value={rating}
           modifier={ratingModifier}
-          onChange={(r, m) => { compositeLockedRef.current = multiDimension && r !== null; setRating(r); setRatingModifier(m); }}
-          label={multiDimension ? "综合评分" : "评分"}
-        />
+          onChange={(r, m) => { setRating(r); setRatingModifier(m); }}
+        />}
+        <input type="hidden" name="ratingSongwriting" value={ratingSongwriting ?? ""} />
         <div className="multi-dimension-toggle">
           <label>
-            <input type="checkbox" checked={multiDimension} onChange={(e) => { compositeLockedRef.current = false; setMultiDimension(e.target.checked); }} />
-            多维度评分（制作 / 词曲 / 原创性 / 共鸣）
+            <input type="checkbox" checked={multiDimension} onChange={(e) => { setRating(currentRating); setRatingModifier(currentRatingModifier); compositeLockedRef.current = false; setMultiDimension(e.target.checked); }} />
+            多维度评分（制作 / 词 / 曲 / 人声 / 原创性 / 共鸣）
           </label>
-          {multiDimension ? <small>开启后综合评分自动取四维平均；手动拖动综合滑块后即锁定，改四维可重新解锁。</small> : null}
+          {multiDimension ? <small>{meanRating === null ? "补齐六项后自动取平均；补齐前保留现有总分。" : "综合评分为六项平均分，保留一位小数。"}</small> : null}
+          {ratingSongwriting !== null ? <small>旧版词曲评分：{ratingSongwriting}/10（已保留，可自行填写词与曲评分）</small> : null}
         </div>
         {multiDimension ? (
           <div className="multi-dimension-grid">
-            <RatingSlider value={ratingProduction} modifier={null} onChange={(r) => { compositeLockedRef.current = false; setRatingProduction(r); }} name="ratingProduction" showModifier={false} label="制作" />
-            <RatingSlider value={ratingSongwriting} modifier={null} onChange={(r) => { compositeLockedRef.current = false; setRatingSongwriting(r); }} name="ratingSongwriting" showModifier={false} label="词曲" />
-            <RatingSlider value={ratingOriginality} modifier={null} onChange={(r) => { compositeLockedRef.current = false; setRatingOriginality(r); }} name="ratingOriginality" showModifier={false} label="原创性" />
-            <RatingSlider value={ratingResonance} modifier={null} onChange={(r) => { compositeLockedRef.current = false; setRatingResonance(r); }} name="ratingResonance" showModifier={false} label="共鸣" />
+            <RatingSlider value={ratingProduction} modifier={null} onChange={setRatingProduction} name="ratingProduction" showModifier={false} label="制作" />
+            <RatingSlider value={ratingLyrics} modifier={null} onChange={setRatingLyrics} name="ratingLyrics" showModifier={false} label="词" />
+            <RatingSlider value={ratingComposition} modifier={null} onChange={setRatingComposition} name="ratingComposition" showModifier={false} label="曲" />
+            <RatingSlider value={ratingVocals} modifier={null} onChange={setRatingVocals} name="ratingVocals" showModifier={false} label="人声" />
+            <RatingSlider value={ratingOriginality} modifier={null} onChange={setRatingOriginality} name="ratingOriginality" showModifier={false} label="原创性" />
+            <RatingSlider value={ratingResonance} modifier={null} onChange={setRatingResonance} name="ratingResonance" showModifier={false} label="共鸣" />
           </div>
         ) : null}
         <label>首次收听时间<input name="firstListenedAt" type="date" defaultValue={source?.firstListenedAt ? new Date(source.firstListenedAt).toLocaleDateString("en-CA") : ""} /></label>
@@ -1509,10 +1545,13 @@ function EntryDetailPage() {
         <Meta label="标签" value={entry.tags.join("、") || null} />
         <Meta label="情绪" value={entry.moods.join("、") || null} />
         <Meta label="评分" value={ratingDisplay} />
-        {entry.ratingProduction !== null || entry.ratingSongwriting !== null || entry.ratingOriginality !== null || entry.ratingResonance !== null ? (
+        {[entry.ratingProduction, entry.ratingSongwriting, entry.ratingLyrics, entry.ratingComposition, entry.ratingVocals, entry.ratingOriginality, entry.ratingResonance].some((value) => value != null) ? (
           <>
             <Meta label="制作" value={entry.ratingProduction !== null ? `${entry.ratingProduction}/10` : null} />
-            <Meta label="词曲" value={entry.ratingSongwriting !== null ? `${entry.ratingSongwriting}/10` : null} />
+            <Meta label="词" value={entry.ratingLyrics != null ? `${entry.ratingLyrics}/10` : null} />
+            <Meta label="曲" value={entry.ratingComposition != null ? `${entry.ratingComposition}/10` : null} />
+            <Meta label="人声" value={entry.ratingVocals != null ? `${entry.ratingVocals}/10` : null} />
+            <Meta label="旧版词曲" value={entry.ratingSongwriting !== null ? `${entry.ratingSongwriting}/10` : null} />
             <Meta label="原创性" value={entry.ratingOriginality !== null ? `${entry.ratingOriginality}/10` : null} />
             <Meta label="共鸣" value={entry.ratingResonance !== null ? `${entry.ratingResonance}/10` : null} />
           </>
@@ -3094,6 +3133,9 @@ function readDraftFields(form: HTMLFormElement): EntryDraftFields {
     ratingModifier: value("ratingModifier"),
     ratingProduction: value("ratingProduction"),
     ratingSongwriting: value("ratingSongwriting"),
+    ratingLyrics: value("ratingLyrics"),
+    ratingComposition: value("ratingComposition"),
+    ratingVocals: value("ratingVocals"),
     ratingOriginality: value("ratingOriginality"),
     ratingResonance: value("ratingResonance"),
     content: value("content"),

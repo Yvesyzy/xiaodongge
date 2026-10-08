@@ -64,22 +64,72 @@ public class codex_NavigationInstrumentedTest {
     }
 
     @Test
-    public void seedBeforeUpgrade() {
+    public void seedBeforeUpgrade() throws JSONException {
         navigateHash("/new");
         waitForSelector("form.writing-form");
         setValue("input[name=\"title\"]", "codex覆盖安装保留记录");
         setValue("input[name=\"artistName\"]", "codex测试艺术家");
         setValue("input[name=\"albumName\"]", "codex覆盖安装专辑");
-        setValue("textarea.note-editor", "从2.7.0覆盖安装测试版后应保留此记录。");
+        setValue("textarea.note-editor", "从旧正式版覆盖安装后应保留此记录与评分。");
+        assertEquals("true", evaluate("(() => { document.querySelector('.multi-dimension-toggle input').click(); return true; })()"));
+        pressRatingKey("制作", "End", "10");
+        pressRatingKey("词曲", "Home", "0.5");
+        pressRatingKey("原创性", "End", "10");
+        pressRatingKey("共鸣", "Home", "0.5");
+        pressRatingKey("综合评分", "End", "10");
+        pressRatingKey("综合评分", "ArrowDown", "9.5");
+        evaluate("document.querySelector('[aria-label=\"加号修饰\"]').click()");
         clickText("button", "保存正式乐评");
         waitForSelector(".codex-reader");
         waitForText("codex覆盖安装保留记录");
+        JSONObject before = new JSONObject(upgradeScoreRow());
+        assertEquals(9.5, before.getDouble("rating"), 0);
+        assertEquals("+", before.getString("ratingModifier"));
+        assertEquals(1, before.getInt("compositeRatingLocked"));
+        evaluate("localStorage.setItem('codex-six-rating-upgrade-before:v1', " + quote(before.toString()) + ")");
     }
 
     @Test
-    public void verifyAfterUpgrade() {
+    public void verifyAfterUpgrade() throws JSONException {
         navigateHash("/timeline");
         waitForText("codex覆盖安装保留记录");
+        JSONObject before = new JSONObject(evaluate("localStorage.getItem('codex-six-rating-upgrade-before:v1')"));
+        JSONObject after = new JSONObject(upgradeScoreRow());
+        java.util.Iterator<String> keys = before.keys();
+        while (keys.hasNext()) {
+            String key = keys.next();
+            assertEquals("Upgrade retains old column " + key, before.get(key), after.get(key));
+        }
+        for (String field : new String[]{"ratingLyrics", "ratingComposition", "ratingVocals"}) {
+            assertTrue("New dimension is empty after upgrade", after.has(field) && after.isNull(field));
+        }
+        navigateHash("/entries/" + after.getString("id") + "/edit");
+        waitForSelector("[role=slider][aria-label=\"人声\"]");
+        assertEquals("9.5", evaluate("document.querySelector('input[name=rating]').value"));
+        for (String label : new String[]{"词", "曲", "人声"}) pressRatingKey(label, "Home", "0.5");
+        waitForJavaScript("document.querySelector('input[name=rating]').value === '3.7'", "six-dimension average after manual completion");
+        assertEquals("", evaluate("document.querySelector('input[name=ratingModifier]').value"));
+        clickText("button", "保存正式乐评");
+        waitForSelector(".codex-reader");
+        JSONObject converted = new JSONObject(upgradeScoreRow());
+        assertEquals(3.7, converted.getDouble("rating"), 0);
+        assertTrue(converted.isNull("ratingModifier"));
+        assertEquals(0.5, converted.getDouble("ratingSongwriting"), 0);
+        assertEquals(0, converted.getInt("compositeRatingLocked"));
+        for (String field : new String[]{"ratingLyrics", "ratingComposition", "ratingVocals"}) assertEquals(0.5, converted.getDouble(field), 0);
+    }
+
+    private void pressRatingKey(String label, String key, String expected) {
+        String selector = "[role=slider][aria-label=\"" + label + "\"]";
+        assertEquals("true", evaluate("(() => { const slider=document.querySelector(" + quote(selector) + "); if (!slider) return false; slider.dispatchEvent(new KeyboardEvent('keydown',{key:" + quote(key) + ",bubbles:true})); return true; })()"));
+        waitForJavaScript("document.querySelector(" + quote(selector) + ").getAttribute('aria-valuenow') === " + quote(expected), label + " score committed");
+    }
+
+    private String upgradeScoreRow() {
+        evaluate("(() => { window.__codexUpgradeRow=null; window.__codexUpgradeError=null; window.Capacitor.nativePromise('CapacitorSQLite','query',{database:'music_feelings_archive',statement:'SELECT * FROM ReviewEntry WHERE title = ?',values:['codex覆盖安装保留记录'],readonly:false}).then(result => {window.__codexUpgradeRow=result.values?.[0] || null;}).catch(error => {window.__codexUpgradeError=String(error);}); return true; })()");
+        waitForJavaScript("window.__codexUpgradeRow !== null || window.__codexUpgradeError !== null", "upgrade score query complete");
+        assertEquals("null", evaluate("window.__codexUpgradeError"));
+        return evaluate("JSON.stringify(window.__codexUpgradeRow)");
     }
 
     @Test

@@ -157,7 +157,14 @@ async function readDraft(page, draftId) {
 }
 
 async function chooseFile(input, file) {
-  await input.setInputFiles(file);
+  try {
+    await input.setInputFiles(file);
+  } catch (error) {
+    await mkdir(outputDir, { recursive: true });
+    await writeFile(path.join(outputDir, "codex_file_input_failure.json"), JSON.stringify({ url: input.page().url(),
+      body: await input.page().locator("body").innerText(), errors: input.page().__captureErrors }, null, 2));
+    throw error;
+  }
   await input.page().waitForTimeout(500);
 }
 

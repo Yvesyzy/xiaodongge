@@ -21,6 +21,9 @@ export type EntryDraftFields = {
   ratingModifier: string;
   ratingProduction: string;
   ratingSongwriting: string;
+  ratingLyrics?: string;
+  ratingComposition?: string;
+  ratingVocals?: string;
   ratingOriginality: string;
   ratingResonance: string;
   content: string;
@@ -275,6 +278,9 @@ function parseFields(value: unknown): EntryDraftFields | null {
     ratingModifier,
     ratingProduction,
     ratingSongwriting,
+    ...(typeof value.ratingLyrics === "string" ? { ratingLyrics: value.ratingLyrics } : {}),
+    ...(typeof value.ratingComposition === "string" ? { ratingComposition: value.ratingComposition } : {}),
+    ...(typeof value.ratingVocals === "string" ? { ratingVocals: value.ratingVocals } : {}),
     ratingOriginality,
     ratingResonance,
     content: value.content as string,

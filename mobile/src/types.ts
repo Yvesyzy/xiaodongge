@@ -57,6 +57,9 @@ export type ReviewEntry = {
   ratingModifier: RatingModifier | null;
   ratingProduction: number | null;
   ratingSongwriting: number | null;
+  ratingLyrics?: number | null;
+  ratingComposition?: number | null;
+  ratingVocals?: number | null;
   ratingOriginality: number | null;
   ratingResonance: number | null;
   compositeRatingLocked: boolean;
