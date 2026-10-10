@@ -1,3 +1,4 @@
+import "./codex_compat";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { HashRouter } from "react-router-dom";
@@ -10,6 +11,7 @@ import "./styles.css";
 import "./codex_neumorphism.css";
 import "./abu_theme.css";
 import "./codex_privacy.css";
+import "./codex_compat.css";
 
 installPressHaptics();
 installTheme();

@@ -3,9 +3,14 @@ package com.yves.musicarchive;
 import android.app.Activity;
 import android.content.ClipData;
 import android.content.ClipboardManager;
+import android.content.ContentResolver;
+import android.content.ContentValues;
 import android.content.Intent;
 import android.net.Uri;
 import android.provider.DocumentsContract;
+import android.provider.MediaStore;
+import android.os.Build;
+import android.os.Environment;
 import com.getcapacitor.JSArray;
 import java.io.FileInputStream;
 import java.util.ArrayList;
@@ -100,7 +105,7 @@ public class NativeExportPlugin extends Plugin {
             stagedFiles(call, 5000);
             Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT_TREE);
             intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_GRANT_WRITE_URI_PERMISSION);
-            startActivityForResult(call, intent, "saveFilesResult");
+            openDocumentPicker(call, intent, "saveFilesResult");
         } catch (IOException | RuntimeException error) { call.reject("准备批量保存失败：" + safeMessage(error), error); }
     }
 
@@ -146,13 +151,28 @@ public class NativeExportPlugin extends Plugin {
 
         Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
-        intent.setType(mimeType);
+        intent.setTypeAndNormalize(mimeType);
         intent.putExtra(Intent.EXTRA_TITLE, fileName);
-        startActivityForResult(call, intent, "saveFileResult");
+        openDocumentPicker(call, intent, "saveFileResult");
+    }
+
+    private void openDocumentPicker(PluginCall call, Intent intent, String callback) {
+        try {
+            Activity activity = getActivity();
+            if (activity == null) { call.reject("当前导出页面已关闭，请重新打开后重试"); return; }
+            activity.runOnUiThread(() -> {
+                try { startActivityForResult(call, intent, callback); }
+                catch (RuntimeException error) {
+                    call.reject("当前环境无法打开系统文件选择器。图片可改用保存到相册，备份可复制原文。", error);
+                    bridge.releaseCall(call);
+                }
+            });
+        } catch (RuntimeException error) { call.reject("打开文件选择器失败：" + safeMessage(error), error); }
     }
 
     @ActivityCallback
     private void saveFileResult(PluginCall call, ActivityResult result) {
+        if (call == null) return;
         if (result.getResultCode() == Activity.RESULT_CANCELED) {
             JSObject response = new JSObject();
             response.put("status", "cancelled");
@@ -166,27 +186,67 @@ public class NativeExportPlugin extends Plugin {
             return;
         }
 
-        String mimeType = call.getString("mimeType");
-        if (mimeType == null || mimeType.trim().isEmpty()) {
-            call.reject("缺少导出文件类型");
-            return;
+        bridge.execute(() -> {
+            try {
+                String mimeType = call.getString("mimeType");
+                if (mimeType == null || mimeType.trim().isEmpty()) throw new IOException("缺少导出文件类型");
+                byte[] payload = exportBytes(call, mimeType);
+                writeAndClose(getContext().getContentResolver().openOutputStream(uri, "w"), payload);
+                JSObject response = new JSObject();
+                response.put("status", "saved"); response.put("uri", uri.toString()); call.resolve(response);
+            } catch (IOException | RuntimeException error) {
+                call.reject("写入导出文件失败：" + safeMessage(error), error);
+            }
+        });
+    }
+
+    @PluginMethod
+    public void saveImageToGallery(PluginCall call) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) {
+            call.reject("当前系统不支持直接保存到相册，请使用保存文件或系统分享。"); return;
         }
-        byte[] payload;
+        Uri created = null;
+        boolean completed = false;
         try {
-            payload = exportBytes(call, mimeType);
-        } catch (IOException error) {
-            call.reject("读取导出内容失败：" + safeMessage(error), error);
-            return;
+            String name = call.getString("fileName");
+            if (!validGalleryFileName(name)) throw new IOException("图片文件名无效");
+            if (!PNG_MIME_TYPE.equals(call.getString("mimeType")) || !BASE64_ENCODING.equals(call.getString("encoding"))) {
+                throw new IOException("相册保存仅支持 PNG 图片");
+            }
+            byte[] payload = exportBytes(call, PNG_MIME_TYPE);
+            ContentResolver resolver = getContext().getContentResolver();
+            ContentValues values = new ContentValues();
+            values.put(MediaStore.Images.Media.DISPLAY_NAME, name);
+            values.put(MediaStore.Images.Media.MIME_TYPE, PNG_MIME_TYPE);
+            values.put(MediaStore.Images.Media.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/小懂哥");
+            values.put(MediaStore.Images.Media.IS_PENDING, 1);
+            created = resolver.insert(MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY), values);
+            if (created == null) throw new IOException("系统没有返回相册保存位置");
+            writeAndClose(resolver.openOutputStream(created, "w"), payload);
+            ContentValues published = new ContentValues(); published.put(MediaStore.Images.Media.IS_PENDING, 0);
+            if (resolver.update(created, published, null, null) != 1) throw new IOException("系统未确认图片发布，请使用保存文件或分享重试");
+            completed = true;
+            JSObject response = new JSObject(); response.put("status", "saved"); response.put("uri", created.toString()); call.resolve(response);
+        } catch (IOException | RuntimeException error) {
+            boolean cleanupFailed = false;
+            if (created != null && !completed) {
+                try {
+                    if (getContext().getContentResolver().delete(created, null, null) != 1) {
+                        cleanupFailed = true; error.addSuppressed(new IOException("系统未确认删除本次未完成图片"));
+                    }
+                } catch (RuntimeException cleanupError) { cleanupFailed = true; error.addSuppressed(cleanupError); }
+            }
+            call.reject("保存到相册失败：" + safeMessage(error) + (cleanupFailed ? "；系统未确认清理未完成图片" : ""), error);
         }
-        try {
-            writeAndClose(getContext().getContentResolver().openOutputStream(uri, "w"), payload);
-            JSObject response = new JSObject();
-            response.put("status", "saved");
-            response.put("uri", uri.toString());
-            call.resolve(response);
-        } catch (IOException | SecurityException error) {
-            call.reject("写入导出文件失败：" + safeMessage(error), error);
+    }
+
+    static boolean validGalleryFileName(String name) {
+        if (name == null || name.length() < 5 || name.length() > 120 || name.getBytes(StandardCharsets.UTF_8).length > 240
+            || name.startsWith(".") || !name.endsWith(".png")) return false;
+        for (char character : name.toCharArray()) {
+            if (character == '/' || character == '\\' || character < 32 || character == 127) return false;
         }
+        return true;
     }
 
     static void writeAndClose(OutputStream output, byte[] payload) throws IOException {
@@ -236,7 +296,7 @@ public class NativeExportPlugin extends Plugin {
                 exportFile
             );
             Intent shareIntent = new Intent(Intent.ACTION_SEND);
-            shareIntent.setType(mimeType);
+            shareIntent.setTypeAndNormalize(mimeType);
             shareIntent.putExtra(Intent.EXTRA_STREAM, uri);
             shareIntent.putExtra(Intent.EXTRA_SUBJECT, fileName);
             shareIntent.setClipData(ClipData.newRawUri(fileName, uri));
@@ -245,7 +305,7 @@ public class NativeExportPlugin extends Plugin {
             JSObject response = new JSObject();
             response.put("status", "opened");
             call.resolve(response);
-        } catch (IllegalArgumentException | SecurityException error) {
+        } catch (RuntimeException error) {
             call.reject("打开系统分享失败：" + safeMessage(error), error);
         }
     }
@@ -257,13 +317,12 @@ public class NativeExportPlugin extends Plugin {
             call.reject("缺少复制内容");
             return;
         }
-        ClipboardManager clipboard = (ClipboardManager) getContext().getSystemService(android.content.Context.CLIPBOARD_SERVICE);
-        if (clipboard == null) {
-            call.reject("系统剪贴板不可用");
-            return;
-        }
-        clipboard.setPrimaryClip(ClipData.newPlainText("小懂哥导出内容", text));
-        call.resolve();
+        try {
+            ClipboardManager clipboard = (ClipboardManager) getContext().getSystemService(android.content.Context.CLIPBOARD_SERVICE);
+            if (clipboard == null) { call.reject("系统剪贴板不可用"); return; }
+            clipboard.setPrimaryClip(ClipData.newPlainText("小懂哥导出内容", text));
+            call.resolve();
+        } catch (RuntimeException error) { call.reject("当前环境无法复制，可长按原文选择复制。", error); }
     }
 
     private boolean hasContent(PluginCall call) {

@@ -68,11 +68,16 @@ try {
   assert.deepEqual(report.externalRequests, []);
   report.checks.push("real build/version and backup timestamps, valid/damaged drafts, offline local read and white-listed copy preserve storage and hide title/body/OCR/cover/path markers");
 
-  await page.evaluate(() => Object.defineProperty(navigator, "clipboard", { configurable: true, value: undefined }));
+  await page.evaluate(() => {
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: undefined });
+    window.codexOriginalExecCommand = document.execCommand;
+    document.execCommand = () => false;
+  });
   await page.getByRole("button", { name: "复制脱敏诊断" }).click();
-  await page.getByText("复制失败，请检查剪贴板权限").waitFor();
+  await page.getByText("复制失败，可长按上方摘要选择复制").waitFor();
+  await page.evaluate(() => { document.execCommand = window.codexOriginalExecCommand; });
   await page.evaluate(() => Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: async text => { window.codexCopiedDiagnostics = text; } } }));
-  report.checks.push("missing clipboard API reports a visible failure without throwing or exposing diagnostics");
+  report.checks.push("all copy paths unavailable reports a visible failure without throwing or exposing diagnostics");
 
   const injected = await page.evaluate(async marker => {
     const { store } = await import("/src/store.ts");
@@ -86,6 +91,25 @@ try {
   assert.match(injected.text, /应用数据读取失败，数据库状态未知/);
   assert.ok(!injected.text.includes(marker));
   report.checks.push("raw storage exception is reduced to a fixed stage code and cannot enter copied diagnostics");
+
+  const environment = await page.evaluate(async marker => {
+    const { NowPlaying } = await import("/src/nativeNowPlaying.ts");
+    const { readDiagnostics, diagnosticsCopyText } = await import("/src/codex_DiagnosticsPage.tsx");
+    const platform = window.Capacitor.getPlatform;
+    const original = NowPlaying.getDiagnostics;
+    window.Capacitor.getPlatform = () => "android";
+    NowPlaying.getDiagnostics = async () => ({ versionName: "synthetic", versionCode: 1, notificationAccessEnabled: false,
+      manufacturer: "合成厂商", model: "合成型号", androidApi: 24,
+      webViewPackage: "com.huawei.webview", webViewVersion: "10.0.0.0", deviceId: marker });
+    try {
+      const snapshot = await readDiagnostics();
+      return { runtime: snapshot.runtimeEnvironment, engine: snapshot.webEngine, copy: diagnosticsCopyText(snapshot) };
+    } finally { window.Capacitor.getPlatform = platform; NowPlaying.getDiagnostics = original; }
+  }, marker);
+  assert.equal(environment.runtime, "合成厂商 合成型号；Android API 24");
+  assert.equal(environment.engine, "com.huawei.webview 10.0.0.0");
+  assert.ok(!environment.copy.includes(marker));
+  report.checks.push("synthetic Android provider/version and non-unique model/API are shown; unrequested device ID is excluded");
 
   await page.evaluate(async value => { const { markRecoveryError } = await import("/src/codex_restoreState.ts"); markRecoveryError(new Error(value)); }, marker);
   await page.evaluate(() => { location.hash = "/more"; });

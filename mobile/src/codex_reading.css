@@ -1,7 +1,7 @@
 .app-shell:has(.codex-reader) > .app-header,.app-shell:has(.codex-reader) > .bottom-nav{display:none}
 .app-shell:has(.codex-reader){padding-bottom:0;background:#fffdf8}
 .app-shell:has(.codex-reader-dark){background:#17211e}
-.codex-reader{--reader-paper:#fffdf8;--reader-ink:#24362e;--reader-line:#dedfd5;--reader-body:17px;min-height:100dvh;background:var(--reader-paper);color:var(--reader-ink);padding-bottom:max(24px,env(safe-area-inset-bottom))}
+.codex-reader{--reader-paper:#fffdf8;--reader-ink:#24362e;--reader-line:#dedfd5;--reader-body:17px;min-height:100vh;min-height:100dvh;background:var(--reader-paper);color:var(--reader-ink);padding-bottom:max(24px,env(safe-area-inset-bottom))}
 .codex-reader:has(.codex-reader-footer){padding-bottom:0}
 .codex-reader-small{--reader-body:15px}.codex-reader-large{--reader-body:21px}
 .codex-reader-dark{--reader-paper:#17211e;--reader-ink:#e9e9dd;--reader-line:#405149;--ink:#e9e9dd;--muted:#b2bdb6;--paper:#17211e;--paper-soft:#202e28;--line:#405149;--green-950:#e9e9dd;--green-900:#e9e9dd;--green-800:#c6d5c5;--green-700:#b4ceb8;--journal-ink:#e9e9dd;--journal-muted:#b2bdb6;--journal-paper:#17211e;--journal-line:#405149}

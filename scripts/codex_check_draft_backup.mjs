@@ -1038,7 +1038,11 @@ async function runStaleWorkflows(harness) {
       Promise.all = values => {
         const items = Array.from(values);
         const result = original(items);
-        return items.length === 5 ? result.then(value => new Promise(resolve => window.codexHomeReleases.push(() => resolve(value)))) : result;
+        // Pause Home's completed reads outside their storage locks. The batched
+        // startup returns entries, listening moments and the saved daily state.
+        return result.then(value => items.length === 3 && Array.isArray(value[0]) && Array.isArray(value[1])
+          && (value[2] === null || typeof value[2] === "string")
+          ? new Promise(resolve => window.codexHomeReleases.push(() => resolve(value))) : value);
       };
       window.codexRestorePromiseAll = () => { Promise.all = original; };
       location.hash = "/";

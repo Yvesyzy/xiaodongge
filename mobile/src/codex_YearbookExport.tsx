@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Capacitor } from "@capacitor/core";
 import { blobToBase64, downloadBlob } from "./shareCard";
-import { NativeExport } from "./nativeExport";
+import { NativeExport, saveFile } from "./nativeExport";
 import { buildYearbookPosterStats, renderYearbookPoster, YEARBOOK_POSTER_MIME, type YearbookPosterStats } from "./codex_yearbookPoster";
 import type { YearlyListeningSnapshot } from "./listeningYearbook";
 import type { ReviewEntry } from "./types";
@@ -61,7 +61,7 @@ export function YearbookExport({ snapshot, entries }: YearbookExportProps) {
     const fileName = yearbookFileName(snapshot.year);
     try {
       if (Capacitor.isNativePlatform()) {
-        const result = await NativeExport.saveFile({
+        const result = await saveFile({
           fileName,
           mimeType: YEARBOOK_POSTER_MIME,
           content: await blobToBase64(poster.blob),

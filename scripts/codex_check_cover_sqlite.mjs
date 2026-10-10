@@ -27,6 +27,11 @@ try {
     const { store, entryCoverTarget } = await import('/src/store.ts');
     store.db = { query: (statement, values) => window.codexSQLite({ method: 'query', statement, values }), run: (statement, values) => window.codexSQLite({ method: 'run', statement, values }) };
     store.nativeReady = true; window.Capacitor.isNativePlatform = () => true;
+    async function compareCoverBatch(items) {
+      const batch = await store.getEntryCovers(items, await store.listEntries());
+      const singles = await Promise.all(items.map(item => store.getEntryCover(item)));
+      if (JSON.stringify(batch) !== JSON.stringify(singles)) throw new Error('Batch covers differ from individual resolution');
+    }
     const entry = await store.createEntry(seed);
     const events = []; window.addEventListener('codex:cover-changed', () => events.push('changed'));
     await store.setCover('song', entry, 'legacy');
@@ -34,9 +39,11 @@ try {
     const aggregateLegacy = (await store.albumAggregates())[0].coverDataUrl;
     const other = await store.createEntry({ ...seed, artistName: '另一艺人' });
     const isolated = await store.getEntryCover(other);
+    await compareCoverBatch([entry, other]);
     const conflicting = await store.createEntry({ ...seed, songName: '另一个cut' });
     await store.setCover('song', conflicting, 'conflict');
     const ambiguous = await store.getEntryCover(entry);
+    await compareCoverBatch([entry, other, conflicting]);
     const target = entryCoverTarget(entry);
     await store.setCover(target.kind, target.target, 'album');
     const explicit = await store.getEntryCover(entry);
@@ -45,6 +52,7 @@ try {
     const song = await store.createEntry({ ...seed, type: 'song', songName: '独立单曲' });
     const songFallback = await store.getEntryCover(song);
     await store.setCover('song', song, 'song');
+    await compareCoverBatch([entry, other, conflicting, song]);
     window.codexCoverEntry = entry;
     window.codexCoverEvents = events;
     return { legacy, aggregateLegacy, isolated, ambiguous, explicit, aggregate, normalized, songFallback, song: await store.getEntryCover(song), events: events.length };

@@ -12,7 +12,8 @@ import { readSharedMusic } from "./nativeSharedMusic";
 import { applyAppleCatalogMatch, findAppleCatalogMatch, parseCatalogSearchResult, parseNowPlayingResult, type ParsedNowPlayingResult } from "./nowPlaying";
 import { quickCaptureToEntryInput, recentSavedMoods } from "./quickCapture";
 import RatingSlider from "./RatingSlider";
-import { store } from "./store";
+import { entryCoverTarget, store } from "./store";
+import { playbackCoverKey, preparePlaybackCover } from "./codex_playbackCover";
 import { useBackGuard } from "./codex_Navigation";
 import type { EntryType, MusicMetadata, RatingModifier, ReviewEntry } from "./types";
 
@@ -38,6 +39,10 @@ export default function QuickCapturePage() {
   const [ratingModifier, setRatingModifier] = useState<RatingModifier | null>(null);
   const [listenedOn, setListenedOn] = useState(() => localToday());
   const [musicMetadata, setMusicMetadata] = useState<MusicMetadata | null>(null);
+  const [coverDataUrl, setCoverDataUrl] = useState<string | null>(null);
+  const [coverChanged, setCoverChanged] = useState(false);
+  const [coverFromPlayback, setCoverFromPlayback] = useState(false);
+  const coverKeyRef = useRef<string | null>(null);
   const [entries, setEntries] = useState<ReviewEntry[]>([]);
   const [recentMoods, setRecentMoods] = useState<string[]>([]);
   const [matches, setMatches] = useState<ReviewEntry[]>([]);
@@ -115,7 +120,16 @@ export default function QuickCapturePage() {
     return () => {
       if (saveTimerRef.current !== null) window.clearTimeout(saveTimerRef.current);
     };
-  }, [albumName, artistName, content, draftId, entryType, listenedOn, moods, musicMetadata, rating, ratingModifier, ready, songName, title]);
+  }, [albumName, artistName, content, coverDataUrl, coverChanged, coverFromPlayback, draftId, entryType, listenedOn, moods, musicMetadata, rating, ratingModifier, ready, songName, title]);
+
+  useEffect(() => {
+    if (coverFromPlayback && coverKeyRef.current !== playbackCoverKey({ type: entryType, songName, albumName, artistName })) {
+      coverKeyRef.current = null;
+      setCoverDataUrl(null);
+      setCoverChanged(false);
+      setCoverFromPlayback(false);
+    }
+  }, [entryType, songName, albumName, artistName, coverFromPlayback]);
 
   useEffect(() => {
     if (!ready || !supportsCurrentPlayback) return;
@@ -138,6 +152,10 @@ export default function QuickCapturePage() {
     setRatingModifier(draft.fields.ratingModifier === "+" || draft.fields.ratingModifier === "-" ? draft.fields.ratingModifier : null);
     setListenedOn(draft.fields.listenedAt || localToday());
     setMusicMetadata(draft.musicMetadata);
+    setCoverDataUrl(draft.coverChanged ? draft.coverDataUrl : null);
+    setCoverChanged(draft.coverChanged);
+    setCoverFromPlayback(draft.coverFromPlayback === true);
+    coverKeyRef.current = draft.coverFromPlayback ? playbackCoverKey(draft.fields) : null;
     // Any valid saved quick draft is user-owned; playback metadata must wait for an explicit switch.
     dirtyRef.current = true;
     formRevisionRef.current += 1;
@@ -147,6 +165,7 @@ export default function QuickCapturePage() {
     assertStorageWritable(generation);
     if (!draftId) throw new Error("快速草稿数量已达上限");
     const [year, month] = listenedOn.split("-");
+    const coverIsCurrent = !coverFromPlayback || coverKeyRef.current === playbackCoverKey({ type: entryType, songName, albumName, artistName });
     writeEntryDraft(localStorage, {
       version: 2,
       mode: "create",
@@ -180,8 +199,9 @@ export default function QuickCapturePage() {
       selectedGenreTags: [],
       selectedMoodGroupId: MOOD_CATEGORIES.find((group) => group.moods.some((mood) => moods.includes(mood)))?.id ?? MOOD_CATEGORIES[0].id,
       selectedMoods: moods,
-      coverDataUrl: null,
-      coverChanged: false,
+      coverDataUrl: coverChanged && coverIsCurrent ? coverDataUrl : null,
+      coverChanged: coverChanged && coverIsCurrent,
+      ...(coverFromPlayback && coverChanged && coverIsCurrent ? { coverFromPlayback: true } : {}),
       ocrText: "",
       recognizedFields: null,
       musicMetadata,
@@ -216,7 +236,7 @@ export default function QuickCapturePage() {
     setError("");
     setPlaybackStatus(null);
     try {
-      let result = parseNowPlayingResult(await NowPlaying.getCurrentTrack());
+      let result = parseNowPlayingResult(await NowPlaying.getCurrentTrack({ includeArtwork: true }));
       if (!isCurrentForm()) return;
       if (!result.accessEnabled) {
         setPlaybackStatus({ text: "请先授予通知使用权；仍可手动填写快速记录。", error: false });
@@ -233,6 +253,8 @@ export default function QuickCapturePage() {
           setPendingTrack(result);
           setPlaybackStatus({ text: "当前播放已经变化，现有输入没有被覆盖。", error: false });
         } else {
+          await applyTrackCover({ type: entryType, songName, albumName, artistName }, result.coverDataUrl, isCurrentForm);
+          if (!isCurrentForm()) return;
           setPlaybackStatus({ text: "表单已有当前歌曲信息，未覆盖用户输入。", error: false });
         }
         return;
@@ -240,7 +262,10 @@ export default function QuickCapturePage() {
 
       result = await enrichNowPlaying(result);
       if (!isCurrentForm()) return;
-      applyTrack(result);
+      const recognized = applyTrack(result);
+      if (recognized) await applyTrackCover({ type: recognized.fields.type ?? "song", songName: recognized.fields.songName ?? null,
+        albumName: recognized.fields.albumName ?? null, artistName: recognized.fields.artistName ?? null }, result.coverDataUrl, isCurrentForm);
+      if (!isCurrentForm()) return;
       setPlaybackStatus({ text: `已读取当前播放：${[
         result.fields?.songName ? `歌曲 ${result.fields.songName}` : null,
         result.fields?.albumName ? `专辑 ${result.fields.albumName}` : null,
@@ -288,11 +313,28 @@ export default function QuickCapturePage() {
     setMusicMetadata(recognized.musicMetadata);
     setIdentityOpen(!recognized.fields.albumName);
     setPendingTrack(null);
+    return recognized;
+  }
+
+  async function applyTrackCover(identity: Parameters<typeof playbackCoverKey>[0], candidate: unknown, isCurrent: () => boolean) {
+    if (coverChanged && coverDataUrl && !coverFromPlayback && dirtyRef.current) return;
+    const cover = await preparePlaybackCover(identity, candidate);
+    if (!isCurrent()) return;
+    if (!cover.dataUrl && coverDataUrl && coverFromPlayback && coverKeyRef.current === cover.key) return;
+    coverKeyRef.current = cover.fromPlayback ? cover.key : null;
+    setCoverDataUrl(cover.dataUrl);
+    setCoverChanged(cover.fromPlayback);
+    setCoverFromPlayback(cover.fromPlayback);
   }
 
   function edit(setter: (value: string) => void, value: string) {
     markFormChanged();
     setter(value);
+  }
+
+  function editIdentity(setter: (value: string) => void, value: string) {
+    edit(setter, value);
+    setMusicMetadata(null);
   }
 
   function toggleMood(mood: string) {
@@ -326,7 +368,11 @@ export default function QuickCapturePage() {
         setMessage("切换期间输入有更新，未覆盖当前输入；可继续当前记录或再次切换。");
         return;
       }
-      applyTrack(enriched, "album", null);
+      const recognized = applyTrack(enriched, "album", null);
+      if (recognized) await applyTrackCover({ type: recognized.fields.type ?? "song", songName: recognized.fields.songName ?? null,
+        albumName: recognized.fields.albumName ?? null, artistName: recognized.fields.artistName ?? null }, enriched.coverDataUrl,
+        () => mountedRef.current && switchRequestId === nowPlayingRequestRef.current && formRevisionRef.current === switchRevision);
+      if (!mountedRef.current || switchRequestId !== nowPlayingRequestRef.current || formRevisionRef.current !== switchRevision) return;
       dirtyRef.current = false;
       setMessage("原草稿已保存，已切换到新的当前播放");
     } catch (err) {
@@ -339,6 +385,7 @@ export default function QuickCapturePage() {
 
   function clearForm() {
     formRevisionRef.current += 1;
+    setPendingTrack(null);
     setEntryType("album");
     setTitle("");
     setSongName("");
@@ -350,6 +397,10 @@ export default function QuickCapturePage() {
     setRatingModifier(null);
     setListenedOn(localToday());
     setMusicMetadata(null);
+    setCoverDataUrl(null);
+    setCoverChanged(false);
+    setCoverFromPlayback(false);
+    coverKeyRef.current = null;
     setMatches([]);
   }
 
@@ -364,6 +415,11 @@ export default function QuickCapturePage() {
         setMatches(existing);
         setMessage(existing.length === 1 ? "已经有这个专辑或歌曲档案，可以追加听感或新建另一篇。" : "找到多条相同音乐档案，请选择要追加的记录。");
         return;
+      }
+      const coverTarget = entryCoverTarget(input);
+      if (coverChanged && coverDataUrl && coverTarget && (!coverFromPlayback || coverKeyRef.current === playbackCoverKey(input))) {
+        await store.setCover(coverTarget.kind, coverTarget.target, coverDataUrl, coverFromPlayback ? { onlyIfMissing: true } : undefined);
+        assertStorageWritable(generation);
       }
       const saved = await store.createEntry(input);
       let draftCleanupFailed = false;
@@ -405,7 +461,7 @@ export default function QuickCapturePage() {
   );
 
   const artworkUri = musicMetadata?.artworkUri;
-  const artwork = artworkUri && privacyAllowsImage(artworkUri) ? artworkUri : null;
+  const artwork = coverDataUrl ?? (artworkUri && privacyAllowsImage(artworkUri) ? artworkUri : null);
   return (
     <section className="page quick-capture-page">
       <div className="page-heading">
@@ -477,12 +533,12 @@ export default function QuickCapturePage() {
 
           <details className="quick-identity-fields" open={identityOpen} onToggle={(event) => setIdentityOpen(event.currentTarget.open)}>
             <summary>音乐信息</summary>
-            <label>记录类型<select value={entryType} onChange={(event) => { markFormChanged(); setEntryType(event.target.value as EntryType); }}><option value="album">专辑</option><option value="song">歌曲</option></select></label>
+            <label>记录类型<select value={entryType} onChange={(event) => { markFormChanged(); setMusicMetadata(null); setEntryType(event.target.value as EntryType); }}><option value="album">专辑</option><option value="song">歌曲</option></select></label>
             <label>标题<input value={title} onChange={(event) => edit(setTitle, event.target.value)} /></label>
-            <label>歌曲<input value={songName} onChange={(event) => edit(setSongName, event.target.value)} /></label>
+            <label>歌曲<input value={songName} onChange={(event) => editIdentity(setSongName, event.target.value)} /></label>
             <div className="form-grid">
-              <label>歌手<input value={artistName} onChange={(event) => edit(setArtistName, event.target.value)} /></label>
-              <label>专辑<input value={albumName} onChange={(event) => edit(setAlbumName, event.target.value)} /></label>
+              <label>歌手<input value={artistName} onChange={(event) => editIdentity(setArtistName, event.target.value)} /></label>
+              <label>专辑<input value={albumName} onChange={(event) => editIdentity(setAlbumName, event.target.value)} /></label>
             </div>
           </details>
         </details>

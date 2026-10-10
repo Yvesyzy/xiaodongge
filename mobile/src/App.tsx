@@ -15,9 +15,10 @@ import { journalRating } from "./codex_yearbookModel";
 import { mergeMusicMetadata } from "./musicMetadata";
 import { groupMusicEntries, normalizeMusicIdentityText, sameAlbumIdentity, sameMusicIdentity } from "./musicIdentity";
 import { NowPlaying, supportsCurrentPlayback } from "./nativeNowPlaying";
+import { playbackCoverKey, preparePlaybackCover } from "./codex_playbackCover";
 import { hasPrivacyConsent, requirePrivacyConsent } from "./codex_privacy";
 import { AndroidPrivacySettings, usePrivacyStatus } from "./codex_PrivacyGate";
-import { NativeExport } from "./nativeExport";
+import { NativeExport, copyText, saveFile } from "./nativeExport";
 import { desktopPlugin } from "./codex_desktopBridge";
 import { parseSharedMusicPayload, rememberSharedMusic, SharedMusic } from "./nativeSharedMusic";
 import { applyAppleCatalogMatch, findAppleCatalogMatch, parseCatalogSearchResult, parseNowPlayingResult } from "./nowPlaying";
@@ -78,6 +79,7 @@ const SimpleYearbookPage = lazy(() => import("./codex_YearbookPage"));
 const ReviewShare = lazy(() => import("./codex_ReviewShare"));
 const AlbumTimelinePage = lazy(() => import("./codex_AlbumTimeline"));
 const DiagnosticsPage = lazy(() => import("./codex_DiagnosticsPage"));
+const CompatibilityPage = lazy(() => import("./codex_CompatibilityPage"));
 // ponytail: 12 MiB is above the measured 11.14 MB gallery fixture; raise it only after repeating low-memory device tests.
 const MAX_OCR_IMAGE_BYTES = 12 * 1024 * 1024;
 
@@ -147,6 +149,7 @@ export default function App() {
           <Route path="/songs" element={<SongsPage />} />
           <Route path="/songs/detail" element={<AggregateDetail kind="song" />} />
           <Route path="/search" element={<SearchPage />} />
+          <Route path="/compatibility" element={<CompatibilityPage />} />
           <Route path="/summary" element={<SimpleYearbookPage />} />
           <Route path="/summary/analysis" element={<YearlyListeningPage />} />
           <Route path="/summary/:year/:month" element={<MonthlyListeningPage />} />
@@ -222,20 +225,30 @@ function HomePage() {
   useEffect(() => {
     let active = true;
     void Promise.all([
-      store.recentEntries(3),
-      store.getYearStats(currentYear),
       store.listEntries(),
       store.listListeningMoments(),
       store.getStoredAppData(DAILY_RESURFACING_KEY),
-    ]).then(async ([recent, yearStats, allEntries, moments, savedState]) => {
-      const recentWithCovers = await Promise.all(recent.map(loadHomeCover));
+    ]).then(async ([allEntries, moments, savedState]) => {
+      if (!active) return;
+      const recent = [...allEntries].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 3);
       const today = localDateKey();
       const resolved = resolveDailyResurfacing(allEntries, moments, today, parseDailyResurfacingState(savedState));
-      const nextState = JSON.stringify(resolved.state);
+      const shown = resolved.entry ? [...recent, resolved.entry] : recent;
+      const [covers, yearStats] = await Promise.all([
+        store.getEntryCovers(shown, allEntries), store.getYearStats(currentYear, allEntries),
+      ]);
       if (!active) return;
       assertStorageWritable(generation);
+      const nextResurfacing = resolved.entry ? { ...resolved.entry, coverDataUrl: covers[recent.length] } : null;
+      setEntries(recent.map((entry, index) => ({ ...entry, coverDataUrl: covers[index] })));
+      setStats(yearStats);
+      setHomeDrafts(listEntryDrafts(localStorage, allEntries));
+      setResurfacingEntry(nextResurfacing);
+      setResurfacingState(resolved.state);
+      setNowPlayingMatch(false);
+      const nextState = JSON.stringify(resolved.state);
       if (savedState !== nextState) await store.setStoredAppData(DAILY_RESURFACING_KEY, nextState);
-      const nextResurfacing = resolved.entry ? await loadHomeCover(resolved.entry) : null;
+      if (!active) return;
       let currentMatches = false;
       if (nextResurfacing && Capacitor.getPlatform() === "android" && hasPrivacyConsent()) {
         try {
@@ -256,11 +269,6 @@ function HomePage() {
         }
       }
       if (!active) return;
-      setEntries(recentWithCovers);
-      setStats(yearStats);
-      setHomeDrafts(listEntryDrafts(localStorage, allEntries));
-      setResurfacingEntry(nextResurfacing);
-      setResurfacingState(resolved.state);
       setNowPlayingMatch(currentMatches);
     }).catch(() => {
       if (!active) return;
@@ -340,10 +348,6 @@ function HomePage() {
 
     </section>
   );
-}
-
-async function loadHomeCover(entry: ReviewEntry): Promise<HomeEntry> {
-  return { ...entry, coverDataUrl: await loadEntryCover(entry) };
 }
 
 async function loadEntryCover(entry: ReviewEntry) {
@@ -463,6 +467,9 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
   const [entryCoverLoaded, setEntryCoverLoaded] = useState(mode === "create");
   const [coverDataUrl, setCoverDataUrl] = useState<string | null>(null);
   const [coverChanged, setCoverChanged] = useState(false);
+  const [coverFromPlayback, setCoverFromPlayback] = useState(false);
+  const playbackCoverKeyRef = useRef<string | null>(null);
+  const coverSelectionRef = useRef(0);
   const [ocrText, setOcrText] = useState("");
   const [recognizedFields, setRecognizedFields] = useState<MusicInfoFields | null>(null);
   const [musicMetadata, setMusicMetadata] = useState<MusicMetadata | null>(null);
@@ -541,6 +548,8 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
       if (!active) return;
       setCoverDataUrl(nextCover);
       setCoverChanged(false);
+      setCoverFromPlayback(false);
+      playbackCoverKeyRef.current = null;
     }).catch((err) => {
       if (active) setError(err instanceof Error ? err.message : "封面读取失败");
     }).finally(() => {
@@ -593,6 +602,8 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
         setGenreSelection(result.draft.genreSelection);
         setSelectedGenreTags(result.draft.selectedGenreTags);
         setCoverChanged(result.draft.coverChanged);
+        setCoverFromPlayback(result.draft.coverFromPlayback === true);
+        playbackCoverKeyRef.current = result.draft.coverFromPlayback ? playbackCoverKey(result.draft.fields) : null;
         if (result.draft.coverChanged) setCoverDataUrl(result.draft.coverDataUrl);
         setOcrText(result.draft.ocrText);
         setRecognizedFields(result.draft.recognizedFields);
@@ -640,7 +651,7 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
       return;
     }
     scheduleDraftSave();
-  }, [coverChanged, coverDataUrl, draftReady, genreSelection, musicMetadata, ocrText, recognizedFields, selectedGenreTags, selectedMoodGroupId, selectedMoods, rating, ratingModifier, multiDimension, ratingProduction, ratingSongwriting, ratingLyrics, ratingComposition, ratingVocals, ratingOriginality, ratingResonance]);
+  }, [coverChanged, coverDataUrl, coverFromPlayback, draftReady, genreSelection, musicMetadata, ocrText, recognizedFields, selectedGenreTags, selectedMoodGroupId, selectedMoods, rating, ratingModifier, multiDimension, ratingProduction, ratingSongwriting, ratingLyrics, ratingComposition, ratingVocals, ratingOriginality, ratingResonance]);
 
   useEffect(() => {
     if (!draftReady) return;
@@ -666,6 +677,8 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
     if (!draftReadyRef.current || !formRef.current) return null;
     const entryId = mode === "edit" ? id ?? null : null;
     if (mode === "edit" && (!entryId || !entry)) return null;
+    const fields = readDraftFields(formRef.current);
+    const coverIsCurrent = !coverFromPlayback || playbackCoverKeyRef.current === playbackCoverKey(fields);
     return {
       version: 2,
       mode,
@@ -674,13 +687,14 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
       draftId,
       baseUpdatedAt: mode === "edit" ? entry?.updatedAt ?? null : null,
       savedAt: new Date().toISOString(),
-      fields: readDraftFields(formRef.current),
+      fields,
       genreSelection,
       selectedGenreTags: [...selectedGenreTags],
       selectedMoodGroupId,
       selectedMoods: [...selectedMoods],
-      coverDataUrl: coverChanged ? coverDataUrl : null,
-      coverChanged,
+      coverDataUrl: coverChanged && coverIsCurrent ? coverDataUrl : null,
+      coverChanged: coverChanged && coverIsCurrent,
+      ...(coverFromPlayback && coverChanged && coverIsCurrent ? { coverFromPlayback: true } : {}),
       ocrText,
       recognizedFields,
       musicMetadata,
@@ -769,6 +783,9 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
     setGenreSelection(defaultGenreSelection(genreTags[0] ?? null));
     setCoverDataUrl(originalCover);
     setCoverChanged(false);
+    setCoverFromPlayback(false);
+    playbackCoverKeyRef.current = null;
+    coverSelectionRef.current += 1;
     setOcrText("");
     setRecognizedFields(null);
     setMusicMetadata(entry?.musicMetadata ?? null);
@@ -788,6 +805,29 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
     setDraftError(false);
   }
 
+  function clearMismatchedPlaybackCover() {
+    if (!coverFromPlayback || !formRef.current) return;
+    if (playbackCoverKeyRef.current === playbackCoverKey(readDraftFields(formRef.current))) return;
+    playbackCoverKeyRef.current = null;
+    setCoverDataUrl(null);
+    setCoverChanged(false);
+    setCoverFromPlayback(false);
+  }
+
+  async function applyPlaybackArtwork(candidate: unknown, isCurrent: () => boolean, selection: number) {
+    if (!formRef.current || (coverDataUrl && !coverFromPlayback)) return;
+    const identity = readDraftFields(formRef.current);
+    const cover = await preparePlaybackCover(identity, candidate);
+    if (!isCurrent() || selection !== coverSelectionRef.current || !formRef.current
+      || cover.key !== playbackCoverKey(readDraftFields(formRef.current))) return;
+    if (!cover.dataUrl) return;
+    playbackCoverKeyRef.current = cover.fromPlayback ? cover.key : null;
+    setCoverDataUrl(cover.dataUrl);
+    setCoverChanged(cover.fromPlayback);
+    setCoverFromPlayback(cover.fromPlayback);
+    if (cover.fromPlayback) setNotice("已读取系统播放封面，保存记录后生效");
+  }
+
   async function readNowPlaying() {
     const requestId = ++nowPlayingRequestRef.current;
     const revision = formRevisionRef.current;
@@ -796,7 +836,8 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
     setNowPlayingMessage("正在读取当前播放…");
     setError("");
     try {
-      const result = parseNowPlayingResult(await NowPlaying.getCurrentTrack());
+      const selection = coverSelectionRef.current;
+      const result = parseNowPlayingResult(await NowPlaying.getCurrentTrack({ includeArtwork: true }));
       if (!isCurrent()) return;
       setNowPlayingAccessEnabled(result.accessEnabled);
       if (!result.accessEnabled) {
@@ -821,6 +862,8 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
       const changed = fillRecognizedFields(formRef.current, firstResult.fields, true);
       setMusicMetadata(firstResult.musicMetadata);
       if (changed) scheduleDraftSave();
+      await applyPlaybackArtwork(result.coverDataUrl, isCurrent, selection);
+      if (!isCurrent()) return;
       const songName = result.fields.songName?.trim();
       const artistName = result.fields.artistName?.trim();
       if (!songName || !artistName) {
@@ -850,6 +893,8 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
         const catalogChanged = fillRecognizedFields(formRef.current, finalResult.fields, true);
         setMusicMetadata(finalResult.musicMetadata);
         if (catalogChanged) scheduleDraftSave();
+        await applyPlaybackArtwork(result.coverDataUrl, isCurrent, selection);
+        if (!isCurrent()) return;
         setNowPlayingMessage(`${recognitionNotice(finalResult.fields)}，联网补全完成`);
       } catch (catalogError) {
         if (isCurrent()) setNowPlayingMessage(`${recognitionNotice(result.fields)}，已保留原生信息；${catalogError instanceof Error ? catalogError.message : "联网补全失败"}，可重试`);
@@ -879,6 +924,7 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
     const input = event.currentTarget;
     const file = input.files?.[0];
     if (!file || input.disabled) return;
+    coverSelectionRef.current += 1;
     input.disabled = true;
     setError("");
     setNotice("");
@@ -887,6 +933,8 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
       if (!input.isConnected) return;
       setCoverDataUrl(dataUrl);
       setCoverChanged(true);
+      setCoverFromPlayback(false);
+      playbackCoverKeyRef.current = null;
       setNotice("封面已选择，保存记录后生效");
     } catch (err) {
       if (input.isConnected) setError(err instanceof Error ? err.message : "封面读取失败");
@@ -937,6 +985,7 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
       : { fields: recognizedFields, musicMetadata };
     const clearMetadata = musicIdentityWouldChange(formRef.current, result.fields);
     const changed = fillRecognizedFields(formRef.current, result.fields);
+    clearMismatchedPlaybackCover();
     if (changed) {
       setMusicMetadata(clearMetadata && !result.musicMetadata?.displayTitle ? null : result.musicMetadata);
       scheduleDraftSave();
@@ -948,6 +997,7 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
   function handleFormMutation(event: FormEvent<HTMLFormElement>) {
     formRevisionRef.current += 1;
     const target = event.target;
+    clearMismatchedPlaybackCover();
     if ((target instanceof HTMLInputElement || target instanceof HTMLSelectElement)
       && ["songName", "artistName", "albumName"].includes(target.name)) {
       setMusicMetadata(null);
@@ -999,7 +1049,8 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
         firstListenedAt: readDate(form, "firstListenedAt"),
         listenedAt: readDate(form, "listenedAt"),
       };
-      const coverTarget = coverChanged && coverDataUrl ? inputToCoverTarget(input) : null;
+      const coverMatches = !coverFromPlayback || playbackCoverKeyRef.current === playbackCoverKey(input);
+      const coverTarget = coverChanged && coverDataUrl && coverMatches ? inputToCoverTarget(input) : null;
       if (coverChanged && coverDataUrl && !coverTarget) throw new Error("请先填写歌曲或专辑，再保存封面");
       const similar = findSimilarEntry(await store.listEntries(), input, mode === "edit" ? id : undefined);
       assertStorageWritable(generation);
@@ -1007,7 +1058,8 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
         setNotice("已取消保存，现有记录未改变");
         return;
       }
-      if (coverTarget) await store.setCover(coverTarget.kind, coverTarget.target, coverDataUrl as string);
+      if (coverTarget) await store.setCover(coverTarget.kind, coverTarget.target, coverDataUrl as string,
+        coverFromPlayback ? { onlyIfMissing: true } : undefined);
       assertStorageWritable(generation);
       const saved = mode === "create" ? await store.createEntry(input) : await store.updateEntry(id as string, input);
       try {
@@ -2078,6 +2130,7 @@ function publishBackupResult(text: string, error = false) {
 }
 
 function BackupPage() {
+  const restoreAvailable = typeof navigator.locks?.request === "function";
   const [exported, setExported] = useState<ExportedData | null>(null);
   const [includeCovers, setIncludeCovers] = useState(true);
   const [skipCovers, setSkipCovers] = useState(false);
@@ -2201,7 +2254,7 @@ function BackupPage() {
     setExportStatus({ tone: "success", text: Capacitor.isNativePlatform() ? "正在打开系统文件选择器……" : "正在保存文件……" });
     try {
       if (Capacitor.isNativePlatform()) {
-        const result = await NativeExport.saveFile(exported);
+        const result = await saveFile(exported);
         if (result.status === "cancelled") {
           setExportStatus({ tone: "success", text: "已取消保存" });
           return;
@@ -2257,8 +2310,7 @@ function BackupPage() {
     setExportAction("copy");
     setExportStatus({ tone: "success", text: "正在复制内容……" });
     try {
-      if (Capacitor.isNativePlatform()) await NativeExport.copyText({ text: exported.content });
-      else await copyText(exported.content);
+      await copyText(exported.content);
       setExportStatus({ tone: "success", text: `${EXPORT_LABELS[exported.kind]} 内容已复制` });
     } catch (err) {
       setExportStatus({ tone: "error", text: err instanceof Error ? `复制失败：${err.message}` : "复制失败，请重试" });
@@ -2291,6 +2343,7 @@ function BackupPage() {
 
   async function rehearseImport() {
     if (busy || !preview) return;
+    if (!restoreAvailable) { setError("当前环境不支持安全恢复，请先更新系统网页组件。现有数据仍可查看和导出。"); return; }
     setBusy(true);
     setError("");
     setMessage("");
@@ -2345,6 +2398,7 @@ function BackupPage() {
   async function importData(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (busy) return;
+    if (!restoreAvailable) { setError("当前环境不支持安全恢复，已保留现有数据。"); return; }
     if (!restoreRehearsal) { setError("请先完成隔离恢复预演"); return; }
     let nextPreview: BackupPreview;
     try {
@@ -2446,7 +2500,8 @@ function BackupPage() {
         <section className="form-card">
           <strong>导出的 {EXPORT_LABELS[exported.kind]}</strong>
           <p className="hint">{exported.fileName}</p>
-          <textarea readOnly rows={10} value={exported.content} />
+          <textarea aria-label="导出原文" readOnly rows={10} value={exported.content} />
+          <p className="hint">保存或复制不可用时，原文仍保留在这里，可长按选择。{Capacitor.getPlatform() === "android" && <Link to="/compatibility">鸿蒙与兼容环境使用说明</Link>}</p>
           <div className="export-output-actions native-export-actions">
             <button className="primary-button" type="button" onClick={saveExportFile} disabled={exportAction !== null}>保存到文件夹</button>
             <button className="secondary-button" type="button" onClick={shareExportFile} disabled={exportAction !== null}>{Capacitor.getPlatform() === "electron" ? "打开导出文件夹" : "系统分享"}</button>
@@ -2463,7 +2518,7 @@ function BackupPage() {
         <section className="form-card">
           <strong>可撤销的导入</strong>
           <p className="hint">导入前快照：{undoPreview.entryCount} 条记录、{undoPreview.summaryCount} 个年度总结、{undoPreview.monthlySummaryCount} 个月度作品、{undoPreview.coverCount} 张封面；{draftImportImpact(undoPreview)}导出时间：{formatDate(undoPreview.exportedAt)}</p>
-          <button className="secondary-button" type="button" onClick={undoImport} disabled={busy}>{busy ? "处理中" : "撤销上次导入"}</button>
+          <button className="secondary-button" type="button" onClick={undoImport} disabled={busy || !restoreAvailable}>{busy ? "处理中" : "撤销上次导入"}</button>
         </section>
       ) : null}
       <form className="form-card" onSubmit={importData}>
@@ -2473,15 +2528,17 @@ function BackupPage() {
         </div>
         <label className="secondary-button file-input-button">
           选择 JSON 文件
-          <input type="file" accept="application/json,.json" disabled={busy} onChange={chooseImportFile} />
+          <input type="file" accept="*/*" disabled={busy} onChange={chooseImportFile} />
         </label>
+        <p className="hint">请选择 JSON 备份；文件内容仍会严格校验。也可直接粘贴下方。{Capacitor.getPlatform() === "android" && <>鸿蒙 5/5.1 可先通过卓易通“文件互传”导入文件；6 及以上可在选择器中查找“我的设备(鸿蒙)”。<Link to="/compatibility">查看操作说明</Link></>}</p>
+        {!restoreAvailable && <p role="alert">当前环境不支持安全恢复，预演、导入和撤销暂不可用；现有数据仍可查看、导出或复制，请先更新系统网页组件后重试。</p>}
         <label>
           粘贴备份 JSON
           <textarea rows={10} value={importText} disabled={busy} onChange={(event) => changeImportText(event.target.value)} />
         </label>
         {preview ? <p className="hint">格式校验通过；备份内容（v{preview.sourceVersion}）：{preview.entryCount} 条记录、{preview.summaryCount} 个年度总结、{preview.monthlySummaryCount} 个月度作品、{preview.coverCount} 张封面；{draftImportImpact(preview)}导出时间：{formatDate(preview.exportedAt)}</p> : null}
         {skipCovers ? <p className="hint">本次不导入备份中的封面；当前封面保留。</p> : null}
-        <button className="secondary-button" type="button" onClick={() => void rehearseImport()} disabled={busy || !preview}>{busy ? "预演中" : "预演恢复并查看差异"}</button>
+        <button className="secondary-button" type="button" onClick={() => void rehearseImport()} disabled={busy || !preview || !restoreAvailable}>{busy ? "预演中" : "预演恢复并查看差异"}</button>
         {restoreRehearsal ? (
           <section className="backup-diff-report" aria-label="恢复差异报告">
             <strong>{restoreRehearsal.target === "windows-isolated-sqlite" ? "Windows 隔离数据库恢复与回读通过" : restoreRehearsal.target === "android-isolated-sqlite" ? "Android 隔离数据库恢复与回读通过" : "Web 隔离存储模拟恢复与回读通过"}</strong>
@@ -2495,7 +2552,7 @@ function BackupPage() {
             })}</ul>
           </section>
         ) : null}
-        <button className="danger-button" type="submit" disabled={busy || !restoreRehearsal}>{busy ? "导入中" : "导入并覆盖当前数据"}</button>
+        <button className="danger-button" type="submit" disabled={busy || !restoreRehearsal || !restoreAvailable}>{busy ? "导入中" : "导入并覆盖当前数据"}</button>
       </form>
       {message ? <p className="hint">{message}</p> : null}
       {error ? <p className="error">{error}</p> : null}
@@ -2540,6 +2597,7 @@ function MorePage() {
     ["/drafts", "草稿箱", `${moreDrafts.length} 份未保存草稿（有效新建 ${moreDrafts.filter(draft => draft.status !== "invalid" && draft.mode === "create").length}、编辑 ${editDraftCount}、损坏 ${damagedDraftCount}；新建占位 ${newDraftCount}/${MAX_NEW_DRAFTS}），可续写或处理。`],
     ["/backup", "备份", "导出或导入本地 JSON 备份。"],
     ["/diagnostics", "本机诊断", "查看版本、备份、草稿、存储与系统接口状态。"],
+    ...(Capacitor.getPlatform() === "android" ? [["/compatibility", "鸿蒙与兼容环境", "文件互传、相册保存和当前播放的使用说明。"]] : []),
     ["/privacy", "隐私说明", "查看通知读取、天气联网与本地听感分析的数据范围。"],
   ];
   return (
@@ -2919,7 +2977,7 @@ async function downloadRawDraft(draft: Pick<EntryDraftMeta, "key" | "raw">) {
   const fileName = `xiaodongge-draft-${safeKey}.json`;
   const mimeType = "application/json;charset=utf-8";
   if (Capacitor.isNativePlatform()) {
-    const result = await NativeExport.saveFile({ fileName, mimeType, content: draft.raw });
+    const result = await saveFile({ fileName, mimeType, content: draft.raw });
     return result.status === "saved" ? "草稿原文已保存" : "已取消保存，草稿原文仍保留";
   }
   downloadExportFile(new File([draft.raw], fileName, { type: mimeType }));
@@ -3175,25 +3233,6 @@ function fillRecognizedFields(form: HTMLFormElement | null, fields: MusicInfoFie
   changed += setRecognizedField(form, "title", fields.title ?? fields.songName ?? fields.albumName, onlyEmpty);
   changed += setRecognizedField(form, "content", fields.content, onlyEmpty);
   return changed;
-}
-
-async function copyText(text: string) {
-  // ponytail: Capacitor WebView 的 Clipboard API 可能被权限策略拒绝，保留同步 DOM 回退。
-  try {
-    if (navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(text);
-      return;
-    }
-  } catch { /* fall through */ }
-  const input = document.createElement("textarea");
-  input.value = text;
-  input.style.position = "fixed";
-  input.style.left = "-9999px";
-  document.body.appendChild(input);
-  input.select();
-  const copied = document.execCommand("copy");
-  input.remove();
-  if (!copied) throw new Error("复制失败");
 }
 
 function prefersAlbumEntry(form: HTMLFormElement | null, mode: "create" | "edit") {

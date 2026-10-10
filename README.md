@@ -1,6 +1,8 @@
-# 小懂哥 v3.1.2（测试版）
+# 小懂哥 v3.2.0（系统播放封面）
 
-一个在安卓手机本地运行、以专辑为中心的私人音乐感受记录 APK。它只保存你手动输入或确认过的信息，不自动编造歌曲、专辑、歌手或感受。v3.1.2 增加首次隐私选择、仅本地模式和撤回同意；ML Kit 在同意后实际识别时才初始化，通知监听及后台传输组件随同意状态启停，移除未使用的生物识别权限，显示名统一“小懂哥”。保留 v3.1.1 的阅读字数与间距修复、v3.1.0 的分享布局和六项评分；旧记录的原分数与旧版词曲分保留，待手动补齐后再计算新总分。10 份新建草稿、专辑盲重听、跨年轨迹、备份恢复预演、榜单导出预检与本机诊断继续可用。
+一个在安卓手机本地运行、以专辑为中心的私人音乐感受记录 APK。它只保存你手动输入或确认过的信息，不自动编造歌曲、专辑、歌手或感受。v3.2.0 新增系统播放封面自动提取：在乐评和速记中预览可读取的封面，随草稿保留，确认保存后补齐本地封面；已有手动封面优先。系统未提供图片或图片不可访问时仍可手动选图，不保证取得原始高清封面。包含此前测试版的鸿蒙/卓易通相册保存、文件互通与接口缺失处理，以及首页优化、隐私选择和按需 OCR。六项评分、草稿、盲重听、跨年轨迹、恢复预演与榜单导出继续可用。
+
+Yves 已报告封面功能在 vivo X100 上测试成功；这不代表全部 Android 或鸿蒙设备均已验证。生产网页语法编译目标为 Chrome 74，Android API 24+ 的安装范围保持不变；直接保存相册使用 API 29+ 的标准 MediaStore，不新增广泛存储权限。兼容环境内的相册与宿主图库可能分开，可按[卓易通说明](https://www.droitong.com/CommonQues.html)使用文件互传。HarmonyOS 5 及以上的 APK 安装支持见[华为说明](https://consumer.huawei.com/cn/support/content/zh-cn16061787/)。朋友反馈的鸿蒙启动卡顿仍待设备诊断，未宣称已修复。
 
 ## 功能
 
@@ -12,7 +14,7 @@
 - 从 Android 其他音乐应用的系统分享菜单直接进入速记
 - 按年份和月份查看时间轴
 - 查看专辑聚合和歌曲聚合
-- 给专辑或歌曲保存封面
+- 给专辑或歌曲保存封面；读取系统当前播放时自动提取可用封面，随乐评/速记保存本地，保留已有手动封面。系统未提供可读取图片时仍可手动选图
 - 从音乐截图中识别歌曲、专辑、艺术家等信息
 - 从 Android 系统媒体会话读取当前播放信息，并可补充 Apple Music 目录元数据
 - 新建和编辑乐评时自动保存草稿；正文未填写时也可独立保存草稿，新建菜单提供完整、速记和草稿三个入口
@@ -60,18 +62,18 @@
 
 ## 下载 APK
 
-GitHub 测试预发布：
+当前版本 v3.2.0：
 
-- [v3.1.2 (32) APK](https://github.com/Yvesyzy/xiaodongge/releases/download/v3.1.2/codex_xiaodongge-v3.1.2-32-test.apk)
-- [SHA-256 校验](https://github.com/Yvesyzy/xiaodongge/releases/download/v3.1.2/codex_xiaodongge-v3.1.2-32-test.sha256.txt)
-- [v3.1.2 测试版发布说明](docs/codex_v312_release_notes.md)
-- [本轮变更与验证记录](docs/session-summaries/codex_session_summary_2026-10-08_android_privacy_apk.md)
+- [v3.2.0 (36) APK](https://github.com/Yvesyzy/xiaodongge/releases/download/v3.2.0/codex_xiaodongge-v3.2.0-36.apk)
+- [SHA-256 校验](https://github.com/Yvesyzy/xiaodongge/releases/download/v3.2.0/codex_xiaodongge-v3.2.0-36.sha256.txt)
+- [v3.2.0 发布说明](docs/codex_v320_release_notes.md)
+- [GitHub Release](https://github.com/Yvesyzy/xiaodongge/releases/tag/v3.2.0)
 
-测试版为 `3.1.2 (32)`（npm `3.1.2`），包名和原发布签名保持不变，版本号高于原 `3.1.1 (31)`。27 项工程检查（含 32 单测）、10 项 Android JUnit、独立隐私回归、正式签名/版本与 17 份网页资源、3 份平台资源校验通过。数据库结构及评分行为未因隐私整改改变。此版作为 GitHub Pre-release 提供下载，稳定版入口保留 v3.0.1；手机实际体验和 SDK 网络行为尚未实测，4 个64位 ML Kit/SQLCipher 库的16KB RELRO静态检查未通过，需继续验证16KB设备兼容。
+版本为 `3.2.0 (36)`（npm `3.2.0`），包名 `com.yves.musicarchive` 和原发布签名保持不变，可覆盖安装同签名较低版本，包括本地 3.1.5 测试包，无需卸载。封面、草稿和备份继续使用现有数据库及 JSON v6。验证范围、安装包 SHA-256 和设备兼容边界见发布说明；16KB 原生库兼容与 SDK 网络行为仍需专项验证。此前的 [v3.1.2 隐私测试版](https://github.com/Yvesyzy/xiaodongge/releases/tag/v3.1.2)保留为历史版本。
 
 此前正式发布的 v3.0.1 下载：
 
-v3.0.1 为 `3.0.1 (29)`（npm 包版本 `3.0.1`），沿用 v2.5 至 v3.0 的长期发布签名。v3.1.2 继续沿用该签名，可覆盖这些正式版本及 v3.1.0、v3.1.1，无需卸载。更早旧签名版本和 debug 版本按签名兼容情况迁移。
+v3.0.1 为 `3.0.1 (29)`（npm 包版本 `3.0.1`），沿用 v2.5 至 v3.0 的长期发布签名。v3.2.0 继续沿用该签名，可覆盖这些正式版本及同签名的 3.1.x，无需卸载。更早旧签名版本和 debug 版本按签名兼容情况迁移。
 
 - [下载 v3.0.1 APK](https://github.com/Yvesyzy/xiaodongge/releases/download/v3.0.1/codex_xiaodongge-v3.0.1.apk)
 - [下载 SHA256 校验文件](https://github.com/Yvesyzy/xiaodongge/releases/download/v3.0.1/codex_xiaodongge-v3.0.1.sha256.txt)
@@ -118,7 +120,7 @@ Windows 端的开发、构建与验收命令（`npm.cmd run windows:build`、`wi
 - [六家个人渠道比较（2026-10-08）](docs/codex_android_store_personal_channels_20261008.md)
 - [整改落地清单（2026-10-08）](docs/codex_android_store_remediation_checklist_20261008.md)
 
-当前状态：整改清单已编制，产品代码尚未整改。三项最关键的前置项是首次隐私同意流程（未实现）、公开隐私政策 URL（零产物）、以及移除 ML Kit 自动初始化与生物识别权限（后两项直接决定能否通过审核）。**提审前必须完成抓包验证，未验证前不得对外声称合规。**
+当前状态：首次隐私同意与撤回、仅本地模式、按需 OCR、移除 ML Kit 自动初始化及不使用的生物识别权限已在此前整改中实现。随包隐私 HTML 与应用内政策保持同步。商店提审仍需按渠道要求核对公网政策地址、主体与资质，完成 SDK 网络抓包及 16KB 原生库兼容验证；GitHub 发布不等于通过应用商店审核。
 
 ### 可重复检查
 
@@ -128,6 +130,14 @@ npm.cmd run verify
 npm.cmd run verify:full
 npm.cmd run verify:android
 ```
+
+使用原发布签名构建正式命名安装包：
+
+```powershell
+pwsh -NoProfile -File scripts/build-android-release.ps1 -OfficialRelease -OutputDirectory release/codex_v320_release_20261010
+```
+
+该命令执行完整工程与 Android 单测、重新构建和同步网页资源，再验证安装包版本、签名及包内资源。签名配置和已核验的升级基准包在本机保管，不提交到 Git；不传 `-OfficialRelease` 时继续生成原有测试包文件名。
 
 检查使用独立浏览器上下文和合成数据，日志与构建结果保存在新的 `release/codex_validation_*` 目录。已安装包与锁文件版本不一致、必需测试文件缺失或任一必检失败都会返回非零退出码；`verify:full` 增加榜单、原文分享、年度/月度标签与旧网页端隔离构建和故障重试回归。年记原型检查需要专用本机端口 5174，已被占用时会明确失败，不接管已有服务。这些检查不代替 Android 真机升级、系统文件提供器和 TalkBack 验收。
 
@@ -185,10 +195,10 @@ XIAODONGGE_KEY_PASSWORD
 四项变量全部存在后执行：
 
 ```cmd
-npm.cmd run android:build:release
+npm.cmd run android:build:release -- -OfficialRelease
 ```
 
-脚本会在当前进程变量缺失时加载 Windows 用户签名变量，重新构建 Web 资源并同步 Android，随后执行 `assembleRelease`。只有正式发布证书、包名 `com.yves.musicarchive`、版本验证全部通过，才会输出 release APK 和 SHA-256；缺少任一签名变量时会在构建前失败。
+脚本会在当前进程变量缺失时加载 Windows 用户签名变量，执行完整检查、重新构建 Web 资源并同步 Android，随后执行 `assembleRelease`。只有正式发布证书、包名 `com.yves.musicarchive`、版本及资源验证全部通过，才会输出安装包和含 SHA-256 的构建清单；Release 的 `.sha256.txt` 附件在发布阶段单独生成。缺少任一签名变量时会在构建前失败。
 
 在本机直连 `dl.google.com` 超时的网络环境下，正式构建脚本会注入 `scripts/gradle-mirrors.init.gradle`。`cap sync` 在部分环境会在 update 阶段被中断，建议分步执行 `capacitor copy android` 与 `capacitor update android`，并用 `mobile/dist` 与 `android/app/src/main/assets/public` 的资源哈希比对确认同步完整。
 

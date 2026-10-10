@@ -19,7 +19,7 @@ import java.util.List;
 
 @CapacitorPlugin(name = "CodexPrivacy")
 public class codex_PrivacyPlugin extends Plugin {
-    static final String POLICY_VERSION = "2026-10-08";
+    static final String POLICY_VERSION = "2026-10-10";
     static final String STATUS_PENDING = "pending";
     static final String STATUS_ACCEPTED = "accepted";
     static final String STATUS_DECLINED = "declined";
@@ -162,9 +162,10 @@ public class codex_PrivacyPlugin extends Plugin {
                 : PackageManager.COMPONENT_ENABLED_STATE_DISABLED;
             PackageManager packageManager = app.getPackageManager();
             for (String component : CONSENT_COMPONENTS) {
-                packageManager.setComponentEnabledSetting(
-                    new ComponentName(app, component), state, PackageManager.DONT_KILL_APP
-                );
+                ComponentName name = new ComponentName(app, component);
+                if (packageManager.getComponentEnabledSetting(name) != state) {
+                    packageManager.setComponentEnabledSetting(name, state, PackageManager.DONT_KILL_APP);
+                }
             }
             if (!accepted) cancelDataTransportJobs(app);
             return true;

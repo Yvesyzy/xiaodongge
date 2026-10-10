@@ -44,6 +44,7 @@ export type EntryDraft = {
   selectedMoods: string[];
   coverDataUrl: string | null;
   coverChanged: boolean;
+  coverFromPlayback?: boolean;
   ocrText: string;
   recognizedFields: MusicInfoFields | null;
   musicMetadata: MusicMetadata | null;
@@ -225,9 +226,11 @@ export function parseEntryDraft(value: unknown): EntryDraft | null {
   const musicMetadata = value.version === 1 ? null : readMusicMetadata(value.musicMetadata, "draft.musicMetadata");
   if (entryId === undefined || draftId === undefined || baseUpdatedAt === undefined || !savedAt || !fields || !genreSelection
     || !selectedGenreTags || selectedMoodGroupId === null || !selectedMoods || coverDataUrl === undefined
-    || typeof value.coverChanged !== "boolean" || typeof value.ocrText !== "string" || recognizedFields === undefined
+    || typeof value.coverChanged !== "boolean" || (value.coverFromPlayback !== undefined && typeof value.coverFromPlayback !== "boolean")
+    || typeof value.ocrText !== "string" || recognizedFields === undefined
     || (value.version === 2 && value.musicMetadata === undefined)) return null;
   if (value.mode === "create" && (entryId !== null || baseUpdatedAt !== null)) return null;
+  if (value.coverFromPlayback === true && (!value.coverChanged || !coverDataUrl)) return null;
   if (value.mode === "create" && draftId !== null && !draftId.trim()) return null;
   if (value.mode === "edit" && (!entryId || !baseUpdatedAt || draftId !== null)) return null;
   return {
@@ -245,6 +248,7 @@ export function parseEntryDraft(value: unknown): EntryDraft | null {
     selectedMoods,
     coverDataUrl,
     coverChanged: value.coverChanged,
+    ...(value.coverFromPlayback === true ? { coverFromPlayback: true } : {}),
     ocrText: value.ocrText,
     recognizedFields,
     musicMetadata,

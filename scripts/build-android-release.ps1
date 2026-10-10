@@ -1,4 +1,4 @@
-param([string]$OutputDirectory)
+param([string]$OutputDirectory, [switch]$OfficialRelease)
 
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path -LiteralPath (Split-Path -Parent $PSScriptRoot)).Path
@@ -8,12 +8,12 @@ if ($releaseItem.LinkType -or (($releaseItem.Attributes -band [IO.FileAttributes
   throw "Refusing linked release directory: $releasePath"
 }
 $releaseRoot = (Resolve-Path -LiteralPath $releasePath).Path
-$baselineApk = Join-Path $releaseRoot 'codex_xiaodongge-v3.0.1.apk'
-$baselineHash = '83e623d3092c3a2f84e463c4ecea4a5550c214795c4a10792d9a3da631870525'
+$baselineApk = Join-Path $releaseRoot 'codex_harmony_signed_final_20261009/codex_xiaodongge-v3.1.3-33-test.apk'
+$baselineHash = '009201a437e47cd92da580c369911bf896fba7c0818f61d40fa875394db99fc1'
 $officialSigner = '6386734ef9b4a3fe106d690a8d31ae952697c2ea652ea1ee82f3f7ab488f1022'
 
-if (-not (Test-Path -LiteralPath $baselineApk -PathType Leaf)) { throw "Published baseline APK missing: $baselineApk" }
-if ((Get-FileHash -LiteralPath $baselineApk -Algorithm SHA256).Hash.ToLowerInvariant() -ne $baselineHash) { throw 'Published v3.0.1 baseline APK hash changed' }
+if (-not (Test-Path -LiteralPath $baselineApk -PathType Leaf)) { throw "Verified baseline APK missing: $baselineApk" }
+if ((Get-FileHash -LiteralPath $baselineApk -Algorithm SHA256).Hash.ToLowerInvariant() -ne $baselineHash) { throw 'Verified v3.1.3 baseline APK hash changed' }
 if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
   $OutputDirectory = Join-Path $releaseRoot ('codex_signed_test_' + (Get-Date -Format 'yyyyMMdd_HHmmss'))
 }
@@ -147,7 +147,8 @@ try {
   & node 'scripts/codex_verify_apk_assets.mjs' --apk $apk --web 'mobile/dist' --staged 'android/app/src/main/assets/public' --output (Join-Path $outputPath 'assets.json')
   if ($LASTEXITCODE -ne 0) { throw 'APK public asset verification failed' }
 
-  $destination = Join-Path $outputPath "codex_xiaodongge-v$versionName-$versionCode-test.apk"
+  $artifactName = if ($OfficialRelease) { "codex_xiaodongge-v$versionName-$versionCode.apk" } else { "codex_xiaodongge-v$versionName-$versionCode-test.apk" }
+  $destination = Join-Path $outputPath $artifactName
   Copy-Item -LiteralPath $apk -Destination $destination -ErrorAction Stop
   $sourceHash = (Get-FileHash -LiteralPath $apk -Algorithm SHA256).Hash.ToLowerInvariant()
   $copiedHash = (Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -161,7 +162,7 @@ try {
     androidUnit = (Join-Path $outputPath 'android-unit'); assets = (Join-Path $outputPath 'assets.json')
   }
   $manifest | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (Join-Path $outputPath 'build_manifest.json') -Encoding utf8
-  Write-Output "Signed test APK verified: $destination"
+  Write-Output "Signed APK verified: $destination"
   Write-Output "SHA-256: $copiedHash"
 } finally {
   Pop-Location

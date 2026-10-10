@@ -42,10 +42,19 @@ try {
   const versionCode = Number(packageDump.match(/versionCode=(\d+)/)?.[1]);
   const versionName = packageDump.match(/versionName=([^\s]+)/)?.[1];
   assert.ok(Number.isSafeInteger(versionCode) && versionName);
-  assert.deepEqual(Object.keys(result.value).sort(), ["notificationAccessEnabled", "versionCode", "versionName"]);
+  const diagnosticKeys = ["androidApi", "clipboardAvailable", "manufacturer", "mediaAvailable", "model", "notificationAccessEnabled", "notificationAccessKnown", "versionCode", "versionName", "webViewPackage", "webViewVersion"];
+  assert.deepEqual(Object.keys(result.value).sort(), diagnosticKeys);
   assert.equal(result.value.versionCode, versionCode);
   assert.equal(result.value.versionName, versionName);
   assert.equal(typeof result.value.notificationAccessEnabled, "boolean");
+  assert.equal(typeof result.value.notificationAccessKnown, "boolean");
+  assert.equal(typeof result.value.mediaAvailable, "boolean");
+  assert.equal(typeof result.value.clipboardAvailable, "boolean");
+  assert.equal(result.value.androidApi, Number(command("shell", "getprop", "ro.build.version.sdk")));
+  assert.equal(result.value.manufacturer, command("shell", "getprop", "ro.product.manufacturer"));
+  assert.equal(result.value.model, command("shell", "getprop", "ro.product.model"));
+  assert.equal(typeof result.value.webViewPackage, "string");
+  assert.equal(typeof result.value.webViewVersion, "string");
   assert.equal(result.value.notificationAccessEnabled, command("shell", "settings", "get", "secure", "enabled_notification_listeners").includes("com.yves.musicarchive"));
   assert.deepEqual(result.calls.filter(call => call.startsWith("NowPlaying.")), ["NowPlaying.getDiagnostics"]);
   assert.ok(result.calls.every(call => call === "NowPlaying.getDiagnostics" || call === "CapacitorSQLite.query"));
@@ -59,7 +68,7 @@ try {
     else command("shell", "settings", "delete", "secure", "enabled_notification_listeners");
     const denied = await page.evaluate(() => window.Capacitor.nativePromise("NowPlaying", "getDiagnostics", {}));
     assert.equal(denied.notificationAccessEnabled, false);
-    assert.deepEqual(Object.keys(denied).sort(), ["notificationAccessEnabled", "versionCode", "versionName"]);
+    assert.deepEqual(Object.keys(denied).sort(), diagnosticKeys);
     report.checks.push("revoked notification-listener access reports false without reading a track");
   } finally {
     if (originalListeners === "null") command("shell", "settings", "delete", "secure", "enabled_notification_listeners");

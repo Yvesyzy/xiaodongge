@@ -4,8 +4,9 @@ import { requirePrivacyConsent } from "./codex_privacy";
 
 export type NowPlayingPlugin = {
   getDiagnostics(): Promise<{ versionName: string; versionCode: number; notificationAccessEnabled: boolean;
-    mediaAvailable?: boolean; ocrAvailable?: boolean; ocrLanguages?: string[] }>;
-  getCurrentTrack(): Promise<unknown>;
+    androidApi?: number; manufacturer?: string; model?: string; webViewPackage?: string; webViewVersion?: string;
+    notificationAccessKnown?: boolean; mediaAvailable?: boolean; clipboardAvailable?: boolean; ocrAvailable?: boolean; ocrLanguages?: string[] }>;
+  getCurrentTrack(options?: { includeArtwork?: boolean }): Promise<unknown>;
   searchCatalog(options: { title: string; artistName: string; albumName?: string; country: "CN" | "US" }): Promise<unknown>;
   openNotificationSettings(): Promise<void>;
 };
@@ -13,9 +14,9 @@ export type NowPlayingPlugin = {
 const NativeNowPlaying = registerPlugin<NowPlayingPlugin>("NowPlaying", { electron: () => desktopPlugin("NowPlaying") });
 export const NowPlaying: NowPlayingPlugin = {
   getDiagnostics: () => NativeNowPlaying.getDiagnostics(),
-  async getCurrentTrack() {
+  async getCurrentTrack(options) {
     requirePrivacyConsent();
-    const result = await NativeNowPlaying.getCurrentTrack();
+    const result = await NativeNowPlaying.getCurrentTrack(options);
     requirePrivacyConsent();
     return result;
   },

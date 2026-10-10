@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
@@ -8,6 +8,7 @@ import { createServer } from "vite";
 import { freeLoopbackPort, qaOptions } from "./codex_qa_options.mjs";
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const policyVersion = JSON.parse(await readFile(path.join(projectRoot, "mobile/src/codex_privacy_policy.json"), "utf8")).version;
 const validPng = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jCeoAAAAASUVORK5CYII=", "base64");
 const invalidPng = Buffer.from("not-an-image");
 
@@ -20,7 +21,7 @@ let server = null;
 if (!origin) {
   server = await createServer({
     configFile: path.resolve(projectRoot, "mobile/vite.config.ts"),
-    cacheDir: path.resolve(projectRoot, "release/codex_capture_vite_cache"),
+    cacheDir: path.join(outputDir, "vite-cache"),
     server: { host: "127.0.0.1", port: await freeLoopbackPort(), strictPort: true, forwardConsole: false },
   });
   await server.listen();
@@ -74,7 +75,7 @@ function draftValue(draftId = "capture-regression") {
 }
 
 function nativeInitScript({ tracks = [], catalog = [], ocr = [] } = {}) {
-  return ({ tracks: initialTracks, catalog: initialCatalog, ocr: initialOcr }) => {
+  return ({ tracks: initialTracks, catalog: initialCatalog, ocr: initialOcr, policyVersion }) => {
     window.CapacitorCustomPlatform = { name: "android" };
     const trackQueue = [...(initialTracks ?? [])];
     const catalogQueue = [...(initialCatalog ?? [])];
@@ -85,17 +86,30 @@ function nativeInitScript({ tracks = [], catalog = [], ocr = [] } = {}) {
     window.codexCatalogStarted = 0;
     window.codexCatalogFinished = 0;
     window.codexOcrCalls = 0;
+    window.codexArtworkOptions = [];
     window.Capacitor = {
       PluginHeaders: [
         { name: "CodexPrivacy", methods: ["getState", "setConsent"].map(name => ({ name, rtype: "promise" })) },
+        { name: "CodexNavigation", methods: [{ name: "exitApp", rtype: "promise" }, { name: "addListener", rtype: "callback" }, { name: "removeListener", rtype: "callback" }] },
         { name: "NowPlaying", methods: [{ name: "getCurrentTrack", rtype: "promise" }, { name: "searchCatalog", rtype: "promise" }, { name: "openNotificationSettings", rtype: "promise" }] },
         { name: "ScreenshotOcr", methods: [{ name: "recognize", rtype: "promise" }] },
         { name: "CapacitorSQLite", methods: ["createConnection", "isDBOpen", "open", "execute", "query", "run"].map(name => ({ name, rtype: "promise" })) },
       ],
+      nativeCallback: (plugin, method, options, callback) => {
+        if (plugin === "CodexNavigation" && method === "addListener") {
+          window.codexNavigationAdds = (window.codexNavigationAdds ?? 0) + 1;
+          window.codexNavigationCallback = callback;
+          return "codex-navigation-listener";
+        }
+        if (plugin === "CodexNavigation" && method === "removeListener") return "codex-navigation-removed";
+        throw new Error(`Unexpected synthetic callback: ${plugin}.${method}`);
+      },
       nativePromise: async (plugin, method, options) => {
-        if (plugin === "CodexPrivacy") return { status: "accepted", policyVersion: "2026-10-08" };
+        if (plugin === "CodexNavigation" && method === "exitApp") return undefined;
+        if (plugin === "CodexPrivacy") return { status: "accepted", policyVersion };
         if (plugin === "CapacitorSQLite") return window.codexCaptureSQLite(method, options);
         if (plugin === "NowPlaying" && method === "getCurrentTrack") {
+          window.codexArtworkOptions.push(options ?? {});
           window.codexTrackStarted++;
           const next = trackQueue.shift() ?? { delay: 0, value: { accessEnabled: false } };
           await wait(next.delay ?? 0);
@@ -140,7 +154,7 @@ async function newPage({ native = null } = {}) {
       if (method === "run") { database.prepare(options.statement).run(...(options.values ?? [])); return { changes: { changes: 1 } }; }
       throw new Error(`Unsupported capture SQLite method ${method}`);
     });
-    await page.addInitScript(nativeInitScript(native), native);
+    await page.addInitScript(nativeInitScript(native), { ...native, policyVersion });
   }
   page.__captureErrors = errors;
   return page;
@@ -277,7 +291,7 @@ async function checkQuickCapture() {
   const racePage = await newPage({ native: {
     tracks: [
       { delay: 800, value: { accessEnabled: true, title: "慢 A 歌曲", artistName: "A 艺人", albumName: "慢 A 专辑" } },
-      { delay: 20, value: { accessEnabled: true, title: "快 B 歌曲", artistName: "B 艺人", albumName: "快 B 专辑" } },
+      { delay: 20, value: { accessEnabled: true, title: "快 B 歌曲", artistName: "B 艺人", albumName: "快 B 专辑", coverDataUrl: `data:image/png;base64,${validPng.toString('base64')}` } },
     ],
   } });
   await racePage.goto(`${origin}/#/capture`);
@@ -287,6 +301,7 @@ async function checkQuickCapture() {
   await racePage.waitForFunction(() => window.codexTrackFinished === 2);
   await racePage.waitForFunction(() => document.querySelector('.quick-track-card strong')?.textContent === '快 B 专辑');
   assert.equal(await racePage.locator(".quick-track-card strong").innerText(), "快 B 专辑");
+  assert.equal(await racePage.locator(".quick-track-card > img").getAttribute('src'), `data:image/png;base64,${validPng.toString('base64')}`);
   result.m1.slowA_fastB = { track: await racePage.locator(".quick-track-card strong").innerText(), pageErrors: racePage.__captureErrors };
   await racePage.close();
 
@@ -486,10 +501,163 @@ async function checkInputClearing() {
   await ocr.close();
 }
 
+async function checkAutomaticArtwork() {
+  const fixture = await browser.newPage();
+  const png = await fixture.evaluate(() => {
+    const canvas = document.createElement('canvas'); canvas.width = canvas.height = 256;
+    const context = canvas.getContext('2d');
+    context.fillStyle = '#20594a'; context.fillRect(0, 0, 256, 256);
+    context.strokeStyle = '#dfc78a'; context.lineWidth = 3;
+    for (const radius of [35, 55, 75]) { context.beginPath(); context.arc(128, 112, radius, 0, Math.PI * 2); context.stroke(); }
+    context.fillStyle = '#f5f2e9'; context.font = 'bold 22px sans-serif'; context.textAlign = 'center';
+    context.fillText('系统封面测试', 128, 224);
+    return canvas.toDataURL('image/png');
+  });
+  await fixture.close();
+  result.artwork = {};
+  const track = { accessEnabled: true, title: '系统封面歌曲', artistName: '系统封面艺人', albumName: '系统封面专辑', coverDataUrl: png };
+  for (const quick of [true, false]) {
+    const label = quick ? 'quick' : 'full';
+    const page = await newPage({ native: { tracks: [{ value: track }] } });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`${origin}/#/${quick ? 'capture' : 'new'}`);
+    const image = page.locator(quick ? '.quick-track-card > img' : '.cover-picker > img');
+    await image.waitFor();
+    assert.equal(await image.getAttribute('src'), png);
+    await page.waitForFunction(() => window.codexNavigationAdds >= 1);
+    assert.equal(await page.locator('.codex-back-notice').count(), 0);
+    await page.locator('textarea').first().fill('系统封面与这一篇听感一起保留。');
+    await page.waitForTimeout(500);
+    const draft = await page.evaluate(() => Object.entries(localStorage)
+      .filter(([key]) => key.startsWith('music-feelings-entry-draft:v1:new:'))
+      .map(([, raw]) => JSON.parse(raw)).find(item => item.fields.albumName === '系统封面专辑'));
+    assert.equal(draft.coverDataUrl, png);
+    assert.equal(draft.coverFromPlayback, true);
+    assert.equal(draft.coverChanged, true);
+    const coverless = await page.evaluate(async () => {
+      const { store } = await import('/src/store.ts');
+      const { readStoredEntryDraft } = await import('/src/entryDraft.ts');
+      const raw = await store.exportBackup({ includeCovers: false });
+      store.previewBackup(raw);
+      const item = JSON.parse(raw).drafts.find(item => JSON.parse(item.raw).fields.albumName === '系统封面专辑');
+      return readStoredEntryDraft(item.key, item.raw);
+    });
+    assert.equal(coverless.coverDataUrl, null);
+    assert.equal(coverless.coverChanged, false);
+    assert.notEqual(coverless.coverFromPlayback, true);
+    const options = await page.evaluate(() => window.codexArtworkOptions);
+    assert.ok(options.some(item => item.includeArtwork === true));
+    // Reload exercises the actual persisted draft parser and origin marker.
+    await page.reload();
+    await image.waitFor();
+    assert.equal(await image.getAttribute('src'), png);
+    await mkdir(outputDir, { recursive: true });
+    await page.screenshot({ path: path.join(outputDir, `codex_auto_cover_${label}.png`), fullPage: false });
+    await page.getByRole('button', { name: quick ? '保存专辑听感' : '保存正式乐评', exact: true }).click();
+    await page.waitForURL(/#\/entries\/[^/]+/);
+    const persisted = await page.evaluate(async () => {
+      const { store } = await import('/src/store.ts');
+      return { cover: await store.getCover('album', { albumName: '系统封面专辑', artistName: '系统封面艺人' }), entries: await store.listEntries() };
+    });
+    assert.equal(persisted.cover, png);
+    assert.equal(persisted.entries.length, 1);
+    assert.equal(persisted.entries[0].content, '系统封面与这一篇听感一起保留。');
+    assert.deepEqual(page.__captureErrors, []);
+    result.artwork[label] = { preview: true, draftRoundTrip: true, sqliteCover: true, records: persisted.entries.length, pageErrors: page.__captureErrors };
+    await page.close();
+  }
+
+  for (const quick of [true, false]) {
+    const page = await newPage({ native: { tracks: [{ value: track }] } });
+    await page.goto(`${origin}/#/privacy`);
+    const manual = await page.evaluate(async () => {
+      const canvas = document.createElement('canvas'); canvas.width = canvas.height = 32;
+      const context = canvas.getContext('2d'); context.fillStyle = '#12634d'; context.fillRect(0, 0, 32, 32);
+      const data = canvas.toDataURL('image/png');
+      await (await import('/src/store.ts')).store.setCover('album', { albumName: '系统封面专辑', artistName: '系统封面艺人' }, data);
+      return data;
+    });
+    await page.goto(`${origin}/#/${quick ? 'capture' : 'new'}`);
+    const image = page.locator(quick ? '.quick-track-card > img' : '.cover-picker > img');
+    await image.waitFor();
+    assert.equal(await image.getAttribute('src'), manual);
+    // Also verifies the final write cannot replace an existing manual cover.
+    await page.evaluate(async (candidate) => (await import('/src/store.ts')).store.setCover('album',
+      { albumName: '系统封面专辑', artistName: '系统封面艺人' }, candidate, { onlyIfMissing: true }), png);
+    assert.equal(await page.evaluate(async () => (await import('/src/store.ts')).store.getCover('album',
+      { albumName: '系统封面专辑', artistName: '系统封面艺人' })), manual);
+    assert.deepEqual(page.__captureErrors, []);
+    await page.close();
+  }
+  result.artwork.manualCoverPriority = true;
+
+  const normalized = await newPage({ native: { tracks: [{ value: { ...track, albumName: '  系统封面专辑  ', artistName: '系统封面艺人 ' } }] } });
+  await normalized.goto(`${origin}/#/privacy`);
+  await normalized.evaluate(async (data) => (await import('/src/store.ts')).store.setCover('album',
+    { albumName: '系统封面专辑', artistName: '系统封面艺人' }, data), png);
+  const protectedCover = await normalized.evaluate(async () => {
+    const { store } = await import('/src/store.ts');
+    await store.setCover('album', { albumName: '  系统封面专辑  ', artistName: '系统封面艺人 ' }, 'different-auto-image', { onlyIfMissing: true });
+    return store.getCover('album', { albumName: '系统封面专辑', artistName: '系统封面艺人' });
+  });
+  assert.equal(protectedCover, png);
+  await normalized.goto(`${origin}/#/capture`);
+  await normalized.locator('.quick-track-card > img').waitFor();
+  assert.equal(await normalized.locator('.quick-track-card > img').getAttribute('src'), png);
+  await normalized.close();
+  result.artwork.normalizedManualCoverPriority = true;
+
+  const catalogCover = await newPage({ native: {
+    tracks: [{ value: { ...track, albumName: undefined } }],
+    catalog: [{ value: { results: [{ trackName: track.title, artistName: track.artistName, collectionName: track.albumName }] } }],
+  } });
+  await catalogCover.goto(`${origin}/#/privacy`);
+  await catalogCover.evaluate(async () => {
+    const canvas = document.createElement('canvas'); canvas.width = canvas.height = 8;
+    await (await import('/src/store.ts')).store.setCover('song',
+      { songName: '系统封面歌曲', albumName: null, artistName: '系统封面艺人' }, canvas.toDataURL('image/png'));
+  });
+  await catalogCover.goto(`${origin}/#/new`);
+  await catalogCover.waitForFunction(() => document.querySelector('input[name=albumName]')?.value === '系统封面专辑');
+  await catalogCover.waitForFunction((data) => document.querySelector('.cover-picker > img')?.getAttribute('src') === data, png);
+  await catalogCover.close();
+  result.artwork.catalogAlbumCoverRebound = true;
+
+  for (const candidate of [undefined, 'data:text/html;base64,AAAA', 'data:image/png;base64,bm90LWFuLWltYWdl']) {
+    const page = await newPage({ native: { tracks: [{ value: { ...track, coverDataUrl: candidate } }] } });
+    await page.goto(`${origin}/#/new`);
+    await page.waitForFunction(() => document.querySelector('input[name=albumName]')?.value === '系统封面专辑');
+    await page.waitForFunction(() => !document.querySelector('.assist-panel button')?.disabled);
+    assert.equal(await page.locator('.cover-picker > img').count(), 0);
+    await page.locator('textarea[name=content]').fill('没有可用封面也能保存。');
+    await page.getByRole('button', { name: '保存正式乐评', exact: true }).click();
+    await page.waitForURL(/#\/entries\/[^/]+/);
+    assert.equal(await page.evaluate(async () => (await import('/src/store.ts')).store.getCover('album',
+      { albumName: '系统封面专辑', artistName: '系统封面艺人' })), null);
+    assert.deepEqual(page.__captureErrors, []);
+    await page.close();
+  }
+  result.artwork.badOrMissingImage = true;
+
+  const edited = await newPage({ native: { tracks: [{ value: track }] } });
+  await edited.goto(`${origin}/#/new`);
+  await edited.locator('.cover-picker > img').waitFor();
+  await edited.locator('input[name=artistName]').fill('修改后的艺人');
+  await edited.waitForFunction(() => !document.querySelector('.cover-picker > img'));
+  await edited.locator('textarea[name=content]').fill('修改作品后不保存旧封面。');
+  await edited.getByRole('button', { name: '保存正式乐评', exact: true }).click();
+  await edited.waitForURL(/#\/entries\/[^/]+/);
+  assert.equal(await edited.evaluate(async () => (await import('/src/store.ts')).store.getCover('album',
+    { albumName: '系统封面专辑', artistName: '修改后的艺人' })), null);
+  await edited.close();
+  result.artwork.identityChangeClearsCover = true;
+}
+
 try {
   await checkQuickCapture();
   await checkFullReviewPlayback();
   await checkInputClearing();
+  await checkAutomaticArtwork();
   for (const check of Object.values(result.m1)) if (check.pageErrors) assert.deepEqual(check.pageErrors, []);
   await mkdir(path.dirname(outputPath), { recursive: true });
   await writeFile(outputPath, `${JSON.stringify(result, null, 2)}\n`, "utf8");

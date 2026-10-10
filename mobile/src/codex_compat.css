@@ -1,0 +1,22 @@
+/* Old WebViews retain the same controls and colors with cheaper compositing. */
+.codex-basic-rendering .app-shell { background: var(--neu-surface); }
+.codex-basic-rendering .app-header { background: var(--neu-ink); }
+.codex-basic-rendering .app-shell .content-card,
+.codex-basic-rendering .app-shell .home-stats,
+.codex-basic-rendering .app-shell .secondary-button,
+.codex-basic-rendering .app-shell .visual-entry-card { box-shadow: 0 1px 3px #173d3420; }
+.codex-basic-rendering .app-shell .bottom-nav,
+.codex-basic-rendering .app-shell .bottom-sheet,
+.codex-basic-rendering .app-shell .summary-toolbar { -webkit-backdrop-filter: none; backdrop-filter: none; }
+.codex-basic-rendering .codex-reader { min-height: 100vh; }
+
+/* Reading navigation must also work when the engine discards :has selectors. */
+.app-shell.codex-reading > .app-header,
+.app-shell.codex-reading > .bottom-nav,
+.app-shell.codex-reading .codex-privacy-local,
+.journal-page.codex-reading > .journal-nav,
+.journal-page.codex-reading > .journal-tabs { display: none; }
+.app-shell.codex-reading { padding-bottom: 0; background: #fffdf8; }
+.app-shell.codex-reading-dark { background: #17211e; }
+.journal-page.codex-reading { padding: 0; background: transparent; }
+.codex-reader.codex-reader-with-footer { padding-bottom: 0; }

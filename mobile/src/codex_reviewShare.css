@@ -1,6 +1,6 @@
 .review-share-dialog {
-  width: min(700px, calc(100% - 24px));
-  max-height: calc(100dvh - 24px);
+  width: calc(100% - 24px); max-width: 700px; width: min(700px, calc(100% - 24px));
+  max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px);
   padding: 0;
   border: 1px solid #bdc9c2;
   border-radius: 12px;
@@ -11,7 +11,7 @@
 }
 
 .review-share-dialog::backdrop { background: #122a24aa; }
-.review-share-scroll { max-height: calc(100dvh - 24px); padding: 20px; overflow-y: auto; overscroll-behavior: contain; }
+.review-share-scroll { max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px); padding: 20px; overflow-y: auto; overscroll-behavior: contain; }
 .review-share-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 .review-share-header h2 { margin: 5px 0 5px; color: #202724; font-size: 23px; line-height: 1.35; }
 .review-share-header p { margin: 0; color: #606b64; font-size: 13px; }
@@ -63,8 +63,8 @@
 .review-share-dialog .review-journal-export.journal h2 { color: inherit; }
 .review-share-dialog .review-journal-export.journal .journal-muted { color: #606b64; }
 .review-share-dialog .review-journal-export button:not(.journal-primary) { background: transparent; color: var(--journal-green); }
-.review-journal-export .journal-export-scroll { max-height: 54dvh; padding: 16px; }
-.review-journal-export .journal-export-footer { max-height: 42dvh; background: inherit; }
+.review-journal-export .journal-export-scroll { max-height: 54vh; max-height: 54dvh; padding: 16px; }
+.review-journal-export .journal-export-footer { max-height: 42vh; max-height: 42dvh; background: inherit; }
 
 @media (max-width: 520px) {
   .review-share-scroll { padding: 16px; }

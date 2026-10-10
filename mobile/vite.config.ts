@@ -6,6 +6,7 @@ export default defineConfig({
   plugins: [react()],
   define: { __CODEX_WEB_BUILD_ID__: JSON.stringify(`web-${new Date().toISOString()}`) },
   build: {
+    target: ["chrome74", "safari16.4"],
     outDir: "dist",
     emptyOutDir: true,
   },

@@ -3,7 +3,7 @@ import { Capacitor } from "@capacitor/core";
 import { JournalExport } from "./codex_JournalExport";
 import { journalCover, journalDate, journalRating, journalTitle } from "./codex_yearbookModel";
 import { blobToBase64, downloadBlob } from "./shareCard";
-import { NativeExport } from "./nativeExport";
+import { NativeExport, copyText, saveFile } from "./nativeExport";
 import { ENTRY_TYPE_LABELS, type ReviewEntry } from "./types";
 import type { JournalImageOptions, JournalShareTheme } from "./codex_yearbookPages";
 import "./codex_reviewShare.css";
@@ -110,14 +110,18 @@ export default function ReviewShare({ entry, onClose }: ReviewShareProps) {
     setExcerptStart((current) => Math.min(current, Math.max(0, contentLength - nextLength)));
   }
 
-  async function saveExcerpt() {
+  async function saveExcerpt(toGallery = false) {
     if (!card || lock.current) return;
     lock.current = true;
     setBusy(true); setError(""); setStatus("");
     const fileName = reviewFileName(entry);
     try {
-      if (native) {
-        const result = await NativeExport.saveFile({ fileName, mimeType: "image/png", encoding: "base64", content: await blobToBase64(card.blob) });
+      if (toGallery) {
+        const result = await NativeExport.saveImageToGallery({ fileName, mimeType: "image/png", encoding: "base64", content: await blobToBase64(card.blob) });
+        if (result?.status !== "saved" || typeof result.uri !== "string" || !result.uri.trim()) throw new Error("系统未确认相册保存，图片预览仍保留");
+        setStatus("已保存到当前环境相册；系统图库未显示时，可通过卓易通文件互传导出");
+      } else if (native) {
+        const result = await saveFile({ fileName, mimeType: "image/png", encoding: "base64", content: await blobToBase64(card.blob) });
         setStatus(result.status === "cancelled" ? "已取消保存摘录卡，当前设置已保留" : `已保存摘录卡：${fileName}`);
       } else {
         downloadBlob(card.blob, fileName);
@@ -164,9 +168,7 @@ export default function ReviewShare({ entry, onClose }: ReviewShareProps) {
     lock.current = true;
     setBusy(true); setError(""); setStatus("");
     try {
-      if (native) await NativeExport.copyText({ text: shareText });
-      else if (navigator.clipboard?.writeText) await navigator.clipboard.writeText(shareText);
-      else throw new Error("当前浏览器不支持复制文字");
+      await copyText(shareText);
       setStatus("分享文字已复制");
     } catch (reason) {
       setError(reason instanceof Error ? `复制失败：${reason.message}` : "复制失败，请重试");
@@ -223,6 +225,7 @@ export default function ReviewShare({ entry, onClose }: ReviewShareProps) {
         <ReviewSharePreview entry={entry} imageUrl={card?.url ?? null} privacy={privacy} theme={theme} excerpt={excerpt} />
         <div className="review-share-actions">
           <button type="button" className="review-share-primary" onClick={() => void saveExcerpt()} disabled={!card || busy}>{busy ? "处理中…" : native ? "保存摘录卡" : "下载摘录卡"}</button>
+          {Capacitor.getPlatform() === "android" && <button type="button" onClick={() => void saveExcerpt(true)} disabled={!card || busy}>保存摘录卡到相册</button>}
           <button type="button" onClick={() => void shareExcerpt()} disabled={!card || busy}>{Capacitor.getPlatform() === "electron" ? "打开导出文件夹" : "系统分享"}</button>
           <button type="button" onClick={() => void copyShareText()} disabled={busy}>复制分享文字</button>
         </div>

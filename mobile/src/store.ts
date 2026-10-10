@@ -336,14 +336,37 @@ class Store {
     return buildAbstractMusicMap(await this.listEntries(), filters);
   }
 
-  async getCover(kind: CoverKind, target: CoverTarget) {
-    return this.resolveCover(kind, normalizeCoverTarget(kind, target));
+  async getCover(kind: CoverKind, target: CoverTarget, options?: { matchNormalizedIdentity: boolean }) {
+    const exact = await this.resolveCover(kind, normalizeCoverTarget(kind, target));
+    if (exact || !options?.matchNormalizedIdentity) return exact;
+    const text = (value: string | null | undefined) => value?.normalize("NFKC").toLocaleLowerCase("zh-CN").replace(/\s+/g, "") ?? "";
+    const matches = (await this.listCovers()).filter(item => item.kind === kind
+      && text(item.artistName) === text(target.artistName)
+      && (kind === "album" ? text(item.albumName) === text(target.albumName)
+        : text(item.songName) === text(target.songName)
+          && (!item.albumName || !target.albumName || text(item.albumName) === text(target.albumName))));
+    const images = [...new Set(matches.map(item => item.dataUrl))];
+    if (images.length > 1) throw new Error("同一作品存在不同封面，请手动选择");
+    return images[0] ?? null;
   }
 
   async getEntryCover(entry: ReviewEntry) {
     const selected = entryCoverTarget(entry);
     if (!selected) return null;
     return this.resolveCover(selected.kind, selected.target, entry);
+  }
+
+  async getEntryCovers(entries: ReviewEntry[], source: ReviewEntry[]) {
+    // source is the full archive snapshot, including records outside this page.
+    if (!entries.length) return [];
+    const covers = await this.listCovers();
+    return entries.map(entry => {
+      const selected = entryCoverTarget(entry);
+      if (!selected) return null;
+      const own = directCover(covers, selected.kind, selected.target);
+      return own ?? (selected.target.albumName ? resolveAlbumCover(covers, source,
+        { albumName: selected.target.albumName, artistName: selected.target.artistName }) : null);
+    });
   }
 
   private async resolveCover(kind: CoverKind, target: CoverTarget, associationEntry?: ReviewEntry) {
@@ -356,27 +379,30 @@ class Store {
     return resolveAlbumCover(covers, entries, { albumName: target.albumName, artistName: target.artistName });
   }
 
-  async setCover(kind: CoverKind, target: CoverTarget, dataUrl: string) {
+  async setCover(kind: CoverKind, target: CoverTarget, dataUrl: string, options?: { onlyIfMissing: boolean }) {
     const normalizedTarget = normalizeCoverTarget(kind, target);
     if (kind === "album" && !normalizedTarget.albumName) throw new Error("缺少专辑名称");
     if (kind === "song" && !normalizedTarget.songName) throw new Error("缺少歌曲名称");
     const now = new Date().toISOString();
     const cover: CoverRow = { coverKey: coverKey(kind, normalizedTarget), kind, albumName: normalizedTarget.albumName, songName: normalizedTarget.songName ?? null, artistName: normalizedTarget.artistName, dataUrl, updatedAt: now };
     await this.init();
+    if (options?.onlyIfMissing && await this.getCover(kind, normalizedTarget, { matchNormalizedIdentity: true })) return;
     if (!Capacitor.isNativePlatform()) {
-      writeCovers([...readCovers().filter((item) => item.coverKey !== cover.coverKey), cover]);
+      const covers = readCovers();
+      if (options?.onlyIfMissing && covers.some(item => item.coverKey === cover.coverKey)) return;
+      writeCovers([...covers.filter((item) => item.coverKey !== cover.coverKey), cover]);
       dispatchCoverChanged();
       return;
     }
     await this.dbReady().run(
-      `INSERT OR REPLACE INTO CoverImage (coverKey, kind, albumName, songName, artistName, dataUrl, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT OR ${options?.onlyIfMissing ? "IGNORE" : "REPLACE"} INTO CoverImage (coverKey, kind, albumName, songName, artistName, dataUrl, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [cover.coverKey, cover.kind, cover.albumName, cover.songName, cover.artistName, cover.dataUrl, cover.updatedAt],
     );
     dispatchCoverChanged();
   }
 
-  async getYearStats(year: number) {
-    const entries = (await this.listEntries()).filter((entry) => inRecordingPeriod(entry, year));
+  async getYearStats(year: number, source?: ReviewEntry[]) {
+    const entries = (source ?? await this.listEntries()).filter((entry) => inRecordingPeriod(entry, year));
     return calculateYearStats(year, entries.map((entry) => ({ ...entry, month: new Date(entry.createdAt).getMonth() + 1 })));
   }
 
@@ -1320,7 +1346,7 @@ function readBackupDrafts(value: unknown, options: { includeCovers?: boolean } =
     if (!draft) throw new Error("草稿损坏或键与内容不一致，请在草稿箱抢救原文并整理后重试");
     if (draft.mode === "create") newCount++;
     return options.includeCovers === false
-      ? { key: item.key, raw: JSON.stringify({ ...JSON.parse(item.raw), coverDataUrl: null, coverChanged: false }) }
+      ? { key: item.key, raw: JSON.stringify({ ...JSON.parse(item.raw), coverDataUrl: null, coverChanged: false, coverFromPlayback: undefined }) }
       : item;
   });
   if (newCount > MAX_NEW_DRAFTS) throw new Error(`新建草稿超过 ${MAX_NEW_DRAFTS} 份，请先整理备份中的草稿`);

@@ -11,6 +11,17 @@ import java.io.OutputStream;
 import org.junit.Test;
 
 public class CodexNativeExportTest {
+    @Test public void galleryNamesKeepUnicodeAndRejectPathsControlsAndOversizedNames() {
+        assertTrue(NativeExportPlugin.validGalleryFileName("xiaodongge-review-中文🎧-2026.png"));
+        assertFalse(NativeExportPlugin.validGalleryFileName(null));
+        assertFalse(NativeExportPlugin.validGalleryFileName("../archive.png"));
+        assertFalse(NativeExportPlugin.validGalleryFileName("folder\\archive.png"));
+        assertFalse(NativeExportPlugin.validGalleryFileName("hidden\narchive.png"));
+        assertFalse(NativeExportPlugin.validGalleryFileName(".hidden.png"));
+        assertFalse(NativeExportPlugin.validGalleryFileName("archive.jpg"));
+        assertFalse(NativeExportPlugin.validGalleryFileName("中".repeat(80) + ".png"));
+        assertFalse(NativeExportPlugin.validGalleryFileName("a".repeat(121) + ".png"));
+    }
     @Test
     public void closeFailureIsPropagatedBeforeSavedResultCanBeProduced() {
         boolean saved = false;

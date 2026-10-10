@@ -6,7 +6,7 @@ import { formatDateOnly } from "./format";
 import { compareRelisten } from "./relistenComparison";
 import RatingSlider from "./RatingSlider";
 import { blobToBase64, buildRelistenMemoryCard, DEFAULT_PRIVACY, downloadBlob, renderMemoryCard, type MemoryCardPrivacy } from "./shareCard";
-import { NativeExport } from "./nativeExport";
+import { NativeExport, saveFile } from "./nativeExport";
 import { store } from "./store";
 import { useBackGuard } from "./codex_Navigation";
 import type { ListeningMoment, RatingModifier, ReviewEntry } from "./types";
@@ -148,7 +148,7 @@ export default function RelistenPage() {
       const blob = await renderMemoryCard(buildRelistenMemoryCard(entry, moment, comparison, privacy), coverUrl);
       const fileName = relistenFileName(moment.id);
       if (Capacitor.isNativePlatform()) {
-        const result = await NativeExport.saveFile({ fileName, mimeType: "image/png", encoding: "base64", content: await blobToBase64(blob) });
+        const result = await saveFile({ fileName, mimeType: "image/png", encoding: "base64", content: await blobToBase64(blob) });
         setMessage(result.status === "cancelled" ? "已取消保存重听对比卡" : `已保存重听对比卡：${fileName}`);
       } else {
         downloadBlob(blob, fileName);

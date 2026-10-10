@@ -1,11 +1,13 @@
 import { mergeMusicMetadata, readMusicMetadata } from "./musicMetadata";
 import type { MusicInfoFields } from "./ocr";
 import type { MusicMetadata } from "./types";
+import { readPlaybackCover } from "./codex_playbackCover";
 
 export type ParsedNowPlayingResult = {
   accessEnabled: boolean;
   fields: MusicInfoFields | null;
   musicMetadata: MusicMetadata | null;
+  coverDataUrl?: string;
 };
 
 export type AppleCatalogTrack = {
@@ -39,6 +41,7 @@ export function parseNowPlayingResult(value: unknown): ParsedNowPlayingResult {
   const artistName = readOptionalString(value.artistName, "artistName");
   const albumName = readOptionalString(value.albumName, "albumName");
   const musicMetadata = readMusicMetadata(value.musicMetadata, "当前播放.musicMetadata");
+  const coverDataUrl = value.accessEnabled && title ? readPlaybackCover(value.coverDataUrl) : null;
 
   return {
     accessEnabled: value.accessEnabled,
@@ -50,6 +53,7 @@ export function parseNowPlayingResult(value: unknown): ParsedNowPlayingResult {
       ...(albumName ? { albumName } : {}),
     } : null,
     musicMetadata: value.accessEnabled && title ? musicMetadata : null,
+    ...(coverDataUrl ? { coverDataUrl } : {}),
   };
 }
 

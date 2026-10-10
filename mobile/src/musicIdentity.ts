@@ -20,24 +20,38 @@ export function findEntryIdentityMatches(entries: ReviewEntry[], identity: Entry
 }
 
 export function groupMusicEntries(entries: ReviewEntry[], kind: "album" | "song") {
-  const catalogId = (entry: ReviewEntry) => clean(kind === "album" ? entry.musicMetadata?.catalogAlbumId : entry.musicMetadata?.catalogTrackId);
   const matches = kind === "album" ? sameAlbumIdentity : sameMusicIdentity;
   // Known IDs and full names come first, so an incomplete song joins one group without merging distinct known albums.
-  const ordered = entries.filter(entry => (entry.type === "album" || entry.type === "song")
-    && normalizeMusicIdentityText(kind === "album" ? entry.albumName : entry.songName))
-    .sort((left, right) => Number(Boolean(catalogId(right))) - Number(Boolean(catalogId(left)))
-      || Number(Boolean(normalizeMusicIdentityText(right.artistName))) - Number(Boolean(normalizeMusicIdentityText(left.artistName)))
-      || (kind === "song" ? Number(Boolean(normalizeMusicIdentityText(right.albumName))) - Number(Boolean(normalizeMusicIdentityText(left.albumName))) : 0)
-      || left.id.localeCompare(right.id));
+  const ordered = entries.filter(entry => entry.type === "album" || entry.type === "song").map(entry => {
+    const album = normalizeMusicIdentityText(entry.albumName);
+    return { entry, album, name: kind === "album" ? album : normalizeMusicIdentityText(entry.songName),
+      artist: normalizeMusicIdentityText(entry.artistName),
+      id: clean(kind === "album" ? entry.musicMetadata?.catalogAlbumId : entry.musicMetadata?.catalogTrackId) };
+  }).filter(item => item.name)
+    .sort((left, right) => Number(Boolean(right.id)) - Number(Boolean(left.id))
+      || Number(Boolean(right.artist)) - Number(Boolean(left.artist))
+      || (kind === "song" ? Number(Boolean(right.album)) - Number(Boolean(left.album)) : 0)
+      || left.entry.id.localeCompare(right.entry.id));
   const groups: ReviewEntry[][] = [];
-  for (const entry of ordered) {
-    const id = catalogId(entry);
-    const group = groups.find(items => {
-      const knownId = items.map(catalogId).find(Boolean);
+  const index = new Map<string, Set<ReviewEntry[]>>();
+  const order = new Map<ReviewEntry[], number>();
+  const knownIds = new Map<ReviewEntry[], string>();
+  for (const { entry, id, name, artist } of ordered) {
+    const keys = [...(id ? [`id:${id}`] : []), ...(artist ? [`name:${JSON.stringify([name, artist])}`] : [])];
+    const matchingGroups = new Set(keys.flatMap(key => [...(index.get(key) ?? [])]));
+    // ponytail: only an ambiguous same-name/artist bucket can still be quadratic;
+    // add album sub-indexes if profiling finds many conflicting albums in that bucket.
+    let group = [...matchingGroups].sort((a, b) => order.get(a)! - order.get(b)!).find(items => {
+      const knownId = knownIds.get(items);
       return (!id || !knownId || id === knownId) && items.some(item => matches(item, entry));
     });
-    if (group) group.push(entry);
-    else groups.push([entry]);
+    if (!group) { group = []; order.set(group, groups.length); groups.push(group); }
+    group.push(entry);
+    if (id && !knownIds.has(group)) knownIds.set(group, id);
+    for (const key of keys) {
+      if (!index.has(key)) index.set(key, new Set());
+      index.get(key)!.add(group);
+    }
   }
   return groups;
 }

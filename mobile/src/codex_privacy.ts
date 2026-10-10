@@ -65,10 +65,28 @@ export async function setPrivacyConsent(accepted: boolean) {
 export const privacyFetch: typeof fetch = async (input, options) => {
   if (Capacitor.getPlatform() !== "android") return fetch(input, options);
   requirePrivacyConsent();
-  const signal = options?.signal ? AbortSignal.any([requests.signal, options.signal]) : requests.signal;
-  const response = await fetch(input, { ...options, signal });
-  requirePrivacyConsent();
-  return response;
+  let signal = requests.signal;
+  let cleanup = () => {};
+  if (options?.signal) {
+    if (typeof AbortSignal.any === "function") signal = AbortSignal.any([signal, options.signal]);
+    else {
+      const signals = [signal, options.signal];
+      const controller = new AbortController();
+      cleanup = () => signals.forEach(item => item.removeEventListener("abort", abort));
+      const abort = () => { cleanup(); controller.abort(signals.find(item => item.aborted)?.reason); };
+      if (signals.some(item => item.aborted)) abort();
+      else signals.forEach(item => item.addEventListener("abort", abort, { once: true }));
+      signal = controller.signal;
+      // ponytail: weather callers always abort after 8/10 seconds; retain listeners
+      // through body consumption, then that timeout cleans them. Add body lifecycle
+      // tracking before using this fetcher for requests without a bounded signal.
+    }
+  }
+  try {
+    const response = await fetch(input, { ...options, signal });
+    requirePrivacyConsent();
+    return response;
+  } catch (error) { cleanup(); throw error; }
 };
 export function privacyAllowsImage(uri: string) {
   if (hasPrivacyConsent()) return true;

@@ -70,6 +70,14 @@ export default function ReadingTools({ children, progressKey, title, backTo = "/
   });
   const [resume, setResume] = useState(() => positions(PROGRESS_KEY, localStorage)[progressKey] ?? 0);
   const engaged = useRef(false);
+  useLayoutEffect(() => {
+    const shell = readerRef.current?.closest(".app-shell");
+    const journal = readerRef.current?.closest(".journal-page");
+    shell?.classList.add("codex-reading");
+    shell?.classList.toggle("codex-reading-dark", preferences.dark);
+    journal?.classList.add("codex-reading");
+    return () => { shell?.classList.remove("codex-reading", "codex-reading-dark"); journal?.classList.remove("codex-reading"); };
+  }, [preferences.dark]);
   useEffect(() => {
     try { localStorage.setItem(PREFERENCES_KEY, JSON.stringify(preferences)); } catch { /* Optional device preference. */ }
   }, [preferences]);
@@ -103,7 +111,7 @@ export default function ReadingTools({ children, progressKey, title, backTo = "/
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
   }, []);
-  return <div ref={readerRef} aria-label={title} className={`codex-reader codex-reader-${preferences.size}${preferences.dark ? " codex-reader-dark" : ""}`}>
+  return <div ref={readerRef} aria-label={title} className={`codex-reader codex-reader-${preferences.size}${preferences.dark ? " codex-reader-dark" : ""}${footer ? " codex-reader-with-footer" : ""}`}>
     <header className="codex-reader-toolbar">
       <button className="codex-reader-back" type="button" onClick={() => requestBack(backTo)}>← 返回</button>
       <div className="codex-reader-actions">

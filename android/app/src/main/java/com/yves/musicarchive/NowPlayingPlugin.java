@@ -11,6 +11,7 @@ import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.provider.Settings;
+import android.webkit.WebView;
 import androidx.core.app.NotificationManagerCompat;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -41,10 +42,35 @@ public class NowPlayingPlugin extends Plugin {
             JSObject response = new JSObject();
             response.put("versionName", info.versionName);
             response.put("versionCode", Build.VERSION.SDK_INT >= 28 ? info.getLongVersionCode() : info.versionCode);
-            response.put("notificationAccessEnabled", NotificationManagerCompat.getEnabledListenerPackages(getContext())
-                .contains(getContext().getPackageName()));
+            response.put("notificationAccessEnabled", false);
+            response.put("notificationAccessKnown", false);
+            try {
+                response.put("notificationAccessEnabled", NotificationManagerCompat.getEnabledListenerPackages(getContext())
+                    .contains(getContext().getPackageName()));
+                response.put("notificationAccessKnown", true);
+            } catch (RuntimeException ignored) { /* Keep a distinct unknown state for unavailable system queries. */ }
+            response.put("androidApi", Build.VERSION.SDK_INT);
+            response.put("manufacturer", Build.MANUFACTURER);
+            response.put("model", Build.MODEL);
+            try { response.put("mediaAvailable", getContext().getSystemService(Context.MEDIA_SESSION_SERVICE) != null); }
+            catch (RuntimeException ignored) { /* Unknown capability stays absent. */ }
+            try { response.put("clipboardAvailable", getContext().getSystemService(Context.CLIPBOARD_SERVICE) != null); }
+            catch (RuntimeException ignored) { /* Unknown capability stays absent. */ }
+            response.put("webViewPackage", "未知");
+            response.put("webViewVersion", "未知");
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                try {
+                    PackageInfo webView = WebView.getCurrentWebViewPackage();
+                    if (webView != null) {
+                        response.put("webViewPackage", webView.packageName);
+                        if (webView.versionName != null) response.put("webViewVersion", webView.versionName);
+                    }
+                } catch (RuntimeException ignored) {
+                    // Version/permission diagnostics remain available if the provider cannot be queried.
+                }
+            }
             call.resolve(response);
-        } catch (PackageManager.NameNotFoundException error) {
+        } catch (PackageManager.NameNotFoundException | RuntimeException error) {
             call.reject("安装包信息读取失败", error);
         }
     }
@@ -53,20 +79,19 @@ public class NowPlayingPlugin extends Plugin {
     public void getCurrentTrack(PluginCall call) {
         if (!codex_PrivacyPlugin.requireConsent(getContext(), call)) return;
         JSObject response = new JSObject();
-        boolean accessEnabled = NotificationManagerCompat.getEnabledListenerPackages(getContext())
-            .contains(getContext().getPackageName());
-        response.put("accessEnabled", accessEnabled);
-        if (!accessEnabled) {
-            call.resolve(response);
-            return;
-        }
-
         try {
+            boolean accessEnabled = NotificationManagerCompat.getEnabledListenerPackages(getContext())
+                .contains(getContext().getPackageName());
+            response.put("accessEnabled", accessEnabled);
+            if (!accessEnabled) { call.resolve(response); return; }
             MediaSessionManager manager = (MediaSessionManager) getContext()
                 .getSystemService(Context.MEDIA_SESSION_SERVICE);
+            if (manager == null) { call.reject("当前环境暂不支持读取正在播放的音乐，可粘贴音乐信息、识别截图或手动记录。"); return; }
             ComponentName listener = new ComponentName(getContext(), NowPlayingNotificationService.class);
             List<MediaController> controllers = manager.getActiveSessions(listener);
+            if (controllers == null) { call.resolve(response); return; }
             for (MediaController controller : controllers) {
+                if (controller == null) continue;
                 PlaybackState playbackState = controller.getPlaybackState();
                 if (playbackState == null || playbackState.getState() != PlaybackState.STATE_PLAYING) continue;
                 MediaMetadata metadata = controller.getMetadata();
@@ -80,6 +105,13 @@ public class NowPlayingPlugin extends Plugin {
                 putIfNotBlank(response, "artistName", metadata.getString(MediaMetadata.METADATA_KEY_ARTIST));
                 putIfNotBlank(response, "albumName", metadata.getString(MediaMetadata.METADATA_KEY_ALBUM));
                 response.put("musicMetadata", readMusicMetadata(controller, metadata));
+                if (Boolean.TRUE.equals(call.getBoolean("includeArtwork", false))) {
+                    String cover = CodexNowPlayingArtwork.read(getContext(), metadata);
+                    if (!codex_PrivacyPlugin.requireConsent(getContext(), call)) return;
+                    // Re-check the system permission after potentially waiting for an image provider.
+                    manager.getActiveSessions(listener);
+                    if (cover != null) response.put("coverDataUrl", cover);
+                }
                 break;
             }
             call.resolve(response);
@@ -88,6 +120,8 @@ public class NowPlayingPlugin extends Plugin {
             JSObject denied = new JSObject();
             denied.put("accessEnabled", false);
             call.resolve(denied);
+        } catch (RuntimeException error) {
+            call.reject("当前环境无法读取播放信息，可改用粘贴、截图识别或手动记录。", error);
         }
     }
 
@@ -129,8 +163,8 @@ public class NowPlayingPlugin extends Plugin {
         if (!codex_PrivacyPlugin.requireConsent(getContext(), call)) return;
         Intent intent = new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS);
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-        getContext().startActivity(intent);
-        call.resolve();
+        try { getContext().startActivity(intent); call.resolve(); }
+        catch (RuntimeException error) { call.reject("当前环境无法打开通知使用权设置，可先粘贴音乐信息、识别截图或手动记录。", error); }
     }
 
     private JSObject readMusicMetadata(MediaController controller, MediaMetadata source) {
