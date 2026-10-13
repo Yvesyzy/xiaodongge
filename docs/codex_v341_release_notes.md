@@ -19,13 +19,13 @@
 - 编辑的是推文副本，原记录保持原样；隐藏评分、日期、应用名称和正文的设置统一用于预览、复制与导出。
 - 推文草稿只保存在本机，**不包含在乐评JSON备份中**；迁移时请另导出HTML或素材包。
 
-这是本地排版工具。图片需在公众号编辑器自行上传插入，文章由用户在后台发布；粘贴后的样式以接收编辑器为准。详见[公众号出稿说明](codex_publication_guide_20261012.md)。
+这是本地排版工具。图片需在公众号编辑器自行上传插入，文章由用户在后台发布；粘贴后的样式以接收编辑器为准。详见[公众号出稿说明](https://github.com/Yvesyzy/xiaodongge/blob/v3.4.1/docs/codex_publication_guide_20261012.md)。
 
 ## 可选好友圈
 
 提供独立账号、邀请码申请与确认、好友可见动态、点赞和评论，以及系统文字分享。私人档案继续保存在本机，只上传用户主动发布的快照；退出或撤回隐私同意会清除本机社交登录状态。
 
-好友圈仍为自部署测试功能，当前没有公共服务。Android需要配置自行部署的HTTPS根地址；本机双浏览器联调可使用`npm.cmd run social:preview`。服务端源码与部署说明随仓库提供，见[好友圈说明](codex_social_test_guide_20261010.md)和[服务端说明](../social/codex_README.md)。
+好友圈仍为自部署测试功能，当前没有公共服务。Android需要配置自行部署的HTTPS根地址；本机双浏览器联调可使用`npm.cmd run social:preview`。服务端源码与部署说明随仓库提供，见[好友圈说明](https://github.com/Yvesyzy/xiaodongge/blob/v3.4.1/docs/codex_social_test_guide_20261010.md)和[服务端说明](https://github.com/Yvesyzy/xiaodongge/blob/v3.4.1/social/codex_README.md)。
 
 ## 安装与验证
 
