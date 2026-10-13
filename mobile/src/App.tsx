@@ -80,6 +80,8 @@ const ReviewShare = lazy(() => import("./codex_ReviewShare"));
 const AlbumTimelinePage = lazy(() => import("./codex_AlbumTimeline"));
 const DiagnosticsPage = lazy(() => import("./codex_DiagnosticsPage"));
 const CompatibilityPage = lazy(() => import("./codex_CompatibilityPage"));
+const SocialPage = lazy(() => import("./codex_SocialPage"));
+const PublicationPage = lazy(() => import("./codex_PublicationPage"));
 // ponytail: 12 MiB is above the measured 11.14 MB gallery fixture; raise it only after repeating low-memory device tests.
 const MAX_OCR_IMAGE_BYTES = 12 * 1024 * 1024;
 
@@ -160,6 +162,8 @@ export default function App() {
           <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="/diagnostics" element={<DiagnosticsPage />} />
           <Route path="/more" element={<MorePage />} />
+          <Route path="/social" element={<SocialPage />} />
+          <Route path="/publication" element={<PublicationPage />} />
         </Routes></Suspense>
       </main>
       {taskRoute ? null : (
@@ -2588,6 +2592,8 @@ function MorePage() {
   }, []);
 
   const items = [
+    ["/publication", "公众号出稿", "选择原文，预览编辑，复制排版或导出稿件与配图。"],
+    ["/social", "好友圈", "邀请听友，分享乐评动态与彼此的近况。"],
     ["/timeline", "时间轴", "按时间查看所有听感记录。"],
     ["/abstract-map", "抽象地图", "按情绪把记录放进听歌大陆。"],
     ["/insights", "情绪洞察", "按天气和季节看你的听歌偏好。"],
@@ -3073,7 +3079,7 @@ function TimelineCover({ entry }: { entry: ReviewEntry }) {
 }
 
 function EntryShareMenu({ entry }: { entry: ReviewEntry }) {
-  return <details className="codex-list-share"><summary aria-label={`${entry.title}的更多操作`}>•••</summary><Link to={`/entries/${entry.id}?share=1`}>分享这篇</Link></details>;
+  return <details className="codex-list-share"><summary aria-label={`${entry.title}的更多操作`}>•••</summary><Link to={`/entries/${entry.id}?share=1`}>分享这篇</Link><Link to={`/social?entry=${encodeURIComponent(entry.id)}`}>发布到好友圈</Link></details>;
 }
 
 function CoverArt({ src, label, large = false }: { src: string | null; label: string; large?: boolean }) {
@@ -3101,7 +3107,9 @@ function PrivacyPage() {
     <Page title="隐私说明" text="当前播放、天气背景与本地听感分析的数据使用方式。">
       <article className="content-card privacy-copy">
         <h2>本地保存</h2>
-        <p>音乐记录、正文、标签、情绪、评分、封面、草稿和听感总结保存在本机。除下述明确说明的音乐目录与天气请求外，小懂哥不会主动上传这些内容。</p>
+        <p>音乐记录、正文、标签、情绪、评分、封面、草稿和听感总结保存在本机。只有你主动发布到好友圈的内容，以及下述明确说明的音乐目录与天气请求，会发送到对应服务。</p>
+        <h2>好友圈</h2>
+        <p>好友圈连接你填写的服务地址。注册或登录时发送用户名、昵称及密码，服务端保存密码摘要；本机不保存密码。只有主动发布的正文及预览中的音乐摘要、选中的评分、日期、封面会上传；草稿、备份和完整私人档案不会自动上传。动态仅你和当前好友可见，朋友可评论和点赞；外部分享的副本可被接收方另存。发布快照与本地原文独立，撤回需删除动态。浏览器仅内存登录；账号页支持退出和注销社交数据，本机记录保留。服务维护者能够处理账号、社交内容和连接所需的网络信息，使用前请了解该服务的运营者与部署位置。</p>
         <h2>{desktop ? "Windows 媒体会话" : "通知使用权"}</h2>
         <p>{desktop ? "Windows 版读取兼容播放器公开的系统媒体会话，只读取正在播放的作品信息，无需 Android 通知使用权；暂停的媒体会话不会作为当前播放。" : "Android 通知使用权仅用于访问系统媒体会话中的当前播放信息。应用不保存其他应用的通知正文，也不读取暂停的媒体会话。"}</p>
         {desktop ? <><h2>截图识别</h2><p>选择的截图通过本机 Windows OCR 识别，识别后需确认再应用到表单，截图不会上传。识别语言取决于本机安装的 OCR 语言包。</p></> : null}

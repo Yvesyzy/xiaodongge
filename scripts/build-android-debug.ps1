@@ -1,48 +1,14 @@
 $ErrorActionPreference = "Stop"
 
 $root = Split-Path -Parent $PSScriptRoot
-$sdk = if ($env:ANDROID_SDK_ROOT) {
-  $env:ANDROID_SDK_ROOT
-} elseif ($env:ANDROID_HOME) {
-  $env:ANDROID_HOME
-} else {
-  "C:\Users\lenovo\AppData\Local\Android\Sdk"
-}
-$jdk = if ($env:JAVA_HOME) {
-  $env:JAVA_HOME
-} else {
-  "C:\Program Files\Eclipse Adoptium\jdk-21.0.11.10-hotspot"
-}
-
-function Remove-BuildDirectory($relativePath) {
-  $target = Join-Path $root $relativePath
-  if (-not (Test-Path -LiteralPath $target)) {
-    return
-  }
-  $rootFull = [System.IO.Path]::GetFullPath($root)
-  $targetFull = [System.IO.Path]::GetFullPath($target)
-  if (-not $targetFull.StartsWith($rootFull, [System.StringComparison]::OrdinalIgnoreCase)) {
-    throw "Refusing to remove path outside project: $targetFull"
-  }
-  Remove-Item -LiteralPath $targetFull -Recurse -Force
-}
-
-if (-not (Test-Path -LiteralPath $sdk)) {
-  throw "Android SDK not found: $sdk"
-}
-if (-not (Test-Path -LiteralPath $jdk)) {
-  throw "JDK 21 not found: $jdk"
-}
-
-$env:JAVA_HOME = $jdk
-$env:ANDROID_HOME = $sdk
-$env:ANDROID_SDK_ROOT = $sdk
-$env:Path = "$jdk\bin;$sdk\platform-tools;$sdk\build-tools\36.0.0;$env:Path"
+. (Join-Path $PSScriptRoot 'codex_android_env.ps1')
+$toolchain = Get-CodexAndroidToolchain
+Set-CodexAndroidEnvironment $toolchain
 
 Push-Location $root
 try {
-  Remove-BuildDirectory "mobile\dist"
-  Remove-BuildDirectory "android\app\src\main\assets\public"
+  Remove-CodexGeneratedDirectory -Root $root -RelativePath "mobile\dist"
+  Remove-CodexGeneratedDirectory -Root $root -RelativePath "android\app\src\main\assets\public"
   npm.cmd run mobile:build
   if ($LASTEXITCODE -ne 0) { throw "Mobile build failed with exit code $LASTEXITCODE" }
   npx.cmd cap sync android

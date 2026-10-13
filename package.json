@@ -1,8 +1,7 @@
 {
   "name": "music-feelings-archive",
-  "version": "3.2.0",
+  "version": "3.4.1",
   "private": true,
-  "main": "desktop/codex_main.cjs",
   "scripts": {
     "dev": "next dev --hostname 127.0.0.1",
     "build": "next build",
@@ -13,6 +12,12 @@
     "verify:full": "node scripts/codex_verify_project.mjs --scope full",
     "verify:android": "pwsh -NoProfile -File scripts/codex_check_android_unit.ps1",
     "test": "node --test shared/listeningAnalysis.test.ts shared/listeningContext.test.ts shared/backupAppData.test.ts",
+    "social:start": "node social/codex_server.mjs",
+    "social:test": "node --test social/codex_server.test.mjs mobile/src/codex_socialModel.test.ts",
+    "social:check": "node scripts/codex_check_social.mjs",
+    "social:preview": "node scripts/codex_social_preview.mjs",
+    "publication:test": "node --test mobile/src/codex_publicationModel.test.ts mobile/src/codex_publicationZip.test.ts",
+    "publication:check": "node scripts/codex_check_publication.mjs",
     "prisma:studio": "prisma studio",
     "mobile:dev": "vite --host 127.0.0.1 --config mobile/vite.config.ts",
     "premobile:build": "node scripts/codex_build_privacy_policy.mjs",
@@ -24,13 +29,11 @@
   "dependencies": {
     "@capacitor-community/sqlite": "8.1.0",
     "@capacitor/core": "8.4.1",
-    "@capacitor/filesystem": "^8.1.2",
     "@prisma/client": "6.19.3",
     "next": "16.3.5",
     "react": "19.2.7",
     "react-dom": "19.2.7",
-    "react-router-dom": "7.18.4",
-    "three": "^0.185.0"
+    "react-router-dom": "7.18.4"
   },
   "devDependencies": {
     "@capacitor/android": "8.4.1",
@@ -38,10 +41,8 @@
     "@types/node": "latest",
     "@types/react": "latest",
     "@types/react-dom": "latest",
-    "@types/three": "^0.185.0",
     "@vitejs/plugin-react": "6.0.3",
     "autoprefixer": "10.5.2",
-    "electron": "44.5.1",
     "playwright": "1.62.0",
     "postcss": "8.5.28",
     "prisma": "6.19.3",

@@ -12,8 +12,13 @@ export function playbackCoverKey(input: CoverIdentity) {
 }
 
 export function readPlaybackCover(value: unknown) {
-  return typeof value === "string" && value.length <= 1_400_000
-    && /^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/.test(value) ? value : null;
+  const maxBytes = 4 * 1024 * 1024;
+  if (typeof value !== "string" || value.length > Math.ceil(maxBytes / 3) * 4 + 100) return null;
+  const match = /^data:image\/(?:png|jpeg|webp|gif|bmp);base64,([A-Za-z0-9+/]+={0,2})$/.exec(value);
+  if (!match) return null;
+  const encoded = match[1];
+  const bytes = encoded.length / 4 * 3 - (encoded.endsWith("==") ? 2 : encoded.endsWith("=") ? 1 : 0);
+  return encoded.length % 4 === 0 && bytes <= maxBytes ? value : null;
 }
 
 export async function preparePlaybackCover(input: CoverIdentity, candidate: unknown): Promise<PlaybackCover> {
@@ -36,7 +41,7 @@ export async function preparePlaybackCover(input: CoverIdentity, candidate: unkn
     };
     const timer = window.setTimeout(() => { image.src = ""; finish(false); }, 2000);
     image.onload = () => finish(image.naturalWidth > 0 && image.naturalHeight > 0
-      && image.naturalWidth <= 512 && image.naturalHeight <= 512);
+      && image.naturalWidth * image.naturalHeight <= 20_000_000);
     image.onerror = () => finish(false);
     image.src = dataUrl;
   });

@@ -2,18 +2,15 @@ import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { resolve, join } from "node:path";
 import { chromium } from "playwright";
-import { createServer } from "vite";
 import { makeJournalFixtures } from "../mobile/codex_journal_fixtures.mjs";
-import { freeLoopbackPort, qaOptions } from "./codex_qa_options.mjs";
+import { qaOptions } from "./codex_qa_options.mjs";
+import { startQaViteServer } from "./codex_qa_harness.mjs";
 
 let { origin, output: outputOption } = qaOptions({ output: `release/codex_t07_identity_${Date.now()}` });
 const output = resolve(outputOption);
 let server;
 if (!process.argv.includes("--origin")) {
-  server = await createServer({ configFile: resolve("mobile/vite.config.ts"), cacheDir: join(output, "vite-cache"),
-    server: { host: "127.0.0.1", port: await freeLoopbackPort(), strictPort: true, forwardConsole: false } });
-  await server.listen();
-  origin = `http://127.0.0.1:${server.httpServer.address().port}`;
+  ({ server, origin } = await startQaViteServer({ output, configFile: resolve("mobile/vite.config.ts") }));
 }
 
 const template = makeJournalFixtures("6")[0];

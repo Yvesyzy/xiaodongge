@@ -1,20 +1,17 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readdir, readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { performance } from "node:perf_hooks";
-import { chromium } from "playwright";
+import { closeAndroidWebView, connectAndroidWebView, createAdbCommand, projectAvdName, PROJECT_AVD_NAME } from "./codex_android_cdp.mjs";
 
-const adb = "C:/Users/lenovo/AppData/Local/Android/Sdk/platform-tools/adb.exe";
-const serial = "emulator-5562";
+const { command } = createAdbCommand();
 const app = "com.yves.musicarchive";
 const phase = process.argv[2];
 const output = resolve(process.argv[3] ?? "");
 assert.ok(["before", "after"].includes(phase), "Usage: node scripts/codex_check_performance.mjs before|after release/<new-report>.json");
 assert.ok(process.argv[3], "A fresh report path is required");
-const command = (...args) => execFileSync(adb, ["-s", serial, ...args], { encoding: "utf8", windowsHide: true }).trim();
-assert.equal(command("emu", "avd", "name").replace(/\r/g, "").split("\n")[0], "codex_np1_api36");
+assert.equal(projectAvdName(command), PROJECT_AVD_NAME);
 assert.equal(command("shell", "getprop", "sys.boot_completed"), "1");
 assert.equal(command("shell", "settings", "get", "global", "wifi_on"), "0", "Project AVD Wi-Fi must be disabled");
 assert.equal(command("shell", "settings", "get", "global", "mobile_data"), "0", "Project AVD mobile data must be disabled");
@@ -30,42 +27,17 @@ const report = {
   startedAt: new Date().toISOString(), cold: [], warm: [], rankExports: [],
 };
 const sleep = ms => new Promise(done => setTimeout(done, ms));
-let browser;
-let port;
+let connection;
 
 async function attach(trace = {}) {
-  const start = performance.now();
-  let socket;
-  for (let i = 0; i < 80; i++) {
-    let pid;
-    try { pid = command("shell", "pidof", app); } catch { await sleep(200); continue; }
-    socket = command("shell", "cat", "/proc/net/unix").split(/\r?\n/).map(line => line.split(/\s+/).at(-1))
-      .find(name => name === `@webview_devtools_remote_${pid}`);
-    if (socket) break;
-    await sleep(200);
-  }
-  assert.ok(socket, "Debug WebView socket unavailable");
-  trace.socketReadyMs = Math.round(performance.now() - start);
-  port = command("forward", "tcp:0", `localabstract:${socket.slice(1)}`);
-  browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`, { noDefaults: true });
-  trace.cdpReadyMs = Math.round(performance.now() - start);
-  let page;
-  for (let i = 0; i < 40; i++) {
-    page = browser.contexts()[0]?.pages()[0];
-    if (page) break;
-    await sleep(100);
-  }
-  assert.ok(page, "WebView page unavailable");
-  await page.locator(".app-header").waitFor({ timeout: 30000 });
-  trace.headerReadyMs = Math.round(performance.now() - start);
-  return page;
+  connection = await connectAndroidWebView({ command, appId: app, attempts: 80, delayMs: 200,
+    pageAttempts: 40, pageDelayMs: 100, pageSelector: ".app-header", pageTimeout: 30000, trace });
+  return connection.page;
 }
 
 async function detach() {
-  await browser?.close();
-  browser = undefined;
-  if (port) command("forward", "--remove", `tcp:${port}`);
-  port = undefined;
+  await closeAndroidWebView(connection);
+  connection = undefined;
 }
 
 function memory() {

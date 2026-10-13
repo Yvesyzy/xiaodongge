@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import { spawn, execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { createServer } from 'vite';
-import { freeLoopbackPort, qaOptions } from './codex_qa_options.mjs';
+import { qaOptions } from './codex_qa_options.mjs';
+import { startQaViteServer } from './codex_qa_harness.mjs';
 
 const { output } = qaOptions({ output: `release/codex_guard_checks_${Date.now()}` });
 mkdirSync(output, { recursive: true });
@@ -19,10 +19,10 @@ try {
     const source = readFileSync(`mobile/src/${mutation.file}`, 'utf8');
     assert.equal(source.split(mutation.from).length, 2, `${mutation.name}: unique verified mutation site`);
     let hits = 0;
-    const server = await createServer({
+    const { server, origin } = await startQaViteServer({
+      output: path.resolve(output, mutation.name),
       configFile: path.resolve('mobile/vite.config.ts'),
       cacheDir: path.resolve(output, mutation.name, 'cache'), logLevel: 'silent',
-      server: { host: '127.0.0.1', port: await freeLoopbackPort(), strictPort: true, forwardConsole: false },
       plugins: [{ name: `codex-guard-${mutation.name}`, enforce: 'pre', transform(code, id) {
         if (id.split('?')[0].replaceAll('\\', '/').endsWith(`/mobile/src/${mutation.file}`) && code.includes(mutation.from)) {
           hits++; return { code: code.replace(mutation.from, mutation.to), map: null };
@@ -34,10 +34,8 @@ try {
     let timeout;
     let timedOut = false;
     try {
-      await server.listen();
-      const port = server.httpServer.address().port;
       const exitCode = await new Promise((resolve, reject) => {
-        child = spawn(process.execPath, [`scripts/${mutation.script}`, '--origin', `http://127.0.0.1:${port}`, '--output', path.resolve(output, mutation.name)], { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+        child = spawn(process.execPath, [`scripts/${mutation.script}`, '--origin', origin, '--output', path.resolve(output, mutation.name)], { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
         child.stdout.on('data', data => { log += data; }); child.stderr.on('data', data => { log += data; });
         timeout = setTimeout(() => {
           timedOut = true;

@@ -4,8 +4,7 @@ import { createWriteStream, existsSync, mkdirSync, readFileSync, writeFileSync }
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
-import { createServer } from 'vite';
-import { freeLoopbackPort } from './codex_qa_options.mjs';
+import { startQaViteServer } from './codex_qa_harness.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 process.chdir(root);
@@ -25,6 +24,8 @@ const checks = {
   identity: 'codex_check_music_identity.mjs', 'album-relisten': 'codex_check_album_relisten.mjs',
   'album-timeline': 'codex_check_album_timeline.mjs',
   reading: 'codex_check_reading.mjs',
+  social: 'codex_check_social.mjs',
+  publication: 'codex_check_publication.mjs',
   diagnostics: 'codex_check_diagnostics.mjs',
   'restore-preview': 'codex_check_restore_preview.mjs', accessibility: 'codex_check_interaction_accessibility.mjs',
 };
@@ -73,16 +74,15 @@ async function run(name, args) {
 }
 async function serve(port, name) {
   // Vite maps 0 to 5173; select a free port explicitly before binding with strictPort.
-  if (port === 0) port = await freeLoopbackPort();
-  const server = await createServer({ configFile: path.join(root, 'mobile/vite.config.ts'),
-    cacheDir: path.join(output, `vite-cache-${name}`), logLevel: 'warn',
-    server: { host: '127.0.0.1', port, strictPort: true, forwardConsole: false },
+  const { server, origin } = await startQaViteServer({
+    output,
+    configFile: path.join(root, 'mobile/vite.config.ts'),
+    cacheDir: path.join(output, `vite-cache-${name}`),
+    port,
+    logLevel: 'warn',
   });
   servers.push(server);
-  await server.listen();
-  const address = server.httpServer.address();
-  if (!address || typeof address === 'string') throw new Error('Vite did not expose a TCP address');
-  return `http://127.0.0.1:${address.port}`;
+  return origin;
 }
 function interrupted() { stopChild(); process.exitCode = 1; void Promise.allSettled(servers.map(server => server.close())); }
 process.once('SIGINT', interrupted); process.once('SIGTERM', interrupted);
@@ -95,6 +95,8 @@ try {
   });
   if (report.dependencyMismatches.length) throw new Error(`Installed dependencies differ from package-lock.json: ${report.dependencyMismatches.map(item => item.directory).join(', ')}`);
   await run('unit', ['--test', 'shared/listeningAnalysis.test.ts', 'shared/listeningContext.test.ts', 'shared/backupAppData.test.ts']);
+  await run('unit-social', ['--test', 'social/codex_server.test.mjs', 'mobile/src/codex_socialModel.test.ts']);
+  await run('unit-publication', ['--test', 'mobile/src/codex_publicationModel.test.ts', 'mobile/src/codex_publicationZip.test.ts']);
   await run('types-root', ['node_modules/typescript/bin/tsc', '--noEmit', '--incremental', 'false']);
   await run('types-mobile', ['node_modules/typescript/bin/tsc', '--noEmit', '-p', 'mobile/tsconfig.json', '--incremental', 'false']);
   await run('quality-gate', ['scripts/codex_check_quality_gate.mjs']);

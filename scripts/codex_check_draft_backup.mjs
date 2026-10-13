@@ -3,8 +3,8 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { resolve, join } from "node:path";
 import assert from "node:assert/strict";
 import { chromium } from "playwright";
-import { createServer } from "vite";
-import { freeLoopbackPort, qaOptions } from "./codex_qa_options.mjs";
+import { qaOptions } from "./codex_qa_options.mjs";
+import { startQaViteServer } from "./codex_qa_harness.mjs";
 
 let { origin, output: outputOption } = qaOptions({
   origin: "http://127.0.0.1:5173",
@@ -13,10 +13,7 @@ let { origin, output: outputOption } = qaOptions({
 const output = resolve(outputOption);
 let ownedServer;
 if (!process.argv.includes("--origin")) {
-  ownedServer = await createServer({ configFile: resolve("mobile/vite.config.ts"), cacheDir: join(output, "vite-cache"),
-    server: { host: "127.0.0.1", port: await freeLoopbackPort(), strictPort: true, forwardConsole: false } });
-  await ownedServer.listen();
-  origin = `http://127.0.0.1:${ownedServer.httpServer.address().port}`;
+  ({ server: ownedServer, origin } = await startQaViteServer({ output, configFile: resolve("mobile/vite.config.ts") }));
 }
 const baselineOnly = process.argv.includes("--baseline-only");
 

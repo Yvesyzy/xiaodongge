@@ -13,6 +13,7 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(SharedMusicPlugin.class);
         registerPlugin(NativeExportPlugin.class);
         registerPlugin(codex_NavigationPlugin.class);
+        registerPlugin(codex_SocialSessionPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }

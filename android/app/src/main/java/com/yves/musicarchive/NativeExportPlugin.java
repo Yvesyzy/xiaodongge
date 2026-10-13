@@ -36,9 +36,30 @@ public class NativeExportPlugin extends Plugin {
     private static final String EXPORT_DIRECTORY = "exports";
     private static final String BASE64_ENCODING = "base64";
     private static final String PNG_MIME_TYPE = "image/png";
+    private static final String ZIP_MIME_TYPE = "application/zip";
     private static final int MAX_BINARY_BYTES = 8 * 1024 * 1024;
     private static final int MAX_BASE64_CHARACTERS = ((MAX_BINARY_BYTES + 2) / 3) * 4;
     private static final byte[] PNG_SIGNATURE = new byte[] {(byte) 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a};
+
+    @PluginMethod
+    public void shareText(PluginCall call) {
+        String text = call.getString("text");
+        String title = call.getString("title");
+        if (text == null || text.trim().isEmpty() || text.length() > 50000 || title == null || title.length() > 300) {
+            call.reject("分享文字为空或过长，请复制部分文字后发送。");
+            return;
+        }
+        try {
+            Intent intent = new Intent(Intent.ACTION_SEND);
+            intent.setType("text/plain");
+            intent.putExtra(Intent.EXTRA_TEXT, text);
+            intent.putExtra(Intent.EXTRA_SUBJECT, title);
+            getActivity().startActivity(Intent.createChooser(intent, "分享小懂哥听感"));
+            JSObject response = new JSObject(); response.put("status", "opened"); call.resolve(response);
+        } catch (RuntimeException error) {
+            call.reject("打开分享菜单失败，请重试或复制文字。", error);
+        }
+    }
 
     @PluginMethod
     public void stageFile(PluginCall call) {
@@ -325,6 +346,24 @@ public class NativeExportPlugin extends Plugin {
         } catch (RuntimeException error) { call.reject("当前环境无法复制，可长按原文选择复制。", error); }
     }
 
+    @PluginMethod
+    public void copyHtml(PluginCall call) {
+        String text = call.getString("text");
+        String html = call.getString("html");
+        if (!NativeExportValidation.isValidClipboardPayload(text, html)) {
+            call.reject("公众号排版内容为空、过长或包含不支持的 HTML");
+            return;
+        }
+        try {
+            ClipboardManager clipboard = (ClipboardManager) getContext().getSystemService(android.content.Context.CLIPBOARD_SERVICE);
+            if (clipboard == null) { call.reject("系统剪贴板不可用"); return; }
+            clipboard.setPrimaryClip(ClipData.newHtmlText("小懂哥公众号稿", text, html));
+            JSObject response = new JSObject();
+            response.put("status", "copied");
+            call.resolve(response);
+        } catch (RuntimeException error) { call.reject("当前环境无法复制，可改用纯文字复制或 HTML 导出。", error); }
+    }
+
     private boolean hasContent(PluginCall call) {
         if (call.getString("content") != null) return true;
         call.reject("缺少导出内容");
@@ -337,43 +376,32 @@ public class NativeExportPlugin extends Plugin {
         String encoding = call.getString("encoding");
         if (encoding == null || encoding.trim().isEmpty()) return content.getBytes(StandardCharsets.UTF_8);
         if (!BASE64_ENCODING.equals(encoding)) throw new IOException("不支持的导出编码");
-        if (!PNG_MIME_TYPE.equals(mimeType)) throw new IOException("Base64 导出仅支持 image/png");
+        if (!PNG_MIME_TYPE.equals(mimeType) && !ZIP_MIME_TYPE.equals(mimeType)) {
+            throw new IOException("Base64 导出仅支持 image/png 或 application/zip");
+        }
         if (content.isEmpty() || content.length() > MAX_BASE64_CHARACTERS || content.length() % 4 != 0 || !isStrictBase64(content)) {
-            throw new IOException("PNG Base64 内容无效");
+            throw new IOException("Base64 内容无效");
         }
         final byte[] decoded;
         try {
             decoded = Base64.decode(content, Base64.NO_WRAP);
         } catch (IllegalArgumentException error) {
-            throw new IOException("PNG Base64 内容无效", error);
+            throw new IOException("Base64 内容无效", error);
         }
-        if (decoded.length == 0 || decoded.length > MAX_BINARY_BYTES || !hasPngSignature(decoded)) {
+        if (decoded.length == 0 || decoded.length > MAX_BINARY_BYTES) {
+            throw new IOException("导出文件大小无效");
+        }
+        if (PNG_MIME_TYPE.equals(mimeType) && !hasPngSignature(decoded)) {
             throw new IOException("PNG 图片大小或格式无效");
+        }
+        if (ZIP_MIME_TYPE.equals(mimeType) && !NativeExportValidation.isValidZipArchive(decoded)) {
+            throw new IOException("ZIP 文件大小或格式无效");
         }
         return decoded;
     }
 
     private boolean isStrictBase64(String value) {
-        for (int index = 0; index < value.length(); index += 4) {
-            char first = value.charAt(index);
-            char second = value.charAt(index + 1);
-            char third = value.charAt(index + 2);
-            char fourth = value.charAt(index + 3);
-            if (!isBase64Letter(first) || !isBase64Letter(second)) return false;
-            if (third == '=') return index + 4 == value.length() && fourth == '=';
-            if (!isBase64Letter(third)) return false;
-            if (fourth == '=') return index + 4 == value.length();
-            if (!isBase64Letter(fourth)) return false;
-        }
-        return true;
-    }
-
-    private boolean isBase64Letter(char value) {
-        return value >= 'A' && value <= 'Z'
-            || value >= 'a' && value <= 'z'
-            || value >= '0' && value <= '9'
-            || value == '+'
-            || value == '/';
+        return NativeExportValidation.isStrictBase64(value);
     }
 
     private boolean hasPngSignature(byte[] value) {

@@ -1,0 +1,47 @@
+.codex-publication { color: var(--ink, #202724); min-width: 0; }
+.codex-publication-heading, .codex-publication-page-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.codex-publication-heading h2 { font-size: 22px; margin: 0 0 6px; }
+.codex-publication-heading p { font-size: 13px; margin: 0; color: var(--neu-quiet, #52675b); }
+.codex-publication-heading > button { flex-shrink: 0; white-space: nowrap; }
+.codex-publication-page-heading > a { flex-shrink: 0; white-space: nowrap; min-width: 64px; }
+.codex-publication-note { font-size: 12px; color: var(--neu-quiet, #52675b); line-height: 1.7; }
+.codex-publication p, .codex-publication figcaption { overflow-wrap: anywhere; word-break: break-word; }
+.codex-publication-layout { display: grid; grid-template-columns: 1fr; gap: 22px; }
+.codex-publication-layout > div { min-width: 0; }
+.codex-publication fieldset, .codex-publication-picker fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.codex-publication-editor > fieldset { display: grid; gap: 14px; }
+.codex-publication-editor label, .codex-publication-filter label { display: grid; gap: 7px; font-size: 14px; font-weight: 600; }
+.codex-publication input:not([type="checkbox"]), .codex-publication textarea, .codex-publication-filter input, .codex-publication-filter select { width: 100%; min-width: 0; padding: 11px 12px; color: var(--ink, #202724); background: var(--paper, #fffdf8); border: 1px solid var(--line, #bdc9c2); border-radius: 8px; font: inherit; line-height: 1.6; }
+.codex-publication textarea { resize: vertical; }
+.codex-publication input[type="checkbox"], .codex-publication-picker input[type="checkbox"] { width: 18px; height: 18px; margin: 0; flex-shrink: 0; }
+.codex-publication .codex-publication-privacy { display: flex; flex-wrap: wrap; gap: 6px 16px; padding: 12px; border: 1px solid var(--line, #bdc9c2); border-radius: 8px; }
+.codex-publication-privacy legend { font-size: 13px; padding: 0 5px; }
+.codex-publication-privacy label, .codex-publication .codex-publication-image-option { display: flex; align-items: center; gap: 8px; font-size: 13px; min-height: 44px; }
+.codex-publication-section-editor { padding: 12px; border: 1px solid var(--line, #bdc9c2); border-radius: 8px; }
+.codex-publication-section-editor summary { cursor: pointer; min-height: 44px; overflow-wrap: anywhere; }
+.codex-publication-section-editor label { margin: 10px 0; }
+.codex-publication-preview { padding: 12px; background: white; color: #202724; border: 1px solid #d5dfd8; border-radius: 8px; max-height: 660px; overflow-y: auto; overflow-x: hidden; }
+.codex-publication-preview * { max-width: 100%; }
+.codex-publication-images { margin-top: 18px; }
+.codex-publication-images summary { cursor: pointer; min-height: 44px; }
+.codex-publication-images figure { margin: 12px 0; }
+.codex-publication-images img { display: block; max-width: 100%; max-height: 280px; object-fit: contain; background: var(--paper-soft, #f3f6f0); }
+.codex-publication-images figcaption { font-size: 12px; color: var(--neu-quiet, #52675b); margin-top: 6px; }
+.codex-publication-actions { padding-top: 20px; margin-top: 20px; border-top: 1px solid var(--line, #bdc9c2); }
+.codex-publication-actions > div { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+.codex-publication button, .codex-publication-picker button { min-height: 44px; white-space: normal; cursor: pointer; }
+.codex-publication button:disabled { cursor: default; opacity: .55; }
+.codex-publication-status { color: var(--neu-ink, #245448); }
+.codex-publication-source-list { display: grid; gap: 8px; max-height: 400px; overflow-y: auto; margin: 16px 0; }
+.codex-publication-source-list label { display: flex; align-items: flex-start; gap: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; }
+.codex-publication-source-list strong, .codex-publication-source-list small { display: block; overflow-wrap: anywhere; }
+.codex-publication-source-list small { font-size: 12px; line-height: 1.6; color: var(--neu-quiet); margin-top: 4px; }
+.codex-publication-filter { display: grid; grid-template-columns: minmax(0,2fr) minmax(0,1fr); gap: 12px; }
+.codex-publication-order { padding-left: 24px; }
+.codex-publication-order li { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.codex-publication-order li > span { display: block; overflow-wrap: anywhere; }
+.codex-publication-order li > div { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+.review-share-dialog .codex-publication { margin-top: 20px; --ink: #202724; --paper: #fffdf8; --line: #bdc9c2; --neu-quiet: #52675b; }
+:root[data-theme="dark"] .review-share-dialog .codex-publication { --ink: #e9e7de; --paper: #222924; --line: #36564a; --neu-quiet: #adc0b6; }
+@media (min-width: 1000px) { .codex-publication-page { max-width: 1100px; }.codex-publication-page .codex-publication-layout { grid-template-columns: minmax(0,1fr) minmax(0,1fr); } }
+@media (max-width: 400px) { .codex-publication-actions button { flex: 1 1 44%; }.codex-publication-filter { grid-template-columns: 1fr; } }

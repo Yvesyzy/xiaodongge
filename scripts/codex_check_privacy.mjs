@@ -3,17 +3,13 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
-import { createServer } from 'vite';
-import { freeLoopbackPort } from './codex_qa_options.mjs';
+import { startQaViteServer } from './codex_qa_harness.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const output = path.resolve(process.env.CODEX_QA_DIR || path.join(root, `release/codex_privacy_qa_${Date.now()}`));
 await mkdir(output, { recursive: true });
 const policy = JSON.parse(await readFile(path.join(root, 'mobile/src/codex_privacy_policy.json'), 'utf8'));
-const server = await createServer({ configFile: path.join(root, 'mobile/vite.config.ts'), cacheDir: path.join(output, 'vite-cache'),
-  server: { host: '127.0.0.1', port: await freeLoopbackPort(), strictPort: true, forwardConsole: false } });
-await server.listen();
-const origin = `http://127.0.0.1:${server.httpServer.address().port}`;
+const { server, origin } = await startQaViteServer({ output, configFile: path.join(root, 'mobile/vite.config.ts') });
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 const result = { passed: false, checks: [], limitations: ['Browser bridge simulation; native SDK behavior and network telemetry require Android device verification.'] };
 async function open({ status = 'pending', version = policy.version, failLoad = false, failSave = false, platform = 'android' } = {}) {
@@ -99,6 +95,10 @@ try {
   assert.deepEqual(blocked.images, [false, true, true]);
   assert.equal(blocked.entries, 1);
   assert.equal(blocked.sensitiveCalls, 0);
+  await page.goto(origin + '/#/social');
+  await page.getByRole('heading', { name: '当前使用本地功能' }).waitFor();
+  assert.equal(await page.getByRole('button', { name: '登录好友圈' }).count(), 0);
+  result.checks.push('Local-only mode blocks the friends-circle login and network entry');
   await page.reload({ waitUntil: 'networkidle' });
   await page.locator('.app-shell').waitFor();
   assert.equal(await page.getByRole('heading', { name: '欢迎使用小懂哥' }).count(), 0);

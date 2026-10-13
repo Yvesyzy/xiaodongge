@@ -21,20 +21,6 @@ export type MemoryCardModel = {
   brand: string | null;
 };
 
-export function buildQuickMemoryCard(entry: ReviewEntry, privacy: MemoryCardPrivacy): MemoryCardModel {
-  return {
-    eyebrow: "刚刚记下",
-    title: entry.songName ?? entry.title,
-    subtitle: [entry.artistName, entry.albumName].filter(Boolean).join(" · "),
-    dateLine: privacy.hideDate ? null : displayDate(entry.createdAt),
-    ratingLine: privacy.hideRating || entry.rating === null ? null : String(entry.rating) + (entry.ratingModifier ?? "") + " / 10",
-    moodLine: entry.moods.length ? entry.moods.join(" · ") : null,
-    firstQuote: privacy.hideContent ? null : entry.content,
-    latestQuote: null,
-    brand: privacy.hideBrand ? null : "小懂哥 · 私人音乐档案",
-  };
-}
-
 export function buildRelistenMemoryCard(
   entry: ReviewEntry,
   moment: ListeningMoment,

@@ -12,9 +12,13 @@ mobile/dist
 android/app/build
 gradle-*.zip
 release/
+/tmp/
 *.jks
 *.keystore
 .firecrawl/
+social/data/
+social/backups/
+social/codex_social_test-*/
 .superpowers/
 .workbuddy/
 docs/shots/

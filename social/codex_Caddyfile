@@ -1,0 +1,5 @@
+# 示例配置：先将 social.example.com 替换为已指向服务器的真实域名。
+# Node 服务仅在同一主机的 loopback 运行，不向公网暴露 8787。
+social.example.com {
+    reverse_proxy 127.0.0.1:8787
+}

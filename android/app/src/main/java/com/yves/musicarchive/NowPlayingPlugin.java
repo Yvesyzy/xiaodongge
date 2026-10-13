@@ -27,6 +27,7 @@ import java.net.URL;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Objects;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -110,7 +111,18 @@ public class NowPlayingPlugin extends Plugin {
                     if (!codex_PrivacyPlugin.requireConsent(getContext(), call)) return;
                     // Re-check the system permission after potentially waiting for an image provider.
                     manager.getActiveSessions(listener);
-                    if (cover != null) response.put("coverDataUrl", cover);
+                    boolean artworkCurrent = false;
+                    try {
+                        PlaybackState currentState = controller.getPlaybackState();
+                        artworkCurrent = currentState != null && currentState.getState() == PlaybackState.STATE_PLAYING
+                            && sameArtworkIdentity(metadata, controller.getMetadata());
+                    } catch (SecurityException denied) { throw denied; }
+                    catch (RuntimeException ignored) { /* Closing controllers only invalidate optional artwork. */ }
+                    if (cover != null && artworkCurrent) response.put("coverDataUrl", cover);
+                    if (!artworkCurrent) {
+                        JSONObject snapshot = response.optJSONObject("musicMetadata");
+                        if (snapshot != null) snapshot.remove("artworkUri");
+                    }
                 }
                 break;
             }
@@ -123,6 +135,16 @@ public class NowPlayingPlugin extends Plugin {
         } catch (RuntimeException error) {
             call.reject("当前环境无法读取播放信息，可改用粘贴、截图识别或手动记录。", error);
         }
+    }
+
+    static boolean sameArtworkIdentity(MediaMetadata before, MediaMetadata after) {
+        if (before == null || after == null) return false;
+        return Objects.equals(firstNotBlank(before.getString(MediaMetadata.METADATA_KEY_TITLE),
+                before.getString(MediaMetadata.METADATA_KEY_DISPLAY_TITLE)),
+            firstNotBlank(after.getString(MediaMetadata.METADATA_KEY_TITLE), after.getString(MediaMetadata.METADATA_KEY_DISPLAY_TITLE)))
+            && Objects.equals(before.getString(MediaMetadata.METADATA_KEY_ARTIST), after.getString(MediaMetadata.METADATA_KEY_ARTIST))
+            && Objects.equals(before.getString(MediaMetadata.METADATA_KEY_ALBUM), after.getString(MediaMetadata.METADATA_KEY_ALBUM))
+            && Objects.equals(before.getString(MediaMetadata.METADATA_KEY_MEDIA_ID), after.getString(MediaMetadata.METADATA_KEY_MEDIA_ID));
     }
 
     @PluginMethod
@@ -292,7 +314,7 @@ public class NowPlayingPlugin extends Plugin {
         }
     }
 
-    private String firstNotBlank(String... values) {
+    private static String firstNotBlank(String... values) {
         for (String value : values) {
             String clean = clean(value);
             if (clean != null) return clean;
@@ -300,7 +322,7 @@ public class NowPlayingPlugin extends Plugin {
         return null;
     }
 
-    private String clean(String value) {
+    private static String clean(String value) {
         if (value == null) return null;
         String clean = value.trim();
         return clean.isEmpty() ? null : clean;

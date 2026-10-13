@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { chromium } from "playwright";
-import { createServer } from "vite";
 import { makeJournalFixtures } from "../mobile/codex_journal_fixtures.mjs";
-import { freeLoopbackPort, qaOptions } from "./codex_qa_options.mjs";
+import { qaOptions } from "./codex_qa_options.mjs";
+import { startQaViteServer } from "./codex_qa_harness.mjs";
 
 const options = qaOptions({ output: "release/codex_restore_preview_qa" });
 const output = resolve(options.output);
@@ -12,10 +12,7 @@ await mkdir(output, { recursive: true });
 let origin = options.origin;
 let server;
 if (!process.argv.includes("--origin")) {
-  server = await createServer({ configFile: resolve("mobile/vite.config.ts"), cacheDir: join(output, "vite-cache"),
-    server: { host: "127.0.0.1", port: await freeLoopbackPort(), strictPort: true, forwardConsole: false } });
-  await server.listen();
-  origin = `http://127.0.0.1:${server.httpServer.address().port}`;
+  ({ server, origin } = await startQaViteServer({ output, configFile: resolve("mobile/vite.config.ts") }));
 }
 
 const [first, second, third] = makeJournalFixtures("6");

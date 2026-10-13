@@ -2,45 +2,29 @@ param([string]$OutputDirectory, [switch]$OfficialRelease)
 
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path -LiteralPath (Split-Path -Parent $PSScriptRoot)).Path
+. (Join-Path $PSScriptRoot 'codex_android_env.ps1')
 $releasePath = Join-Path $root 'release'
 $releaseItem = Get-Item -LiteralPath $releasePath -Force -ErrorAction Stop
 if ($releaseItem.LinkType -or (($releaseItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0)) {
   throw "Refusing linked release directory: $releasePath"
 }
 $releaseRoot = (Resolve-Path -LiteralPath $releasePath).Path
-$baselineApk = Join-Path $releaseRoot 'codex_harmony_signed_final_20261009/codex_xiaodongge-v3.1.3-33-test.apk'
-$baselineHash = '009201a437e47cd92da580c369911bf896fba7c0818f61d40fa875394db99fc1'
+$baselineApk = Join-Path $releaseRoot 'codex_v320_release_20261010/codex_xiaodongge-v3.2.0-36.apk'
+$baselineHash = '6ba2da51083118f72d4d7c0d11831aaf2c405ba84c4368eface556bd8d98195f'
 $officialSigner = '6386734ef9b4a3fe106d690a8d31ae952697c2ea652ea1ee82f3f7ab488f1022'
 
 if (-not (Test-Path -LiteralPath $baselineApk -PathType Leaf)) { throw "Verified baseline APK missing: $baselineApk" }
-if ((Get-FileHash -LiteralPath $baselineApk -Algorithm SHA256).Hash.ToLowerInvariant() -ne $baselineHash) { throw 'Verified v3.1.3 baseline APK hash changed' }
+if ((Get-FileHash -LiteralPath $baselineApk -Algorithm SHA256).Hash.ToLowerInvariant() -ne $baselineHash) { throw 'Verified v3.2.0 baseline APK hash changed' }
 if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
   $OutputDirectory = Join-Path $releaseRoot ('codex_signed_test_' + (Get-Date -Format 'yyyyMMdd_HHmmss'))
 }
 $outputPath = if ([IO.Path]::IsPathRooted($OutputDirectory)) {
   [IO.Path]::GetFullPath($OutputDirectory)
 } else { [IO.Path]::GetFullPath((Join-Path $root $OutputDirectory)) }
-if (-not $outputPath.StartsWith($releaseRoot + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
-  throw "Build output must be a new directory under release: $outputPath"
-}
+Assert-CodexPathWithin -BasePath $releaseRoot -CandidatePath $outputPath -RequireChild
 if (Test-Path -LiteralPath $outputPath) { throw "Refusing to overwrite build evidence: $outputPath" }
-function Assert-NoLinks([string]$base, [string]$relativePath) {
-  $baseItem = Get-Item -LiteralPath $base -Force
-  if ($baseItem.LinkType -or (($baseItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0)) {
-    throw "Refusing linked build path: $base"
-  }
-  $current = $base
-  foreach ($part in ($relativePath -split '[\\/]')) {
-    $current = Join-Path $current $part
-    if (Test-Path -LiteralPath $current) {
-      $item = Get-Item -LiteralPath $current -Force
-      if ($item.LinkType -or (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0)) {
-        throw "Refusing linked build path: $current"
-      }
-    }
-  }
-}
-Assert-NoLinks $releaseRoot ($outputPath.Substring($releaseRoot.Length + 1))
+$outputRelative = $outputPath.Substring($releaseRoot.Length).TrimStart([char[]]@('\', '/'))
+Assert-CodexNoLinks $releaseRoot $outputRelative
 
 $gradle = Get-Content -LiteralPath (Join-Path $root 'android/app/build.gradle') -Raw
 $codeMatches = [regex]::Matches($gradle, '(?m)^\s*versionCode\s+(\d+)\s*$')
@@ -64,18 +48,12 @@ foreach ($name in @('XIAODONGGE_KEYSTORE_FILE', 'XIAODONGGE_KEYSTORE_PASSWORD', 
   if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name, 'Process'))) { throw "Release signing configuration is incomplete: $name" }
 }
 if (-not (Test-Path -LiteralPath $env:XIAODONGGE_KEYSTORE_FILE -PathType Leaf)) { throw 'Release keystore file is missing' }
-$sdk = if ($env:ANDROID_SDK_ROOT) { $env:ANDROID_SDK_ROOT } elseif ($env:ANDROID_HOME) { $env:ANDROID_HOME } else { 'C:\Users\lenovo\AppData\Local\Android\Sdk' }
-$jdk = if ($env:JAVA_HOME) { $env:JAVA_HOME } else { 'C:\Program Files\Eclipse Adoptium\jdk-21.0.11.10-hotspot' }
-$apkSigner = Join-Path $sdk 'build-tools/36.0.0/apksigner.bat'
-$aapt2 = Join-Path $sdk 'build-tools/36.0.0/aapt2.exe'
+$toolchain = Get-CodexAndroidToolchain -RequireBuildTools
+$apkSigner = $toolchain.ApkSigner
+$aapt2 = $toolchain.Aapt2
 $initScript = Join-Path $root 'scripts/gradle-mirrors.init.gradle'
-foreach ($required in @($sdk, $jdk, $apkSigner, $aapt2, $initScript)) {
-  if (-not (Test-Path -LiteralPath $required)) { throw "Required build tool is missing: $required" }
-}
-$env:JAVA_HOME = $jdk
-$env:ANDROID_HOME = $sdk
-$env:ANDROID_SDK_ROOT = $sdk
-$env:Path = "$jdk\bin;$sdk\platform-tools;$sdk\build-tools\36.0.0;$env:Path"
+if (-not (Test-Path -LiteralPath $initScript -PathType Leaf)) { throw "Required build tool is missing: $initScript" }
+Set-CodexAndroidEnvironment $toolchain
 
 function Get-SignerDigest([string]$apk) {
   $result = & $apkSigner verify --verbose --print-certs $apk
@@ -97,19 +75,10 @@ function Get-ApkMetadata([string]$apk) {
 $baselineSigner = Get-SignerDigest $baselineApk
 if ($baselineSigner -ne $officialSigner) { throw 'Published APK signer differs from the approved certificate' }
 $baselineMetadata = Get-ApkMetadata $baselineApk
-if ($applicationId -ne $baselineMetadata.id -or $versionCode -le $baselineMetadata.code) {
-  throw 'Android package ID differs or versionCode does not upgrade the published APK'
-}
-
-function Remove-GeneratedDirectory([string]$relativePath) {
-  $target = [IO.Path]::GetFullPath((Join-Path $root $relativePath))
-  if (-not $target.StartsWith($root + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
-    throw "Refusing to clean outside project: $target"
-  }
-  Assert-NoLinks $root $relativePath
-  if (-not (Test-Path -LiteralPath $target)) { return }
-  if (-not (Test-Path -LiteralPath $target -PathType Container)) { throw "Expected generated directory: $target" }
-  Remove-Item -LiteralPath $target -Recurse -Force
+if ($applicationId -ne $baselineMetadata.id) { throw 'Android package ID differs from the published APK' }
+if ($versionCode -lt $baselineMetadata.code) { throw 'Android versionCode is lower than the published APK' }
+if ($versionCode -eq $baselineMetadata.code -and $versionName -ne $baselineMetadata.name) {
+  throw 'Android versionName differs from the published APK at the same versionCode'
 }
 
 New-Item -ItemType Directory -Path $outputPath -ErrorAction Stop | Out-Null
@@ -122,9 +91,9 @@ try {
   if ($LASTEXITCODE -ne 0) { throw 'Android JUnit gate failed; release build stopped' }
 
   Write-Output 'CHECK clean-mobile-assets'
-  Remove-GeneratedDirectory 'mobile/dist'
+  Remove-CodexGeneratedDirectory -Root $root -RelativePath 'mobile/dist'
   Write-Output 'CHECK clean-android-assets'
-  Remove-GeneratedDirectory 'android/app/src/main/assets/public'
+  Remove-CodexGeneratedDirectory -Root $root -RelativePath 'android/app/src/main/assets/public'
   Write-Output 'CHECK build-fresh-web'
   & npm.cmd run mobile:build 2>&1 | Tee-Object -FilePath (Join-Path $outputPath 'mobile-build.log')
   if ($LASTEXITCODE -ne 0) { throw 'Fresh mobile build failed' }

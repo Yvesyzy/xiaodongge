@@ -2,18 +2,17 @@ import assert from 'node:assert/strict';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { chromium } from 'playwright';
-import { createServer } from 'vite';
-import { qaOptions, freeLoopbackPort } from './codex_qa_options.mjs';
+import { qaOptions } from './codex_qa_options.mjs';
+import { startQaViteServer } from './codex_qa_harness.mjs';
 import { makeJournalFixtures } from '../mobile/codex_journal_fixtures.mjs';
 
 const qa = qaOptions({ output: 'release/codex_zhuoyitong_compat_20261009' });
 const output = path.resolve(qa.output);
 await mkdir(output, { recursive: true });
 const policy = JSON.parse(await readFile('mobile/src/codex_privacy_policy.json', 'utf8'));
-const server = process.argv.includes('--origin') ? null : await createServer({ configFile: path.resolve('mobile/vite.config.ts'),
-  cacheDir: path.join(output, 'vite-cache'), server: { host: '127.0.0.1', port: await freeLoopbackPort(), strictPort: true, forwardConsole: false } });
-await server?.listen();
-const origin = server ? `http://127.0.0.1:${server.httpServer.address().port}` : qa.origin;
+const started = process.argv.includes('--origin') ? null : await startQaViteServer({ output, configFile: path.resolve('mobile/vite.config.ts') });
+const server = started?.server ?? null;
+const origin = started?.origin ?? qa.origin;
 const browser = await chromium.launch({ channel: 'chrome', headless: true });
 const report = { passed: false, checks: [], limitations: ['Synthetic Android bridge and desktop Chrome; not a Zhuoyi/HarmonyOS device test.'] };
 async function open(route, missingLocks = false) {

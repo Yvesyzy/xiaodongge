@@ -115,6 +115,7 @@ try {
  await page.screenshot({path:`${output}/codex_rank_appendix.jpg`,type:'jpeg',quality:86,fullPage:true});
  await page.getByText('图片隐私设置').click();
  await page.getByRole('checkbox',{name:/隐藏正文、摘录、寄语与标签/}).check();
+ await page.waitForFunction(()=>document.querySelector('select[aria-label="导出页码"]')?.options.length===1);
  assert.equal(await page.getByLabel('导出页码').locator('option').count(),1,'隐藏正文须移除附页');
  assert.equal(await page.getByText(/入选理由超过海报两行/).count(),0,'隐藏正文须移除理由预检');
  await page.evaluate(()=>Object.defineProperty(navigator,'clipboard',{configurable:true,value:{writeText:async text=>{window.codexCopiedPreflight=text;}}}));

@@ -16,10 +16,11 @@ import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 import java.util.List;
+import java.io.IOException;
 
 @CapacitorPlugin(name = "CodexPrivacy")
 public class codex_PrivacyPlugin extends Plugin {
-    static final String POLICY_VERSION = "2026-10-10";
+    static final String POLICY_VERSION = "2026-10-10-social-1";
     static final String STATUS_PENDING = "pending";
     static final String STATUS_ACCEPTED = "accepted";
     static final String STATUS_DECLINED = "declined";
@@ -104,6 +105,16 @@ public class codex_PrivacyPlugin extends Plugin {
 
     private static boolean synchronizeRuntimeState(Context context, String status) {
         boolean accepted = STATUS_ACCEPTED.equals(status);
+        if (!accepted) {
+            try {
+                codex_SocialSessionPlugin.clearStoredSession(context);
+            } catch (IOException | RuntimeException error) {
+                applyRuntimeState(context, false);
+                runtimeStateSynchronized = false;
+                runtimeStateAccepted = false;
+                return false;
+            }
+        }
         boolean ready = applyRuntimeState(context, accepted);
         runtimeStateSynchronized = ready;
         runtimeStateAccepted = ready && accepted;

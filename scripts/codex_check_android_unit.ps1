@@ -1,14 +1,16 @@
 param([string]$Output)
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
+. (Join-Path $PSScriptRoot 'codex_android_env.ps1')
+$toolchain = Get-CodexAndroidToolchain
+Set-CodexAndroidEnvironment $toolchain
 if (-not $Output) { $Output = Join-Path $root ('release/codex_android_unit_' + [DateTime]::UtcNow.ToString('yyyyMMdd_HHmmss')) }
 $outputDirectory = [IO.Path]::GetFullPath($Output)
 if (Test-Path -LiteralPath $outputDirectory) { throw 'Use a new evidence directory' }
 New-Item -ItemType Directory -Path $outputDirectory | Out-Null
-$jdk = if ($env:JAVA_HOME) { $env:JAVA_HOME } else { 'C:\Program Files\Eclipse Adoptium\jdk-21.0.11.10-hotspot' }
-$java = Join-Path $jdk 'bin/java.exe'
+$java = Join-Path $toolchain.JdkRoot 'bin/java.exe'
 if (-not (Test-Path -LiteralPath $java)) { throw "JDK not found: $java" }
-$env:JAVA_HOME = $jdk
+$env:JAVA_HOME = $toolchain.JdkRoot
 $metadataPath = Join-Path $outputDirectory 'codex_classpath.json'
 $init = Join-Path $outputDirectory 'codex_unit.init.gradle'
 @'

@@ -195,7 +195,7 @@
 .app-shell.task-route .entry-save-actions { bottom: max(12px, env(safe-area-inset-bottom)); }
 .task-back { border: 0; background: none; color: inherit; font: inherit; padding: 0; text-align: left; cursor: pointer; }
 
-/* Touch targets. Measured with scripts/abu_a11y_check.mjs. */
+/* Touch targets. Measured with scripts/codex_check_interaction_accessibility.mjs. */
 .app-shell .brand { min-height: 44px; }
 .app-shell .header-menu { width: 44px; height: 44px; top: calc(14px + env(safe-area-inset-top)); }
 .app-shell :is(.genre-tree-chip, .rating-mod-btn) { min-height: 44px; }

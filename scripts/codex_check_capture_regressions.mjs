@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import { DatabaseSync } from "node:sqlite";
+import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
-import { createServer } from "vite";
-import { freeLoopbackPort, qaOptions } from "./codex_qa_options.mjs";
+import { qaOptions } from "./codex_qa_options.mjs";
+import { startQaViteServer } from "./codex_qa_harness.mjs";
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const policyVersion = JSON.parse(await readFile(path.join(projectRoot, "mobile/src/codex_privacy_policy.json"), "utf8")).version;
@@ -19,15 +20,10 @@ const outputPath = path.join(outputDir, "codex_capture_regressions.json");
 let origin = requestedOrigin;
 let server = null;
 if (!origin) {
-  server = await createServer({
+  ({ server, origin } = await startQaViteServer({
+    output: outputDir,
     configFile: path.resolve(projectRoot, "mobile/vite.config.ts"),
-    cacheDir: path.join(outputDir, "vite-cache"),
-    server: { host: "127.0.0.1", port: await freeLoopbackPort(), strictPort: true, forwardConsole: false },
-  });
-  await server.listen();
-  const address = server.httpServer?.address();
-  if (!address || typeof address === "string") throw new Error("无法读取捕获回归测试端口");
-  origin = `http://127.0.0.1:${address.port}`;
+  }));
 }
 
 const browser = await chromium.launch({ headless: true, channel: "chrome" });
@@ -504,8 +500,16 @@ async function checkInputClearing() {
 async function checkAutomaticArtwork() {
   const fixture = await browser.newPage();
   const png = await fixture.evaluate(() => {
-    const canvas = document.createElement('canvas'); canvas.width = canvas.height = 256;
+    const canvas = document.createElement('canvas'); canvas.width = 960; canvas.height = 640;
     const context = canvas.getContext('2d');
+    const pixels = context.createImageData(canvas.width, canvas.height);
+    let state = 123456789;
+    for (let offset = 0; offset < pixels.data.length; offset += 4) {
+      state ^= state << 13; state ^= state >>> 17; state ^= state << 5;
+      pixels.data[offset] = state & 255; pixels.data[offset + 1] = state >>> 8 & 255;
+      pixels.data[offset + 2] = state >>> 16 & 255; pixels.data[offset + 3] = 180;
+    }
+    context.putImageData(pixels, 0, 0);
     context.fillStyle = '#20594a'; context.fillRect(0, 0, 256, 256);
     context.strokeStyle = '#dfc78a'; context.lineWidth = 3;
     for (const radius of [35, 55, 75]) { context.beginPath(); context.arc(128, 112, radius, 0, Math.PI * 2); context.stroke(); }
@@ -514,6 +518,10 @@ async function checkAutomaticArtwork() {
     return canvas.toDataURL('image/png');
   });
   await fixture.close();
+  assert.ok(png.length > 1_400_000, 'Original image exceeds the former encoded-size cap');
+  const sourceBytes = Buffer.from(png.split(',')[1], 'base64');
+  assert.ok(sourceBytes.length <= 4 * 1024 * 1024);
+  const sourceSha256 = createHash('sha256').update(sourceBytes).digest('hex');
   result.artwork = {};
   const track = { accessEnabled: true, title: '系统封面歌曲', artistName: '系统封面艺人', albumName: '系统封面专辑', coverDataUrl: png };
   for (const quick of [true, false]) {
@@ -524,6 +532,7 @@ async function checkAutomaticArtwork() {
     const image = page.locator(quick ? '.quick-track-card > img' : '.cover-picker > img');
     await image.waitFor();
     assert.equal(await image.getAttribute('src'), png);
+    assert.deepEqual(await image.evaluate(image => [image.naturalWidth, image.naturalHeight]), [960, 640]);
     await page.waitForFunction(() => window.codexNavigationAdds >= 1);
     assert.equal(await page.locator('.codex-back-notice').count(), 0);
     await page.locator('textarea').first().fill('系统封面与这一篇听感一起保留。');
@@ -562,8 +571,15 @@ async function checkAutomaticArtwork() {
     assert.equal(persisted.cover, png);
     assert.equal(persisted.entries.length, 1);
     assert.equal(persisted.entries[0].content, '系统封面与这一篇听感一起保留。');
+    const backup = await page.evaluate(async () => JSON.parse(await (await import('/src/store.ts')).store.exportBackup()));
+    const exportedCover = backup.covers.find(item => item.albumName === '系统封面专辑').dataUrl;
+    const sqliteSha256 = createHash('sha256').update(Buffer.from(persisted.cover.split(',')[1], 'base64')).digest('hex');
+    const backupSha256 = createHash('sha256').update(Buffer.from(exportedCover.split(',')[1], 'base64')).digest('hex');
+    assert.equal(sqliteSha256, sourceSha256);
+    assert.equal(backupSha256, sourceSha256);
     assert.deepEqual(page.__captureErrors, []);
-    result.artwork[label] = { preview: true, draftRoundTrip: true, sqliteCover: true, records: persisted.entries.length, pageErrors: page.__captureErrors };
+    result.artwork[label] = { preview: true, draftRoundTrip: true, sqliteCover: true, records: persisted.entries.length,
+      original: { width: 960, height: 640, bytes: sourceBytes.length, sourceSha256, sqliteSha256, backupSha256 }, pageErrors: page.__captureErrors };
     await page.close();
   }
 

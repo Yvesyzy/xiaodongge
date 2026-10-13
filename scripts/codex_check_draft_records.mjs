@@ -3,8 +3,8 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { chromium } from "playwright";
-import { createServer } from "vite";
-import { freeLoopbackPort, qaOptions } from "./codex_qa_options.mjs";
+import { qaOptions } from "./codex_qa_options.mjs";
+import { startQaViteServer } from "./codex_qa_harness.mjs";
 
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const qa = qaOptions({ output: "release/codex_draft_records" });
@@ -14,15 +14,11 @@ let origin = suppliedOrigin ? qa.origin : null;
 let server = null;
 
 if (!origin) {
-  server = await createServer({
+  ({ server, origin } = await startQaViteServer({
+    output: outputDir,
     configFile: path.resolve(projectRoot, "mobile/vite.config.ts"),
     cacheDir: path.resolve(projectRoot, "release/codex_t06_drafts_vite_cache"),
-    server: { host: "127.0.0.1", port: await freeLoopbackPort(), strictPort: true, forwardConsole: false },
-  });
-  await server.listen();
-  const address = server.httpServer?.address();
-  if (!address || typeof address === "string") throw new Error("无法读取草稿回归测试端口");
-  origin = `http://127.0.0.1:${address.port}`;
+  }));
 }
 
 const browser = await chromium.launch({ headless: true, channel: "chrome" });

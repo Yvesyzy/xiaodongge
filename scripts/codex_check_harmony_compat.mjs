@@ -3,18 +3,16 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { chromium } from 'playwright';
-import { createServer, preview } from 'vite';
+import { preview } from 'vite';
 import { freeLoopbackPort } from './codex_qa_options.mjs';
+import { startQaViteServer } from './codex_qa_harness.mjs';
 import { DAILY_RESURFACING_KEY } from '../shared/backupAppData.ts';
 
 const { values } = parseArgs({ options: { output: { type: 'string' }, build: { type: 'string' }, baseline: { type: 'boolean' } } });
 const output = path.resolve(values.output ?? 'release/codex_harmony_compat_20261009');
 await mkdir(output, { recursive: true });
 const policy = JSON.parse(await readFile('mobile/src/codex_privacy_policy.json', 'utf8'));
-const server = await createServer({ configFile: path.resolve('mobile/vite.config.ts'), cacheDir: path.join(output, 'vite-cache'),
-  server: { host: '127.0.0.1', port: await freeLoopbackPort(), strictPort: true, forwardConsole: false } });
-await server.listen();
-const origin = `http://127.0.0.1:${server.httpServer.address().port}`;
+const { server, origin } = await startQaViteServer({ output, configFile: path.resolve('mobile/vite.config.ts') });
 let production;
 if (values.build) production = await preview({ configFile: path.resolve('mobile/vite.config.ts'),
   build: { outDir: path.resolve(values.build) }, preview: { host: '127.0.0.1', port: await freeLoopbackPort(), strictPort: true } });

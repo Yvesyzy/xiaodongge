@@ -1,34 +1,18 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { chromium } from "playwright";
+import { closeAndroidWebView, connectAndroidWebView, createAdbCommand, projectAvdName, PROJECT_AVD_NAME } from "./codex_android_cdp.mjs";
 
-const adb = "C:/Users/lenovo/AppData/Local/Android/Sdk/platform-tools/adb.exe";
-const serial = "emulator-5562";
+const { command } = createAdbCommand();
 const output = resolve(process.argv[2] ?? "release/codex_t17_android_diagnostics");
-const command = (...args) => execFileSync(adb, ["-s", serial, ...args], { encoding: "utf8", windowsHide: true }).trim();
-assert.equal(command("emu", "avd", "name").replace(/\r/g, "").split("\n")[0], "codex_np1_api36");
+assert.equal(projectAvdName(command), PROJECT_AVD_NAME);
 await mkdir(output, { recursive: true });
 const report = { passed: false, device: "project-owned codex_np1_api36, Android 36", checks: [] };
-let browser, port;
+let connection;
 try {
   command("shell", "am", "start", "-n", "com.yves.musicarchive/.MainActivity");
-  let socket;
-  for (let tries = 0; tries < 60; tries++) {
-    let pid;
-    try { pid = command("shell", "pidof", "com.yves.musicarchive"); }
-    catch { await new Promise(resolve => setTimeout(resolve, 500)); continue; }
-    socket = command("shell", "cat", "/proc/net/unix").split(/\r?\n/).map(line => line.split(/\s+/).at(-1))
-      .find(name => name === `@webview_devtools_remote_${pid}`);
-    if (socket) break;
-    await new Promise(resolve => setTimeout(resolve, 500));
-  }
-  assert.ok(socket);
-  port = command("forward", "tcp:0", `localabstract:${socket.slice(1)}`);
-  browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`, { noDefaults: true });
-  const page = browser.contexts()[0].pages()[0];
-  await page.locator(".app-header").waitFor({ timeout: 30000 });
+  connection = await connectAndroidWebView({ command, appId: "com.yves.musicarchive", pageSelector: ".app-header" });
+  const { page } = connection;
   const before = await page.evaluate(() => JSON.stringify(Object.fromEntries(Object.keys(localStorage).sort().map(key => [key, localStorage.getItem(key)]))));
   const result = await page.evaluate(async () => {
     const original = window.Capacitor.nativePromise.bind(window.Capacitor);
@@ -78,8 +62,7 @@ try {
   report.passed = true;
 } catch (error) { report.error = error instanceof Error ? error.stack : String(error); process.exitCode = 1; }
 finally {
-  await writeFile(join(output, "codex_results.json"), JSON.stringify(report, null, 2));
-  await browser?.close();
-  if (port) command("forward", "--remove", `tcp:${port}`);
+  try { await writeFile(join(output, "codex_results.json"), JSON.stringify(report, null, 2)); }
+  finally { await closeAndroidWebView(connection); }
 }
 console.log(JSON.stringify({ passed: report.passed, checks: report.checks, error: report.error }));

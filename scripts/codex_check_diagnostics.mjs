@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import { mkdir, writeFile } from "node:fs/promises";
 import { resolve, join } from "node:path";
 import { chromium } from "playwright";
-import { createServer } from "vite";
-import { freeLoopbackPort, qaOptions } from "./codex_qa_options.mjs";
+import { qaOptions } from "./codex_qa_options.mjs";
+import { startQaViteServer } from "./codex_qa_harness.mjs";
 
 const qa = qaOptions({ output: "release/codex_diagnostics_qa" });
 const output = resolve(qa.output);
@@ -11,10 +11,7 @@ await mkdir(output, { recursive: true });
 let origin = qa.origin;
 let server;
 if (!process.argv.includes("--origin")) {
-  server = await createServer({ configFile: resolve("mobile/vite.config.ts"), cacheDir: join(output, "vite-cache"),
-    server: { host: "127.0.0.1", port: await freeLoopbackPort(), strictPort: true, forwardConsole: false } });
-  await server.listen();
-  origin = `http://127.0.0.1:${server.httpServer.address().port}`;
+  ({ server, origin } = await startQaViteServer({ output, configFile: resolve("mobile/vite.config.ts") }));
 }
 const marker = "CODEX_PRIVATE_T17_Q71";
 const health = { version: 1, backupVersion: 6, exportedAt: "2026-09-23T10:00:00.000Z",

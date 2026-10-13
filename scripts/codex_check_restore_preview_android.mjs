@@ -1,36 +1,20 @@
 import assert from "node:assert/strict";
-import { execFileSync } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
-import { chromium } from "playwright";
 import { makeJournalFixtures } from "../mobile/codex_journal_fixtures.mjs";
+import { closeAndroidWebView, connectAndroidWebView, createAdbCommand, projectAvdName, PROJECT_AVD_NAME } from "./codex_android_cdp.mjs";
 
-const adb = "C:/Users/lenovo/AppData/Local/Android/Sdk/platform-tools/adb.exe";
-const serial = "emulator-5562";
+const { command } = createAdbCommand();
 const output = resolve(process.argv[2] ?? "release/codex_t14_native_qa");
-const command = (...args) => execFileSync(adb, ["-s", serial, ...args], { encoding: "utf8", windowsHide: true }).trim();
-assert.equal(command("emu", "avd", "name").replace(/\r/g, "").split("\n")[0], "codex_np1_api36", "Only project-owned AVD may be used");
+assert.equal(projectAvdName(command), PROJECT_AVD_NAME, "Only project-owned AVD may be used");
 await mkdir(output, { recursive: true });
 const report = { passed: false, engine: "Android 36 AVD, actual CapacitorSQLite plugin", checks: [] };
-let browser, page, port;
+let connection, page;
 try {
   command("shell", "am", "start", "-n", "com.yves.musicarchive/.MainActivity");
-  let socket;
-  for (let tries = 0; tries < 60; tries++) {
-    let pid;
-    try { pid = command("shell", "pidof", "com.yves.musicarchive"); }
-    catch { await new Promise(resolve => setTimeout(resolve, 500)); continue; }
-    const sockets = command("shell", "cat", "/proc/net/unix");
-    socket = sockets.split(/\r?\n/).map(line => line.split(/\s+/).at(-1)).find(name => name === `@webview_devtools_remote_${pid}`);
-    if (socket) break;
-    await new Promise(resolve => setTimeout(resolve, 500));
-  }
-  assert.ok(socket, "Owned app exposes debug WebView");
-  port = command("forward", "tcp:0", `localabstract:${socket.slice(1)}`);
-  browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`, { noDefaults: true });
-  page = browser.contexts()[0].pages()[0];
+  connection = await connectAndroidWebView({ command, appId: "com.yves.musicarchive", pageSelector: ".app-header" });
+  page = connection.page;
   page.setDefaultTimeout(30000);
-  await page.locator(".app-header").waitFor();
   await page.evaluate(() => { location.hash = "/backup"; });
   await page.getByRole("heading", { name: "备份", exact: true }).waitFor();
   const snapshot = () => page.evaluate(async () => {
@@ -105,7 +89,6 @@ try {
   if (page) await page.evaluate(() => {
     if (window.codexT14Original) window.Capacitor.nativePromise = window.codexT14Original;
   }).catch(() => {});
-  await browser?.close();
-  if (port) command("forward", "--remove", `tcp:${port}`);
+  await closeAndroidWebView(connection);
 }
 console.log(JSON.stringify({ passed: report.passed, checks: report.checks, error: report.error }));

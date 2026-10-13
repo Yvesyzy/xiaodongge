@@ -12,7 +12,7 @@ export function usePrivacyStatus() {
 function PolicyContent() {
   return <article className="content-card privacy-copy codex-privacy-policy">
     <h2>{policy.title}</h2>
-    <p>生效及更新日期：{policy.version}　运营主体：{policy.publisherType}</p>
+    <p>更新日期：{policy.updatedAt}　政策版本：{policy.version}　运营主体：{policy.publisherType}</p>
     <p>隐私咨询：<a href={`mailto:${policy.contactEmail}`}>{policy.contactEmail}</a></p>
     {policy.sections.map(section => <section key={section.title}>
       <h3>{section.title}</h3><p>{section.text}</p>
@@ -43,7 +43,7 @@ export function AndroidPrivacySettings({ firstLaunch = false }: { firstLaunch?: 
   return <>
     <section className="content-card codex-privacy-choice" aria-label="隐私选择">
       <h2>{firstLaunch ? "先了解数据如何使用" : "增强功能的数据处理"}</h2>
-      <p>手动写下听感，数据保存在本机。增强功能包括当前播放读取、Apple音乐目录补全、截图识别、联网天气和远程封面。</p>
+      <p>手动写下听感，数据保存在本机。增强功能包括好友圈、当前播放读取、Apple音乐目录补全、截图识别、联网天气和远程封面。好友圈仍需主动登录和发布。</p>
       <p>截图在本机识别；ML Kit还会处理并向Google发送诊断指标。Apple、Google和天气服务可能涉及境外处理，详见下方完整政策。</p>
       <p>选择仅使用本地功能，仍可保存、查看、分析、导出和删除记录；之后可在这里重新选择。</p>
       <p role="status">{status === "accepted" ? "当前：已同意增强功能的数据处理" : status === "declined" ? "当前：仅使用本地功能" : "请选择是否开启增强功能"}</p>

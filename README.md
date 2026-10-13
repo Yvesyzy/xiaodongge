@@ -1,6 +1,10 @@
-# 小懂哥 v3.2.0（系统播放封面）
+# 小懂哥 v3.4.1（原图封面与公众号出稿）
 
-一个在安卓手机本地运行、以专辑为中心的私人音乐感受记录 APK。它只保存你手动输入或确认过的信息，不自动编造歌曲、专辑、歌手或感受。v3.2.0 新增系统播放封面自动提取：在乐评和速记中预览可读取的封面，随草稿保留，确认保存后补齐本地封面；已有手动封面优先。系统未提供图片或图片不可访问时仍可手动选图，不保证取得原始高清封面。包含此前测试版的鸿蒙/卓易通相册保存、文件互通与接口缺失处理，以及首页优化、隐私选择和按需 OCR。六项评分、草稿、盲重听、跨年轨迹、恢复预演与榜单导出继续可用。
+**v3.4.1** 改进自动封面清晰度：系统提供可访问的原文件时保留原字节，仅提供 Bitmap 时保留原尺寸并用 PNG 保存；优先选择较大的有效图片，取消512像素缩小和JPEG有损重编码。安全限额为4MiB、20MP，超限跳过；播放器本身只提供缩略图时无法恢复未提供的细节，既有封面仍不会自动替换。
+
+本版一并包含公众号出稿：从乐评、月报／年报或年度榜单整理可编辑稿件，复制排版正文，导出HTML、封面与配图包；在公众号后台自行上传图片和发布。推文草稿保存在本机，不包含在乐评JSON备份中，迁移时需另导出HTML或素材包。见[出稿说明](docs/codex_publication_guide_20261012.md)。好友圈为自部署测试功能，支持独立账号、邀请码加好友、好友可见动态、点赞评论和系统文字分享；私人档案仍保存在本机，只上传主动发布的快照。当前没有公共服务，使用 `npm.cmd run social:preview` 可本机双浏览器联调；Android 需要自行部署的 HTTPS 服务地址。见[好友圈说明](docs/codex_social_test_guide_20261010.md)和[服务端部署说明](social/codex_README.md)。
+
+一个在安卓手机本地运行、以专辑为中心的私人音乐感受记录 APK。它只保存你手动输入或确认过的信息，不自动编造歌曲、专辑、歌手或感受。读取系统播放封面后，可在乐评和速记中预览，随草稿保留，确认保存后补齐本地封面；已有手动封面优先。系统未提供图片或图片不可访问时仍可手动选图。包含鸿蒙/卓易通相册保存、文件互通与接口缺失处理，以及首页优化、隐私选择和按需 OCR。六项评分、草稿、盲重听、跨年轨迹、恢复预演与榜单导出继续可用。
 
 Yves 已报告封面功能在 vivo X100 上测试成功；这不代表全部 Android 或鸿蒙设备均已验证。生产网页语法编译目标为 Chrome 74，Android API 24+ 的安装范围保持不变；直接保存相册使用 API 29+ 的标准 MediaStore，不新增广泛存储权限。兼容环境内的相册与宿主图库可能分开，可按[卓易通说明](https://www.droitong.com/CommonQues.html)使用文件互传。HarmonyOS 5 及以上的 APK 安装支持见[华为说明](https://consumer.huawei.com/cn/support/content/zh-cn16061787/)。朋友反馈的鸿蒙启动卡顿仍待设备诊断，未宣称已修复。
 
@@ -29,6 +33,8 @@ Yves 已报告封面功能在 vivo X100 上测试成功；这不代表全部 And
 - 年记页「年度回顾 / 月度回顾」标签支持点击与左右滑动切换，下划线跟随手指移动，面板按行进方向滑入
 - 阅读页支持字号、浅深背景、继续阅读，以及返回目录时恢复筛选和滚动位置；正文末尾右下角显示 `字数：XXXX`，按现有报告口径统计正文字符、去掉首尾空白
 - 歌曲、专辑、月度自述和年度自述统一分享：连续原文摘录、完整分页图片、全文复制，可隐藏评分、日期和应用名称
+- 从单篇或多篇乐评、已生成月报／年报、年度榜单生成可编辑公众号稿，复制排版正文，导出HTML、横版封面及ZIP配图包
+- 可选自部署好友圈：独立账号、邀请确认、好友可见乐评快照、点赞与评论；使用前需要配置HTTPS服务
 - 在乐评正文后查看“当日听感注记”
 - 从专辑详情或每日重逢进入盲重听；提交前隐藏旧评分和正文，提交后查看前后对照
 - 查看同一专辑跨年的榜单名次、正式乐评和重听轨迹；同名不同目录来源在详情中区分
@@ -62,18 +68,18 @@ Yves 已报告封面功能在 vivo X100 上测试成功；这不代表全部 And
 
 ## 下载 APK
 
-当前版本 v3.2.0：
+当前版本 v3.4.1：
 
-- [v3.2.0 (36) APK](https://github.com/Yvesyzy/xiaodongge/releases/download/v3.2.0/codex_xiaodongge-v3.2.0-36.apk)
-- [SHA-256 校验](https://github.com/Yvesyzy/xiaodongge/releases/download/v3.2.0/codex_xiaodongge-v3.2.0-36.sha256.txt)
-- [v3.2.0 发布说明](docs/codex_v320_release_notes.md)
-- [GitHub Release](https://github.com/Yvesyzy/xiaodongge/releases/tag/v3.2.0)
+- [v3.4.1 (39) APK](https://github.com/Yvesyzy/xiaodongge/releases/download/v3.4.1/codex_xiaodongge-v3.4.1-39.apk)
+- [SHA-256 校验](https://github.com/Yvesyzy/xiaodongge/releases/download/v3.4.1/codex_xiaodongge-v3.4.1-39.sha256.txt)
+- [v3.4.1 发布说明](docs/codex_v341_release_notes.md)
+- [GitHub Release](https://github.com/Yvesyzy/xiaodongge/releases/tag/v3.4.1)
 
-版本为 `3.2.0 (36)`（npm `3.2.0`），包名 `com.yves.musicarchive` 和原发布签名保持不变，可覆盖安装同签名较低版本，包括本地 3.1.5 测试包，无需卸载。封面、草稿和备份继续使用现有数据库及 JSON v6。验证范围、安装包 SHA-256 和设备兼容边界见发布说明；16KB 原生库兼容与 SDK 网络行为仍需专项验证。此前的 [v3.1.2 隐私测试版](https://github.com/Yvesyzy/xiaodongge/releases/tag/v3.1.2)保留为历史版本。
+版本为 `3.4.1 (39)`（npm `3.4.1`），包名 `com.yves.musicarchive` 和原发布签名保持不变，可覆盖安装同签名较低版本，包括3.2.0及此前3.3.0／3.4.0本地测试版，无需卸载。建议升级前导出完整JSON备份；既有档案、封面和乐评草稿沿用现有数据库及JSON v6，推文草稿需另导出HTML或素材包。安装包大小75,761,447字节，SHA-256为`41bdab470b40ff8ec63054d97f5b08ed6c77fdc645883016c74abdd99b7ae81a`。31项工程检查、30项Android单测及最终APK的15项图像测试通过；图像测试运行于API36模拟器，实体手机与各播放器仍需验收。完整范围见发布说明，16KB原生库兼容与SDK网络行为仍需专项验证。[v3.2.0](https://github.com/Yvesyzy/xiaodongge/releases/tag/v3.2.0)和[v3.1.2隐私测试版](https://github.com/Yvesyzy/xiaodongge/releases/tag/v3.1.2)保留为历史版本。
 
 此前正式发布的 v3.0.1 下载：
 
-v3.0.1 为 `3.0.1 (29)`（npm 包版本 `3.0.1`），沿用 v2.5 至 v3.0 的长期发布签名。v3.2.0 继续沿用该签名，可覆盖这些正式版本及同签名的 3.1.x，无需卸载。更早旧签名版本和 debug 版本按签名兼容情况迁移。
+v3.0.1 为 `3.0.1 (29)`（npm 包版本 `3.0.1`），沿用 v2.5 至 v3.0 的长期发布签名。v3.4.1 继续沿用该签名，可覆盖这些正式版本及同签名的较低版本，无需卸载。更早旧签名版本和 debug 版本按签名兼容情况迁移。
 
 - [下载 v3.0.1 APK](https://github.com/Yvesyzy/xiaodongge/releases/download/v3.0.1/codex_xiaodongge-v3.0.1.apk)
 - [下载 SHA256 校验文件](https://github.com/Yvesyzy/xiaodongge/releases/download/v3.0.1/codex_xiaodongge-v3.0.1.sha256.txt)
@@ -94,11 +100,11 @@ JSON v6 默认包含封面与有效草稿；取消「JSON 包含封面」可生�
 
 ## Windows 桌面版
 
-Windows 后续开发、安装器和正式发布在[独立 Windows 仓库](https://github.com/Yvesyzy/xiaodongge-windows)进行，维护目录为 `D:\codex\workspaces\xiaodongge-windows`。本目录保留首版移植源码及历史验收记录。
+Windows 源码、安装器和正式发布在[独立 Windows 仓库](https://github.com/Yvesyzy/xiaodongge-windows)维护，目录为 `D:\codex\workspaces\xiaodongge-windows`。本项目保留首版历史验收记录；2026-10-10 核对全部桌面运行源码及四个工具脚本与独立仓库逐字节一致后，清理了本项目中的重复副本和 Electron 依赖。
 
 Windows x64 便携测试版复用当前存储、六项评分与 JSON v6，重做桌面首页、侧栏、档案列表/阅读和双栏写作。通过安卓导出的 JSON 迁移，支持 v1–v6 预演、覆盖恢复与撤销；正式档案和草稿保存在固定的应用数据目录，运行包不含演示或个人数据。
 
-解压完整目录后双击 `codex_xiaodongge.exe`，无需安装 Node 或数据库。Windows 使用系统文件对话框保存；分享入口生成本地文件并打开资源管理器。当前播放依赖播放器提供系统媒体会话；网易云音乐需在「设置 → 系统」勾选「开启SMTC」，本机已验证真实播放、暂停与恢复播放。网易云专辑和完整合作歌手可从本机播放队列唯一匹配补全，歧义或读取失败时保留系统结果；读取不覆盖已有输入，也不自动保存正式乐评。OCR 语言取决于 Windows 语言包。[使用、迁移、开发和验收说明](desktop/codex_README.md)。
+解压完整目录后双击 `codex_xiaodongge.exe`，无需安装 Node 或数据库。Windows 使用系统文件对话框保存；分享入口生成本地文件并打开资源管理器。当前播放依赖播放器提供系统媒体会话；网易云音乐需在「设置 → 系统」勾选「开启SMTC」，本机已验证真实播放、暂停与恢复播放。网易云专辑和完整合作歌手可从本机播放队列唯一匹配补全，歧义或读取失败时保留系统结果；读取不覆盖已有输入，也不自动保存正式乐评。OCR 语言取决于 Windows 语言包。[使用、迁移、开发和验收说明](https://github.com/Yvesyzy/xiaodongge-windows/blob/main/desktop/codex_README.md)。
 
 Windows 端的开发、构建与验收命令（`npm.cmd run windows:build`、`windows:start`、`windows:check`、`windows:package`）**均已迁移到独立仓库** `D:\codex\workspaces\xiaodongge-windows`，本仓库不再提供这些脚本。首版交付记录见 [首版交付与验收](docs/session-summaries/codex_session_summary_2026-10-05_windows_port.md)，2026-10-07 新版通过网易云专辑、完整合作歌手、手填保护和暂停/恢复实播检查，详见 [当前播放修复及验收](docs/session-summaries/codex_session_summary_2026-10-05_windows_now_playing.md)。Windows 10 和其他播放器尚待实测，测试包未签名。
 
@@ -110,7 +116,7 @@ Windows 端的开发、构建与验收命令（`npm.cmd run windows:build`、`wi
 
 `npm.cmd run dev` / `npm.cmd run start` 是保留的 Next.js/Prisma 旧网页端，仅绑定 `127.0.0.1`，不提供远程登录和授权。它使用独立的 Prisma 数据库，仍采用整数评分及手动年份/月份归档，不具备手机端全部草稿、半分评分和备份能力。不要把网页端数据库或导出文件当成手机备份直接覆盖导入。该入口保留安全维护，不作为当前手机界面的预览。
 
-`npm.cmd run typecheck` 只检查本仓库的网页端源码。`codex_video/`、`desktop/`、`android/` 和 `scripts/` 已在 `tsconfig.json` 的 `exclude` 中排除：视频工程是自带 remotion 依赖的独立 npm 工程，桌面端源码已迁至独立仓库 `D:\codex\workspaces\xiaodongge-windows`，两者都不应被根类型检查越界覆盖。移动端请用 `typecheck:mobile`。
+`npm.cmd run typecheck` 只检查本仓库的网页端源码。`codex_video/`、`android/` 和 `scripts/` 已在 `tsconfig.json` 的 `exclude` 中排除：视频工程是自带 remotion 依赖的独立 npm 工程；桌面端在独立仓库 `D:\codex\workspaces\xiaodongge-windows` 验证。移动端请用 `typecheck:mobile`。
 
 ## 应用商店上架
 
@@ -137,7 +143,7 @@ npm.cmd run verify:android
 pwsh -NoProfile -File scripts/build-android-release.ps1 -OfficialRelease -OutputDirectory release/codex_v320_release_20261010
 ```
 
-该命令执行完整工程与 Android 单测、重新构建和同步网页资源，再验证安装包版本、签名及包内资源。签名配置和已核验的升级基准包在本机保管，不提交到 Git；不传 `-OfficialRelease` 时继续生成原有测试包文件名。
+该命令执行完整工程与 Android 单测、重新构建和同步网页资源，再验证安装包版本、签名及包内资源。以本机保留的正式 3.2.0 APK 作验签基准：允许同版本号且同版本名重建，或更高 versionCode 升级，拒绝倒退。签名配置与基准 APK 不提交到 Git；不传 `-OfficialRelease` 时继续生成原有测试包文件名。
 
 检查使用独立浏览器上下文和合成数据，日志与构建结果保存在新的 `release/codex_validation_*` 目录。已安装包与锁文件版本不一致、必需测试文件缺失或任一必检失败都会返回非零退出码；`verify:full` 增加榜单、原文分享、年度/月度标签与旧网页端隔离构建和故障重试回归。年记原型检查需要专用本机端口 5174，已被占用时会明确失败，不接管已有服务。这些检查不代替 Android 真机升级、系统文件提供器和 TalkBack 验收。
 

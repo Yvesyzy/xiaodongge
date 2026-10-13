@@ -1,19 +1,17 @@
 import assert from "node:assert/strict";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { chromium } from "playwright";
-import { createServer } from "vite";
 import { makeJournalFixtures } from "../mobile/codex_journal_fixtures.mjs";
-import { freeLoopbackPort, qaOptions } from "./codex_qa_options.mjs";
+import { qaOptions } from "./codex_qa_options.mjs";
+import { startQaViteServer } from "./codex_qa_harness.mjs";
 
-let { origin, output: outputOption } = qaOptions({ output: `release/codex_t08_interaction_${Date.now()}` });
+let { origin, output: outputOption } = qaOptions({ output: process.env.ABU_QA_DIR || `release/codex_t08_interaction_${Date.now()}` });
 const output = resolve(outputOption);
+const policyVersion = JSON.parse(await readFile(resolve("mobile/src/codex_privacy_policy.json"), "utf8")).version;
 let server;
 if (!process.argv.includes("--origin")) {
-  server = await createServer({ configFile: resolve("mobile/vite.config.ts"), cacheDir: join(output, "vite-cache"),
-    server: { host: "127.0.0.1", port: await freeLoopbackPort(), strictPort: true, forwardConsole: false } });
-  await server.listen();
-  origin = `http://127.0.0.1:${server.httpServer.address().port}`;
+  ({ server, origin } = await startQaViteServer({ output, configFile: resolve("mobile/vite.config.ts") }));
 }
 
 const entries = makeJournalFixtures("6").slice(0, 3).map((entry, index) => ({ ...entry, id: `t08-${index + 1}`, type: "album",
@@ -23,6 +21,178 @@ const report = { origin, passed: false, checks: [] };
 let browser;
 let page;
 let touchContext;
+
+const channel = (value) => {
+  value /= 255;
+  return value <= 0.03928 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+};
+const luminance = ([red, green, blue]) => 0.2126 * channel(red) + 0.7152 * channel(green) + 0.0722 * channel(blue);
+const contrast = (first, second) => {
+  const [high, low] = [luminance(first), luminance(second)].sort((a, b) => b - a);
+  return (high + 0.05) / (low + 0.05);
+};
+
+// Preserve the former standalone contrast and 44px target scan in the gate's
+// isolated browser context. It reports findings like the original review tool;
+// the interaction assertions below remain the enforcement path for behavior.
+const collectVisualA11y = () => {
+  const parse = (value) => {
+    const match = value.match(/rgba?\(([^)]+)\)/);
+    if (!match) return null;
+    const parts = match[1].split(/[,/]/).map(item => parseFloat(item));
+    return { rgb: parts.slice(0, 3), alpha: parts.length > 3 ? parts[3] : 1 };
+  };
+  const backgroundOf = element => {
+    let node = element;
+    while (node && node !== document.documentElement) {
+      const style = getComputedStyle(node);
+      const background = parse(style.backgroundColor);
+      if (background && background.alpha > 0.85) return background.rgb;
+      const stops = style.backgroundImage && style.backgroundImage.match(/rgba?\([^)]+\)/g);
+      if (stops) {
+        const first = parse(stops[0]);
+        if (first && first.alpha > 0.5) return first.rgb;
+      }
+      node = node.parentElement;
+    }
+    const body = parse(getComputedStyle(document.body).backgroundColor);
+    return body ? body.rgb : [255, 255, 255];
+  };
+  const visible = element => {
+    const rect = element.getBoundingClientRect();
+    if (rect.width < 1 || rect.height < 1) return false;
+    const style = getComputedStyle(element);
+    return style.visibility !== 'hidden' && style.display !== 'none' && parseFloat(style.opacity) > 0.1;
+  };
+  const texts = [];
+  for (const element of document.querySelectorAll('p, span, small, h1, h2, h3, label, time, strong, button, a, summary, div')) {
+    const ownText = Array.from(element.childNodes).some(node => node.nodeType === 3 && node.textContent.trim().length > 1);
+    if (!ownText || !visible(element)) continue;
+    const style = getComputedStyle(element);
+    const text = element.textContent.trim().slice(0, 40);
+    if (!text) continue;
+    const foreground = parse(style.color);
+    if (!foreground || foreground.alpha < 0.5) continue;
+    const parent = element.parentElement;
+    texts.push({
+      text,
+      size: parseFloat(style.fontSize),
+      weight: parseInt(style.fontWeight, 10) || 400,
+      fg: foreground.rgb,
+      bg: backgroundOf(element),
+      cls: (element.className || '').toString().slice(0, 50),
+      parentCls: parent ? (parent.className || '').toString().slice(0, 50) : '',
+    });
+  }
+  const smallTargets = [];
+  for (const element of document.querySelectorAll('button, a[href], summary, input:not([type="hidden"]), select, textarea, [role="button"]')) {
+    if (!visible(element)) continue;
+    const rect = element.getBoundingClientRect();
+    if (rect.width >= 44 && rect.height >= 44) continue;
+    const parent = element.parentElement;
+    smallTargets.push({
+      tag: element.tagName.toLowerCase(),
+      cls: (element.className || '').toString().slice(0, 60),
+      parent: parent
+        ? parent.tagName.toLowerCase() + (parent.className ? '.' + String(parent.className).trim().split(/\s+/).join('.') : '')
+        : '',
+      type: element.getAttribute('type') || '',
+      w: Math.round(rect.width),
+      h: Math.round(rect.height),
+      text: (element.getAttribute('aria-label') || element.textContent || '').trim().slice(0, 30),
+    });
+  }
+  return { texts, smallTargets };
+};
+
+async function runVisualA11yAudit() {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, timezoneId: 'Asia/Shanghai' });
+  const auditPage = await context.newPage();
+  await auditPage.addInitScript(({ policyVersion: currentPolicyVersion }) => {
+    const methods = names => names.map(name => ({ name, rtype: 'promise' }));
+    window.CapacitorCustomPlatform = { name: 'android' };
+    window.androidBridge = {};
+    const privacy = { status: 'pending', policyVersion: currentPolicyVersion };
+    window.Capacitor = {
+      PluginHeaders: [
+        { name: 'CodexPrivacy', methods: methods(['getState', 'setConsent']) },
+        { name: 'NativeExport', methods: methods(['saveFile', 'shareFile', 'copyText', 'saveImageToGallery']) },
+        { name: 'NowPlaying', methods: methods(['getCurrentTrack', 'getDiagnostics']) },
+        { name: 'ScreenshotOcr', methods: methods(['recognize']) },
+        { name: 'SharedMusic', methods: [...methods(['consumePendingShare', 'removeListener']), { name: 'addListener', rtype: 'callback' }] },
+        { name: 'CodexNavigation', methods: [...methods(['exitApp', 'removeListener']), { name: 'addListener', rtype: 'callback' }] },
+      ],
+      nativeCallback: () => 'codex-visual-a11y-listener',
+      nativePromise: async (plugin, method, options) => {
+        window.Capacitor.isNativePlatform = () => false;
+        if (plugin === 'CodexPrivacy') {
+          if (method === 'setConsent') privacy.status = options.accepted ? 'accepted' : 'declined';
+          return { ...privacy };
+        }
+        if (plugin === 'NowPlaying' && method === 'getCurrentTrack') return { accessEnabled: false };
+        if (plugin === 'SharedMusic' && method === 'consumePendingShare') return undefined;
+        if (plugin === 'CodexNavigation' && method === 'exitApp') return undefined;
+        if (plugin === 'NativeExport') return { status: 'cancelled' };
+        if (plugin === 'ScreenshotOcr') return { text: '', width: 1, height: 1, lines: [] };
+        return {};
+      },
+    };
+  }, { policyVersion });
+  const forcedTheme = process.env.ABU_THEME;
+  if (forcedTheme) await auditPage.addInitScript(value => localStorage.setItem('abu-theme-choice-v1', value), forcedTheme);
+  await auditPage.route('**/*', route => new URL(route.request().url()).origin === origin ? route.continue() : route.abort());
+  try {
+    const auditEntries = makeJournalFixtures('6');
+    await auditPage.goto(`${origin}/#/privacy`);
+    await auditPage.getByRole('heading', { name: '欢迎使用小懂哥', exact: true }).waitFor();
+    await auditPage.getByRole('button', { name: '同意并开启增强功能', exact: true }).click();
+    await auditPage.locator('.app-header').waitFor();
+    await auditPage.evaluate(items => {
+      localStorage.clear();
+      sessionStorage.clear();
+      localStorage.setItem('music-feelings-mobile-entries', JSON.stringify(items));
+    }, auditEntries);
+    const routes = [
+      ['home', '/', '.home-page'],
+      ['albums', '/albums', '.page > h1'],
+      ['songs', '/songs', '.page > h1'],
+      ['timeline', '/timeline', '.page > h1'],
+      ['capture', '/capture', '.quick-capture-form'],
+      ['editor', '/new', '.writing-form'],
+      ['search', '/search', '.search-box'],
+      ['yearbook', '/summary', '.journal-page'],
+      ['more', '/more', '.page > h1'],
+      ['reader', `/entries/${auditEntries[0].id}`, '.codex-reader-toolbar'],
+    ];
+    const pages = [];
+    for (const [name, route, readySelector] of routes) {
+      await auditPage.goto(origin + '/#' + route);
+      await auditPage.waitForFunction(expected => location.hash === `#${expected}` || location.hash.startsWith(`#${expected}?`), route);
+      await auditPage.locator(readySelector).first().waitFor();
+      await auditPage.waitForTimeout(400);
+      const { texts, smallTargets } = await auditPage.evaluate(collectVisualA11y);
+      const scored = texts.map(item => ({
+        ...item,
+        ratio: Math.round(contrast(item.fg, item.bg) * 100) / 100,
+        required: (item.size >= 24 || (item.size >= 18.66 && item.weight >= 700)) ? 3 : 4.5,
+      }));
+      pages.push({
+        page: name,
+        route,
+        failures: scored.filter(item => item.ratio < item.required).sort((a, b) => a.ratio - b.ratio),
+        checked: scored.length,
+        smallTargets,
+      });
+    }
+    const visualReport = { origin, pages };
+    await writeFile(join(output, 'abu_a11y_report.json'), JSON.stringify(visualReport, null, 2));
+    return visualReport;
+  } finally {
+    await auditPage.close().catch(() => {});
+    await context.close().catch(() => {});
+  }
+}
+
 try {
   browser = await chromium.launch({ channel: "chrome", headless: true });
   page = await browser.newPage({ viewport: { width: 390, height: 844 }, timezoneId: "Asia/Shanghai" });
@@ -243,6 +413,8 @@ try {
   await touchSlider.tap({ position: { x: touchBounds.width * 0.75, y: touchBounds.height / 2 } });
   await touchPage.waitForFunction(() => Number(document.querySelector('input[name="rating"]')?.value) > 0);
   report.checks.push("Touch tap commits a rating through the existing gesture path");
+  report.a11y = await runVisualA11yAudit();
+  report.checks.push("Contrast and 44px interactive target scan covers the former standalone accessibility routes");
   report.passed = true;
 } catch (error) {
   report.error = error instanceof Error ? error.stack : String(error);
