@@ -32,7 +32,7 @@
 - `typecheck:mobile`、共享单测 32/32、公众号模型 11/11、`publication:check`（14 项浏览器流程）、工程检查集 12/12、时间轴与日期滚轮自检全部通过。
 - 干净重建：清空 `mobile/dist` 与 Android `assets/public` 后重新构建并同步；dist 与 staged 26/26 文件哈希一致，Gradle `assembleRelease` 通过。
 - 包内 28 个 public 资源与 3 个平台资源与全新构建逐字节一致；`aapt2` 实测 `versionCode='43' versionName='3.5.0' targetSdkVersion='36'`。
-- 导出样例见本地 `release/codex_publication_check_20261111065203/`（发布目录不提交 Git）。
+- 导出样例由 `npm.cmd run publication:check` 生成到 `release/codex_publication_check_<时间戳>/`；发布目录不提交 Git，样例按需重新生成，不随安装包归档。
 
 以上为构建机与浏览器合成数据验证；实体手机上的 Android 剪贴板接收、系统文件提供器、微信实际粘贴与图片上传，以及公众号后台导入后的最终样式，仍需用户在设备上验收。16KB 原生库对齐与 SDK 网络行为沿用 v3.4.1 的待验证范围。
 
