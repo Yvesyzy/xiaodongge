@@ -477,6 +477,26 @@ function buildHtmlDocument(draft: PublicationDraft, bySection: Map<number, Publi
   return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="${csp}"><title>${escapeHtml(draft.title)}</title></head><body style="max-width:720px;margin:0 auto;padding:32px 20px;background:#fff;color:#202020;overflow-wrap:break-word;word-break:break-word;font-family:system-ui,-apple-system,'Segoe UI','Microsoft YaHei',sans-serif;">${renderDocumentBody(draft, bySection)}</body></html>`;
 }
 
+// Android SAF 与系统分享都把 EXTRA_TITLE 当作文件名。专辑名/歌曲名可能含路径分隔符、
+// 控制字符或结尾点号，直接拼接会让文件提供器拒绝或截断，因此统一清洗后再补 .md。
+const MD_FILE_NAME_MAX_CHARACTERS = 60;
+const MD_FILE_NAME_FALLBACK = "公众号稿";
+const MD_FILE_NAME_UNSAFE = /[\\/:*?"<>|\u0000-\u001f\u007f]/g;
+function mdFileNameStem(value: unknown): string {
+  if (typeof value !== "string") return "";
+  const cleaned = value.replace(MD_FILE_NAME_UNSAFE, " ").replace(/\s+/gu, " ").replace(/^[.\s]+|[.\s]+$/gu, "");
+  return Array.from(cleaned).slice(0, MD_FILE_NAME_MAX_CHARACTERS).join("").replace(/[.\s]+$/gu, "");
+}
+/** 单篇按「专辑 → 歌曲 → 章节标题」命名；多篇合辑与年度榜单用推文标题。 */
+export function publicationMarkdownFileName(draft: PublicationDraft): string {
+  const section = draft.sections.length === 1 ? draft.sections[0] : null;
+  const metaValue = (label: string) => section?.metaFields?.find(field => field.label === label)?.value ?? "";
+  const candidates = section
+    ? [metaValue("专辑"), metaValue("歌曲"), section.title, draft.title, MD_FILE_NAME_FALLBACK]
+    : [draft.title, MD_FILE_NAME_FALLBACK];
+  return `${candidates.map(mdFileNameStem).find(Boolean) ?? MD_FILE_NAME_FALLBACK}.md`;
+}
+
 export function buildPublication(draft: PublicationDraft): Publication {
   const safeDraft = parsePublicationDraft(draft);
   // Bound embedded output before constructing large HTML strings or decoded image copies.

@@ -108,7 +108,7 @@ const evidence = {
   pageErrors: [],
 };
 
-async function downloadBytes(page, locator, artifactName) {
+async function downloadBytes(page, locator, artifactName, expectedSuggestedName) {
   const downloadEvent = page.waitForEvent('download');
   await locator.click();
   const download = await downloadEvent;
@@ -116,7 +116,9 @@ async function downloadBytes(page, locator, artifactName) {
   assert.ok(downloadPath, `${artifactName} download path is available`);
   const bytes = await readFile(downloadPath);
   await writeFile(path.join(outputDirectory, artifactName), bytes);
-  evidence.artifacts[artifactName] = { suggestedFilename: download.suggestedFilename(), bytes: bytes.length };
+  const suggestedFilename = download.suggestedFilename();
+  evidence.artifacts[artifactName] = { suggestedFilename, bytes: bytes.length };
+  if (expectedSuggestedName) assert.equal(suggestedFilename, expectedSuggestedName, `${artifactName} keeps the album-based .md file name`);
   return bytes;
 }
 
@@ -239,7 +241,7 @@ try {
   await imageDetails.locator('summary').click();
   await page.getByAltText('公众号稿横版封面预览', { exact: true }).waitFor();
 
-  const mdBytes = await downloadBytes(page, page.getByRole('button', { name: '导出 Markdown 稿', exact: true }), 'codex_publication_article.md');
+  const mdBytes = await downloadBytes(page, page.getByRole('button', { name: '导出 Markdown 稿', exact: true }), 'codex_publication_album_name.md', '恶意专辑.md');
   const markdown = mdBytes.toString('utf8');
   assert.match(markdown, /^# 编辑标题 &lt;script&gt;bad\(\)&lt;\/script&gt;/, 'MD export carries the edited H1 with escaped HTML');
   assert.match(markdown, /## 编辑章节标题/, 'MD export uses H2 for sections');
@@ -279,8 +281,9 @@ try {
   });
   await page.getByRole('button', { name: '分享 MD 文件', exact: true }).click();
   await page.getByText('已取消分享，稿件仍保留。', { exact: true }).waitFor();
-  assert.deepEqual(await page.evaluate(() => window.__codexShareCalls.map(call => call.name)), ['codex_publication_article.md'], 'MD share passes a .md file');
+  assert.deepEqual(await page.evaluate(() => window.__codexShareCalls.map(call => call.name)), ['恶意专辑.md'], 'MD share passes the album-named .md file');
   evidence.checks.push('browser MD share invokes navigator.share with the .md file and handles cancellation');
+  evidence.checks.push('exported and shared .md files are named after the album, falling back to the song name and publication title');
 
   // All four privacy flags are exercised together, including the content-hidden rule.
   for (const label of ['隐藏评分', '隐藏日期', '隐藏小懂哥名称', '隐藏导语和正文']) await page.getByLabel(label, { exact: true }).check();
@@ -292,7 +295,7 @@ try {
   await page.getByRole('button', { name: '复制 Markdown 全文', exact: true }).click();
   await page.getByText('已复制 Markdown 全文；粘贴到公众号编辑器可自动识别，或另存为 .md 后导入。', { exact: true }).waitFor();
   assert.doesNotMatch(await page.evaluate(() => window.__codexClipboard.text), hiddenPattern, 'hidden markdown copy has no private fields, rating dimensions or any of the three dates');
-  const hiddenMd = await downloadBytes(page, page.getByRole('button', { name: '导出 Markdown 稿', exact: true }), 'codex_publication_hidden.md');
+  const hiddenMd = await downloadBytes(page, page.getByRole('button', { name: '导出 Markdown 稿', exact: true }), 'codex_publication_hidden.md', '恶意专辑.md');
   assert.doesNotMatch(hiddenMd.toString('utf8'), hiddenPattern, 'exported markdown respects privacy, including dimensions and all three dates');
   evidence.checks.push('privacy applied to preview, Markdown full-text copy and exported .md, including all three dates');
 

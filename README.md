@@ -1,6 +1,6 @@
-# 小懂哥 v3.5.0（公众号 Markdown 出稿与时间轴优化）
+# 小懂哥 v3.5.1（Markdown 稿按专辑／歌曲名命名）
 
-**v3.5.0** 把公众号出稿收敛为可直接导入的 Markdown 单一通道，删除此前无效的 HTML 稿、横版封面、ZIP 素材包等旧导出按钮，只保留「导出 Markdown 稿」「分享 MD 文件」「复制 Markdown 全文」和页面内全文折叠框。稿件元信息按填写时逐项独立成段，多维评分逐项列出、六个维度每三项合成一行；专辑/歌曲发行时间、首次收听时间、乐评记录时间三项日期全部统计，缺失显示「未填写」。本版同时收录时间轴与日期滚轮录入优化、归档／月报双口径切换与年度报告。3.4.1 起的原图封面保留继续可用（可访问原文件保留原字节，仅提供 Bitmap 时保留原尺寸并用 PNG 保存，限额 4MiB / 20MP）。
+**v3.5.1** 把导出与分享的 Markdown 文件名从固定的 `codex_publication_article.md` 改为按稿件主体命名：**优先专辑名，专辑名为空时用歌曲名**；多篇合辑与年度榜单使用推文标题，全部候选为空时回退 `公众号稿.md`。文件名会清洗路径分隔符、保留字符、控制字符与首尾点号，按码点截断至 60 字符，避免 Android 文件提供器拒绝保存。v3.5.0 建立的 Markdown 单一出稿通道保持不变：删除此前无效的 HTML 稿、横版封面、ZIP 素材包等旧导出按钮，只保留「导出 Markdown 稿」「分享 MD 文件」「复制 Markdown 全文」和页面内全文折叠框；稿件元信息按填写时逐项独立成段，多维评分逐项列出、六个维度每三项合成一行；专辑/歌曲发行时间、首次收听时间、乐评记录时间三项日期全部统计，缺失显示「未填写」。时间轴与日期滚轮录入优化、归档／月报双口径切换与年度报告继续可用。3.4.1 起的原图封面保留继续可用（可访问原文件保留原字节，仅提供 Bitmap 时保留原尺寸并用 PNG 保存，限额 4MiB / 20MP）。
 
 本版一并包含公众号出稿：从乐评、月报／年报或年度榜单整理可编辑稿件，导出 .md、系统分享或复制 Markdown 全文，供公众号后台「文档导入」或粘贴转换使用；配图在后台自行上传。推文草稿保存在本机，不包含在乐评JSON备份中，迁移时需另导出 Markdown 稿。见[出稿说明](docs/codex_publication_guide_20261012.md)。好友圈为自部署测试功能，支持独立账号、邀请码加好友、好友可见动态、点赞评论和系统文字分享；私人档案仍保存在本机，只上传主动发布的快照。当前没有公共服务，使用 `npm.cmd run social:preview` 可本机双浏览器联调；Android 需要自行部署的 HTTPS 服务地址。见[好友圈说明](docs/codex_social_test_guide_20261010.md)和[服务端部署说明](social/codex_README.md)。
 
@@ -68,18 +68,18 @@ Yves 已报告封面功能在 vivo X100 上测试成功；这不代表全部 And
 
 ## 下载 APK
 
-当前版本 v3.5.0：
+当前版本 v3.5.1：
 
-- [v3.5.0 (43) APK](https://github.com/Yvesyzy/xiaodongge/releases/download/v3.5.0/codex_xiaodongge-v3.5.0-43.apk)
-- [SHA-256 校验](https://github.com/Yvesyzy/xiaodongge/releases/download/v3.5.0/codex_xiaodongge-v3.5.0-43.sha256.txt)
-- [v3.5.0 发布说明](docs/codex_v350_release_notes.md)
-- [GitHub Release](https://github.com/Yvesyzy/xiaodongge/releases/tag/v3.5.0)
+- [v3.5.1 (44) APK](https://github.com/Yvesyzy/xiaodongge/releases/download/v3.5.1/codex_xiaodongge-v3.5.1-44.apk)
+- [SHA-256 校验](https://github.com/Yvesyzy/xiaodongge/releases/download/v3.5.1/codex_xiaodongge-v3.5.1-44.sha256.txt)
+- [v3.5.1 发布说明](docs/codex_v351_release_notes.md)
+- [GitHub Release](https://github.com/Yvesyzy/xiaodongge/releases/tag/v3.5.1)
 
-版本为 `3.5.0 (43)`（npm `3.5.0`），包名 `com.yves.musicarchive` 和原发布签名保持不变，可覆盖安装同签名较低版本，包括 v3.4.1、v3.2.0 及此前的本地测试版，无需卸载；versionCode 由 42 递增至 43，属正常升级而非降级。建议升级前导出完整 JSON 备份；既有档案、封面和乐评草稿沿用现有数据库及 JSON v6，推文草稿不在 JSON 备份内，迁移时需另导出 Markdown 稿。安装包大小 75,773,694 字节，SHA-256 为 `2c41eb4a461800983fd07a1dfc179f43c73844984ec60607d96319b89d5522e4`。验证：`typecheck:mobile`、共享单测 32/32、公众号模型 11/11、公众号浏览器流程、工程检查集 12/12、时间轴自检全部通过；Gradle 正式签名构建通过，包内 28 个 public 资源与 3 个平台资源和全新构建逐字节一致。完整范围见[发布说明](docs/codex_v350_release_notes.md)。16KB 原生库兼容、SDK 网络行为及真机系统文件提供器仍需专项验收。[v3.4.1](https://github.com/Yvesyzy/xiaodongge/releases/tag/v3.4.1)、[v3.2.0](https://github.com/Yvesyzy/xiaodongge/releases/tag/v3.2.0)和[v3.1.2隐私测试版](https://github.com/Yvesyzy/xiaodongge/releases/tag/v3.1.2)保留为历史版本。
+版本为 `3.5.1 (44)`（npm `3.5.1`），包名 `com.yves.musicarchive` 和原发布签名保持不变，可覆盖安装同签名较低版本，包括 v3.5.0、v3.4.1、v3.2.0 及此前的本地测试版，无需卸载；versionCode 由 43 递增至 44，属正常升级而非降级。建议升级前导出完整 JSON 备份；既有档案、封面和乐评草稿沿用现有数据库及 JSON v6，推文草稿不在 JSON 备份内，迁移时需另导出 Markdown 稿。安装包大小 75,773,914 字节，SHA-256 为 `acf4e3be626bd6ccf8a5f7c3511ecda358bb08fe67a33e886ed5db46d572e5a6`。验证：`typecheck:mobile`、共享单测 32/32、公众号模型 13/13、公众号浏览器流程（含真实下载文件名断言）、工程检查集 12/12、时间轴自检全部通过；Gradle 正式签名构建通过，包内 28 个 public 资源与 3 个平台资源和全新构建逐字节一致。完整范围见[发布说明](docs/codex_v351_release_notes.md)。16KB 原生库兼容、SDK 网络行为及真机系统文件提供器仍需专项验收。[v3.5.0](https://github.com/Yvesyzy/xiaodongge/releases/tag/v3.5.0)、[v3.4.1](https://github.com/Yvesyzy/xiaodongge/releases/tag/v3.4.1)、[v3.2.0](https://github.com/Yvesyzy/xiaodongge/releases/tag/v3.2.0)和[v3.1.2隐私测试版](https://github.com/Yvesyzy/xiaodongge/releases/tag/v3.1.2)保留为历史版本。
 
 此前正式发布的 v3.0.1 下载：
 
-v3.0.1 为 `3.0.1 (29)`（npm 包版本 `3.0.1`），沿用 v2.5 至 v3.0 的长期发布签名。v3.5.0 继续沿用该签名，可覆盖这些正式版本及同签名的较低版本，无需卸载。更早旧签名版本和 debug 版本按签名兼容情况迁移。
+v3.0.1 为 `3.0.1 (29)`（npm 包版本 `3.0.1`），沿用 v2.5 至 v3.0 的长期发布签名。v3.5.1 继续沿用该签名，可覆盖这些正式版本及同签名的较低版本，无需卸载。更早旧签名版本和 debug 版本按签名兼容情况迁移。
 
 - [下载 v3.0.1 APK](https://github.com/Yvesyzy/xiaodongge/releases/download/v3.0.1/codex_xiaodongge-v3.0.1.apk)
 - [下载 SHA256 校验文件](https://github.com/Yvesyzy/xiaodongge/releases/download/v3.0.1/codex_xiaodongge-v3.0.1.sha256.txt)

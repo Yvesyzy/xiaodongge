@@ -1,7 +1,7 @@
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { copyText } from "./nativeExport";
 import { canLeavePage, useBackGuard } from "./codex_Navigation";
-import { buildPublication, type PublicationDraft, type PublicationPrivacy, type PublicationSection } from "./codex_publicationModel";
+import { buildPublication, publicationMarkdownFileName, type PublicationDraft, type PublicationPrivacy, type PublicationSection } from "./codex_publicationModel";
 import { loadPublicationDraft, removePublicationDraft, savePublicationDraft } from "./codex_publicationDraft";
 import { DEFAULT_PUBLICATION_PRIVACY, publicationCover, publicationSections, publicationRankSections, savePublicationBlob, sharePublicationBlob } from "./codex_publicationAssets";
 import type { ReviewEntry } from "./types";
@@ -9,7 +9,6 @@ import type { YearTopAlbums } from "../../shared/backupAppData";
 import "./codex_publication.css";
 
 const errorText = (error: unknown) => error instanceof Error ? error.message : "操作失败，请重试。";
-const MD_FILE_NAME = "codex_publication_article.md";
 // ponytail: every Android documents/share receiver registers text/plain; the .md suffix in EXTRA_TITLE decides the import format.
 const MD_MIME_TYPE = "text/plain";
 const markdownBlob = (value: PublicationDraft) => new Blob([buildPublication(value).markdown], { type: "text/plain;charset=utf-8" });
@@ -116,7 +115,7 @@ export default function PublicationComposer({ sections, title, privacy, onClose,
         <details className="codex-publication-images"><summary>横版封面与配图预览</summary>{cover ? <figure><img src={cover.url} alt="公众号稿横版封面预览" /><figcaption>横版封面 · 1200×510，仅供预览。</figcaption></figure> : <p role={coverError ? "alert" : "status"}>{coverError || "正在准备横版封面…"}</p>}{output.value?.images.map(image => <figure key={image.fileName}><img src={image.dataUrl} alt={image.caption} loading="lazy" /><figcaption>{image.fileName} · {image.caption}</figcaption></figure>)}</details>
       </div>
     </div>
-    <footer className="codex-publication-actions"><div><button className="primary-button" type="button" disabled={busy || updating || !output.value} onClick={() => void action(async () => saveMessage(await savePublicationBlob(markdownBlob(current.current), MD_FILE_NAME, MD_MIME_TYPE), "Markdown 稿"))}>导出 Markdown 稿</button><button className="secondary-button" type="button" disabled={busy || updating || !output.value} onClick={() => void action(async () => (await sharePublicationBlob(markdownBlob(current.current), MD_FILE_NAME, MD_MIME_TYPE)) === "cancelled" ? "已取消分享，稿件仍保留。" : "已打开系统分享，可把 .md 文件发到电脑或文件传输助手。")}>分享 MD 文件</button><button className="secondary-button" type="button" disabled={busy || updating || !output.value} onClick={() => void action(async () => { await copyText(buildPublication(current.current).markdown); return "已复制 Markdown 全文；粘贴到公众号编辑器可自动识别，或另存为 .md 后导入。"; })}>复制 Markdown 全文</button></div>
+    <footer className="codex-publication-actions"><div><button className="primary-button" type="button" disabled={busy || updating || !output.value} onClick={() => void action(async () => saveMessage(await savePublicationBlob(markdownBlob(current.current), publicationMarkdownFileName(current.current), MD_MIME_TYPE), "Markdown 稿"))}>导出 Markdown 稿</button><button className="secondary-button" type="button" disabled={busy || updating || !output.value} onClick={() => void action(async () => (await sharePublicationBlob(markdownBlob(current.current), publicationMarkdownFileName(current.current), MD_MIME_TYPE)) === "cancelled" ? "已取消分享，稿件仍保留。" : "已打开系统分享，可把 .md 文件发到电脑或文件传输助手。")}>分享 MD 文件</button><button className="secondary-button" type="button" disabled={busy || updating || !output.value} onClick={() => void action(async () => { await copyText(buildPublication(current.current).markdown); return "已复制 Markdown 全文；粘贴到公众号编辑器可自动识别，或另存为 .md 后导入。"; })}>复制 Markdown 全文</button></div>
       <details className="codex-publication-markdown"><summary>Markdown 全文（无需系统文件选择器，可直接长按复制）</summary><textarea aria-label="Markdown 全文" readOnly rows={12} value={output.value?.markdown || ""} /></details>
       <p className="codex-publication-note">Markdown 稿可在公众号后台「文档导入」上传（支持 markdown，不超过15MB），也可把全文粘贴到编辑器后点「转换格式」。标题仍需单独填入标题栏，可从上方全文第一行复制；配图位置已在稿内标注，请在公众号编辑器自行上传。若保存或分享在你的设备上不可用，展开全文直接复制即可，这条路径不依赖系统文件选择器。</p>
       {busy ? <p role="status">正在处理，请稍候…</p> : null}{status ? <p role="status" className="codex-publication-status">{status}</p> : null}{error ? <p role="alert" className="error">{error}</p> : null}

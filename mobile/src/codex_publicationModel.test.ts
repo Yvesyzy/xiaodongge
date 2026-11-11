@@ -3,6 +3,7 @@ import { test } from "node:test";
 import {
   buildPublication,
   parsePublicationDraft,
+  publicationMarkdownFileName,
   type PublicationDraft,
   type PublicationMetaField,
 } from "./codex_publicationModel.ts";
@@ -240,4 +241,33 @@ test("markdown keeps user text readable while blocking block-level and HTML inje
   assert.equal(result.markdown.includes("日期私密词"), false);
   assert.match(result.markdown, /^> &gt; 伪装引用\n> 第二行/m, "intro is a real blockquote");
   assert.ok(result.markdown.endsWith("\n"));
+});
+
+test("publicationMarkdownFileName uses the album name first, then the song name and fallbacks", () => {
+  const field = (label: string, value: string): PublicationMetaField => ({ label, value, kind: "music" });
+  const single = (metaFields?: PublicationMetaField[], overrides: Partial<PublicationDraft> = {}) =>
+    draft({ ...overrides, sections: [{ ...draft().sections[0]!, title: "章节标题", ...(metaFields ? { metaFields } : {}) }] });
+
+  assert.equal(publicationMarkdownFileName(single([field("专辑", "夜航西飞"), field("歌曲", "副歌")])), "夜航西飞.md", "album takes priority over song");
+  assert.equal(publicationMarkdownFileName(single([field("歌曲", "副歌")])), "副歌.md", "song name is used when the album is absent");
+  assert.equal(publicationMarkdownFileName(single([field("专辑", ""), field("歌曲", "副歌")])), "副歌.md", "an empty album value is skipped");
+  assert.equal(publicationMarkdownFileName(single([field("艺术家", "某人")])), "章节标题.md", "section title is the next fallback");
+  assert.equal(publicationMarkdownFileName(single()), "章节标题.md", "legacy drafts without metaFields use the section title");
+  assert.equal(publicationMarkdownFileName(draft({ title: "2026 年度专辑榜单" })), "2026 年度专辑榜单.md", "multi-section drafts use the publication title");
+  assert.equal(publicationMarkdownFileName(draft({ title: "  " })), "公众号稿.md", "a blank title falls back to a stable name");
+});
+
+test("publicationMarkdownFileName sanitises unsafe characters and bounds the stem length", () => {
+  const field = (value: string): PublicationMetaField => ({ label: "专辑", value, kind: "music" });
+  const single = (value: string, title = "推文标题", sectionTitle = "章节标题") =>
+    draft({ title, sections: [{ ...draft().sections[0]!, title: sectionTitle, metaFields: [field(value)] }] });
+
+  assert.equal(publicationMarkdownFileName(single('A/B:C?D"E<F>G|H\\I')), "A B C D E F G H I.md", "path separators and reserved characters become spaces");
+  assert.equal(publicationMarkdownFileName(single("  夜航..  ")), "夜航.md", "surrounding spaces and trailing dots are trimmed");
+  assert.equal(publicationMarkdownFileName(single("专辑\u0000名\n第二行")), "专辑 名 第二行.md", "control characters and newlines are collapsed");
+  assert.equal(publicationMarkdownFileName(single("///", "推文标题", "///")), "推文标题.md", "a name that sanitises to empty falls through to the publication title");
+  assert.equal(publicationMarkdownFileName(single("///", "///", "///")), "公众号稿.md", "all-empty candidates use the stable fallback");
+  const long = publicationMarkdownFileName(single("专".repeat(100)));
+  assert.equal(long, `${"专".repeat(60)}.md`, "the stem is truncated by code point to 60 characters");
+  assert.ok(long.endsWith(".md"));
 });
