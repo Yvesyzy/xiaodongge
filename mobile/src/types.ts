@@ -63,6 +63,8 @@ export type ReviewEntry = {
   ratingOriginality: number | null;
   ratingResonance: number | null;
   compositeRatingLocked: boolean;
+  /** 专辑/歌曲发行日期 YYYY-MM-DD；可选以兼容旧备份与旧记录 */
+  releaseDate?: string | null;
   firstListenedAt: string | null;
   listenedAt: string | null;
   createdAt: string;

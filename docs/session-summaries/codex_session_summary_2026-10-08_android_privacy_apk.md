@@ -4,6 +4,8 @@
 
 后续状态：Yves已明确授权“推吧”；3.1.2源码与APK/SHA现已发布到[GitHub测试预发布](https://github.com/Yvesyzy/xiaodongge/releases/tag/v3.1.2)，详见[发布交接](codex_session_summary_2026-10-08_android_github_release.md)。下文保留构建与清理阶段的历史记录。
 
+2026-10-09清理后续：下文所述9,456字节旧清理脚本及3.1.1旧包/测试目录已删除。本轮删除726文件/237,228,029字节，3.1.2最终包及32个保护文件哈希一致；新一轮9,905字节临时脚本的直接删除仍被工具策略拒绝。当前清理状态见[本轮交接](codex_session_summary_2026-10-09_task_cleanup.md)。
+
 ## 最终安装包
 
 - 路径：`release/codex_privacy_signed_20261008/codex_xiaodongge-v3.1.2-32-test.apk`。

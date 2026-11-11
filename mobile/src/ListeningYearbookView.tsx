@@ -3,7 +3,8 @@ import { Link, useParams, useSearchParams } from "react-router-dom";
 import type { WeatherLocation } from "../../shared/listeningContext";
 import type { ListeningLayer, ListeningMetric, SemanticOverride } from "../../shared/listeningAnalysis";
 import { formatDateOnly, localDateOf } from "./format";
-import { MONTH_THEMES, inRecordingPeriod, parseMonthlyListeningSnapshot, parseYearlyListeningSnapshot, type ListeningDaySnapshot, type MonthlyListeningSnapshot, type YearlyListeningSnapshot } from "./listeningYearbook";
+import { MONTH_THEMES, parseMonthlyListeningSnapshot, parseYearlyListeningSnapshot, type ListeningDaySnapshot, type MonthlyListeningSnapshot, type YearlyListeningSnapshot } from "./listeningYearbook";
+import { DATE_BASIS_LABELS, REPORT_BASES, entryDate, inPeriod, isReportBasis, type DateBasis, type ReportBasis } from "./dateBasis";
 import { store } from "./store";
 import { YearbookExport } from "./codex_YearbookExport";
 import type { MonthlySummary, ReviewEntry, YearStats, YearlySummary } from "./types";
@@ -15,6 +16,22 @@ function reportEntry(summary: MonthlySummary | YearlySummary): ReviewEntry {
     content: summary.content, createdAt: summary.generatedAt, updatedAt: summary.updatedAt, albumName: null, songName: null, artistName: null, musicMetadata: null,
     tags: [], moods: [], rating: null, ratingModifier: null, ratingProduction: null, ratingSongwriting: null, ratingOriginality: null, ratingResonance: null,
     compositeRatingLocked: false, firstListenedAt: null, listenedAt: null };
+}
+
+function reportBasisOf(snapshot: MonthlyListeningSnapshot | YearlyListeningSnapshot): DateBasis {
+  return snapshot.reportBasis ?? "createdAt";
+}
+
+function ReportBasisSwitch({ basis, counts, onSwitch }: { basis: ReportBasis; counts: Record<ReportBasis, number>; onSwitch: (next: ReportBasis) => void }) {
+  return <>
+    <div className="basis-switch theme-choice" role="group" aria-label="月报年报统计口径">
+      {REPORT_BASES.map((value) => <button key={value} type="button" aria-pressed={basis === value} onClick={() => onSwitch(value)}>{value === "releaseDate" ? "按发行时间" : "按首次收听"}</button>)}
+    </div>
+    <div className="stats-grid basis-counts">
+      {REPORT_BASES.map((value) => <div className={`stat-card${basis === value ? " active" : ""}`} key={value}><span>{DATE_BASIS_LABELS[value]}</span><strong>{counts[value]} 篇</strong></div>)}
+    </div>
+    <p className="hint">两种口径同时统计，按钮切换当前查看的口径，日期精确到年月日；未填写对应日期的乐评不计入该口径，可在乐评编辑页补填。切换后重新生成，作品才会按新口径装订。</p>
+  </>;
 }
 
 export function DailyListeningNote({ entry }: { entry: ReviewEntry }) {
@@ -76,8 +93,12 @@ export function MonthlyListeningPage() {
   const year = Number(params.year);
   const month = Number(params.month);
   const valid = Number.isInteger(year) && year >= 1 && year <= 9999 && Number.isInteger(month) && month >= 1 && month <= 12;
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedBasis = searchParams.get("basis");
+  const basis: ReportBasis = isReportBasis(requestedBasis) ? requestedBasis : "firstListenedAt";
+  const switchBasis = (next: ReportBasis) => { const nextParams = new URLSearchParams(searchParams); nextParams.set("basis", next); setSearchParams(nextParams, { replace: true }); };
   const [summary, setSummary] = useState<MonthlySummary | null>(null);
-  const [entries, setEntries] = useState<ReviewEntry[]>([]);
+  const [allEntries, setAllEntries] = useState<ReviewEntry[]>([]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
@@ -86,18 +107,25 @@ export function MonthlyListeningPage() {
     if (!summary?.analysisJson) return null;
     try { return parseMonthlyListeningSnapshot(summary.analysisJson); } catch { return null; }
   }, [summary]);
+  const entries = useMemo(() => allEntries.filter((entry) => inPeriod(entry, basis, year, month)), [allEntries, basis, year, month]);
+  const basisCounts = useMemo<Record<ReportBasis, number>>(() => ({
+    releaseDate: allEntries.filter((entry) => inPeriod(entry, "releaseDate", year, month)).length,
+    firstListenedAt: allEntries.filter((entry) => inPeriod(entry, "firstListenedAt", year, month)).length,
+  }), [allEntries, year, month]);
+  // 旧快照没有 reportBasis，不强制判为口径不符；重新生成后会带上当前口径。
+  const basisMismatch = !!snapshot && !!snapshot.reportBasis && snapshot.reportBasis !== basis;
 
   useEffect(() => {
     if (!valid) return;
     let active = true;
     setSummary(null);
-    setEntries([]);
+    setAllEntries([]);
     setMessage("");
     setLoading(true);
     void Promise.all([store.getMonthlySummary(year, month), store.listEntries()]).then(([saved, all]) => {
       if (!active) return;
       setSummary(saved);
-      setEntries(all.filter((entry) => inRecordingPeriod(entry, year, month)));
+      setAllEntries(all);
     }).catch((error) => { if (active) setMessage(error instanceof Error ? error.message : "月份读取失败"); }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [month, valid, year]);
@@ -111,7 +139,7 @@ export function MonthlyListeningPage() {
     setBusy(true);
     setMessage("");
     try {
-      const saved = await store.generateMonthlySummary(year, month);
+      const saved = await store.generateMonthlySummary(year, month, basis);
       parseMonthlyListeningSnapshot(saved.analysisJson);
       setSummary(saved);
       setMessage("月度听感作品已保存");
@@ -126,15 +154,16 @@ export function MonthlyListeningPage() {
   const automaticCount = entries.filter((entry) => entry.type === "song" || entry.type === "album").length;
   const reflections = entries.filter((entry) => entry.type === "month");
   return (
-    <ReadingTools progressKey={`month:${year}:${month}`} title={`${year} 年 ${month} 月`} backTo={`/summary?year=${year}&view=months`} backLabel="月份目录" actions={summary ? <button onClick={() => setSharing(true)}>分享</button> : undefined}>
-    <ListeningPage title={`${year} 年 ${month} 月`} text={`${MONTH_THEMES[month - 1].name} · ${automaticCount} 篇歌曲或专辑乐评 · 按首次正式保存时间`}>
+    <ReadingTools progressKey={`month:${year}:${month}`} title={`${year} 年 ${month} 月`} backTo={`/summary?year=${year}&view=months&basis=${basis}`} backLabel="月份目录" actions={summary ? <button onClick={() => setSharing(true)}>分享</button> : undefined}>
+    <ListeningPage title={`${year} 年 ${month} 月`} text={`${MONTH_THEMES[month - 1].name} · ${automaticCount} 篇歌曲或专辑乐评 · 按${DATE_BASIS_LABELS[basis]}统计`}>
+      <ReportBasisSwitch basis={basis} counts={basisCounts} onSwitch={switchBasis} />
       <div className="summary-toolbar">
-        <span role="status">{loading ? "正在读取…" : busy ? "正在生成" : summary ? summary.sourceFingerprint === null || snapshot?.dateBasis !== "createdAt" ? "待更新" : "已生成" : automaticCount ? "可生成" : "暂无记录"}</span>
-        <button className="primary-button" onClick={generate} disabled={loading || busy || automaticCount === 0}>{busy ? "正在生成…" : summary ? "更新月度报告" : "生成月度报告"}</button>
+        <span role="status">{loading ? "正在读取…" : busy ? "正在生成" : summary ? summary.sourceFingerprint === null || basisMismatch ? "待更新" : "已生成" : automaticCount ? "可生成" : "暂无记录"}</span>
+        <button className="primary-button" onClick={generate} disabled={loading || busy || automaticCount === 0}>{busy ? "正在生成…" : summary && !basisMismatch ? "更新月度报告" : "生成月度报告"}</button>
       </div>
       {message ? <p className="hint" role="status">{message}</p> : null}
       {summary?.sourceFingerprint === null ? <p className="stale-notice">乐评或本月自述已经变化，当前保留的是上一次作品；重新生成后更新。</p> : null}
-      {snapshot && snapshot.dateBasis !== "createdAt" ? <p className="stale-notice">这是按旧日期口径生成的作品，请重新生成以按记录时间归档。</p> : null}
+      {snapshot && basisMismatch ? <p className="stale-notice">当前作品按{DATE_BASIS_LABELS[reportBasisOf(snapshot)]}生成，请按{DATE_BASIS_LABELS[basis]}重新生成。</p> : null}
       {snapshot ? <MonthlyArtwork snapshot={snapshot} reflections={reflections} /> : summary ? <section className="content-card"><p className="error">已保存的月报无法读取，请重新生成。下方保留文字内容。</p><p style={{ whiteSpace: "pre-wrap" }}>{summary.content}</p></section> : <p className="empty">{automaticCount ? "还没有生成这个月的听感作品。" : "这个月还没有歌曲或专辑乐评。"}</p>}
     </ListeningPage>
     {sharing && summary && <ReviewShare entry={reportEntry(summary)} onClose={() => setSharing(false)} />}
@@ -143,7 +172,10 @@ export function MonthlyListeningPage() {
 }
 
 export function YearlyListeningPage() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedBasis = searchParams.get("basis");
+  const basis: ReportBasis = isReportBasis(requestedBasis) ? requestedBasis : "firstListenedAt";
+  const switchBasis = (next: ReportBasis) => { const nextParams = new URLSearchParams(searchParams); nextParams.set("basis", next); setSearchParams(nextParams, { replace: true }); };
   const [entries, setEntries] = useState<ReviewEntry[]>([]);
   const [year, setYear] = useState(() => {
     const requested = Number(searchParams.get("year"));
@@ -155,7 +187,11 @@ export function YearlyListeningPage() {
   const [monthly, setMonthly] = useState<MonthlySummary[]>([]);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
-  const years = Array.from(new Set([year, new Date().getFullYear(), ...entries.map((entry) => new Date(entry.createdAt).getFullYear())])).sort((a, b) => b - a);
+  const years = Array.from(new Set([year, new Date().getFullYear(), ...entries.flatMap((entry) => REPORT_BASES.map((value) => entryDate(entry, value)).filter((date): date is string => !!date).map((date) => Number(date.slice(0, 4))))])).sort((a, b) => b - a);
+  const basisCounts = useMemo<Record<ReportBasis, number>>(() => ({
+    releaseDate: entries.filter((entry) => inPeriod(entry, "releaseDate", year)).length,
+    firstListenedAt: entries.filter((entry) => inPeriod(entry, "firstListenedAt", year)).length,
+  }), [entries, year]);
   const snapshot = useMemo(() => {
     if (!summary?.analysisJson) return null;
     try { return parseYearlyListeningSnapshot(summary.analysisJson); } catch { return null; }
@@ -168,14 +204,14 @@ export function YearlyListeningPage() {
     setStats(null);
     setMonthly([]);
     setMessage("");
-    void Promise.all([store.getYearStats(year), store.getSummary(year), store.listMonthlySummaries(year)]).then(([nextStats, saved, savedMonths]) => {
+    void Promise.all([store.getYearStats(year, undefined, basis), store.getSummary(year), store.listMonthlySummaries(year)]).then(([nextStats, saved, savedMonths]) => {
       if (!active) return;
       setStats(nextStats);
       setSummary(saved);
       setMonthly(savedMonths);
     }).catch((error) => { if (active) setMessage(error instanceof Error ? error.message : "年度读取失败"); });
     return () => { active = false; };
-  }, [year]);
+  }, [year, basis]);
   useEffect(() => {
     const reload = () => { void store.getSummary(year).then(setSummary); };
     window.addEventListener("listening-overrides-changed", reload);
@@ -186,7 +222,7 @@ export function YearlyListeningPage() {
     setBusy(true);
     setMessage("");
     try {
-      const saved = await store.generateSummary(year);
+      const saved = await store.generateSummary(year, basis);
       setSummary(saved);
       setMonthly(await store.listMonthlySummaries(year));
       setMessage("年度私人听感标本册已保存");
@@ -197,12 +233,14 @@ export function YearlyListeningPage() {
     }
   }
 
-  const yearEntries = entries.filter((entry) => inRecordingPeriod(entry, year));
+  const yearEntries = entries.filter((entry) => inPeriod(entry, basis, year));
   const automaticEntries = yearEntries.filter((entry) => entry.type === "song" || entry.type === "album");
-  const snapshotOutdated = !!snapshot && (snapshot.dateBasis !== "createdAt" || summary?.sourceFingerprint === null || snapshot.analysis.sourceEntryCount !== automaticEntries.length || automaticEntries.some((entry) => !snapshot.analysis.sourceEntryIds.includes(entry.id)));
+  // 旧快照没有 reportBasis，不强制判为口径不符；重新生成后会带上当前口径。
+  const basisMismatch = !!snapshot && !!snapshot.reportBasis && snapshot.reportBasis !== basis;
+  const snapshotOutdated = !!snapshot && (basisMismatch || summary?.sourceFingerprint === null || snapshot.analysis.sourceEntryCount !== automaticEntries.length || automaticEntries.some((entry) => !snapshot.analysis.sourceEntryIds.includes(entry.id)));
   return (
     <ListeningPage title="私人听感标本册" text="不统计听了多久，只整理你如何感受、评价和描述音乐。">
-      <p className="hint">按乐评首次正式保存的本地时间统计，后续修改不改变月份；草稿不计入。</p>
+      <ReportBasisSwitch basis={basis} counts={basisCounts} onSwitch={switchBasis} />
       <div className="year-selector-row">
         <label>年份<select value={year} disabled={busy} onChange={(event) => setYear(Number(event.target.value))}>{years.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
         <span>{automaticEntries.length} 篇可分析乐评</span>
@@ -219,10 +257,10 @@ export function YearlyListeningPage() {
         <div className="month-index-grid">
           {MONTH_THEMES.map((theme, index) => {
             const month = index + 1;
-            const count = automaticEntries.filter((entry) => inRecordingPeriod(entry, year, month)).length;
+            const count = automaticEntries.filter((entry) => inPeriod(entry, basis, year, month)).length;
             const saved = monthly.find((item) => item.month === month);
             return (
-              <Link key={theme.id} to={`/summary/${year}/${month}`} className={`month-index-card month-theme-${theme.id}`} style={{ "--month-accent": theme.accent } as CSSProperties}>
+              <Link key={theme.id} to={`/summary/${year}/${month}?basis=${basis}`} className={`month-index-card month-theme-${theme.id}`} style={{ "--month-accent": theme.accent } as CSSProperties}>
                 <span>{String(month).padStart(2, "0")}</span>
                 <strong>{theme.name}</strong>
                 <small>{count ? `${count} 篇${saved ? saved.sourceFingerprint === null ? " · 待更新" : " · 已生成" : ""}` : "暂无乐评"}</small>
@@ -233,10 +271,11 @@ export function YearlyListeningPage() {
       </section>
       <WeatherCitySettings />
       <SemanticCorrectionSettings />
-      <button onClick={generate} className="primary-button full" disabled={busy || automaticEntries.length === 0}>{busy ? "正在装订标本册…" : summary ? "重新生成年度标本册" : "生成年度标本册"}</button>
+      <button onClick={generate} className="primary-button full" disabled={busy || automaticEntries.length === 0}>{busy ? "正在装订标本册…" : summary && !basisMismatch ? "重新生成年度标本册" : "生成年度标本册"}</button>
       {message ? <p className="hint" role="status">{message}</p> : null}
+      {snapshot && basisMismatch ? <p className="stale-notice">当前标本册按{DATE_BASIS_LABELS[reportBasisOf(snapshot)]}生成，请按{DATE_BASIS_LABELS[basis]}重新生成。</p> : null}
       {snapshotOutdated ? <p className="stale-notice">当前已有 {automaticEntries.length} 篇可分析乐评，上次标本册收录 {snapshot?.analysis.sourceEntryCount} 篇。记录或日期口径已变化，请重新生成后查看和导出。</p> : null}
-      {summary && <button onClick={() => setSharing(true)}>分享已保存的年度报告</button>}
+      {summary && <button onClick={() => setSharing(true)}>分享已保存的年度标本册</button>}
       {sharing && summary && <ReviewShare entry={reportEntry(summary)} onClose={() => setSharing(false)} />}
       {snapshot && !snapshotOutdated ? <YearbookExport snapshot={snapshot} entries={automaticEntries} /> : null}
       {snapshot ? <YearbookArtwork snapshot={snapshot} entries={snapshotOutdated ? [] : automaticEntries} /> : summary ? <LegacySummary summary={summary} /> : <p className="empty">还没有保存年度标本册。</p>}
@@ -269,6 +308,7 @@ function MonthlyArtwork({ snapshot, reflections }: { snapshot: MonthlyListeningS
 }
 
 function YearbookArtwork({ snapshot, entries }: { snapshot: YearlyListeningSnapshot; entries: ReviewEntry[] }) {
+  const basisQuery = snapshot.reportBasis ? `?basis=${snapshot.reportBasis}` : "";
   const [preferred, setPreferred] = useState<{ entryId: string; sentence: string } | null>(null);
   const scope = `year:${snapshot.year}`;
   useEffect(() => { void store.getPreferredQuote(scope).then(setPreferred); }, [scope]);
@@ -283,7 +323,7 @@ function YearbookArtwork({ snapshot, entries }: { snapshot: YearlyListeningSnaps
       {entries.length ? <YearbookOverview snapshot={snapshot} entries={entries} /> : null}
       <MetricSection title="年度主要感受" question="这一年，你最常怎样描述音乐带来的感受？" metrics={snapshot.analysis.feelings} layer="feeling" />
       <MetricSection title="年度关注对象" question="这一年，你最常评价音乐的什么部分？" metrics={snapshot.analysis.subjects} layer="subject" />
-      <section className="yearbook-months"><div className="section-heading"><div><span className="eyebrow">MONTHLY TRAJECTORY</span><h2>十二个月的听感轨迹</h2></div><span>{snapshot.months.length} 个有效月份</span></div><div className="yearbook-month-strip">{snapshot.months.map((month) => <Link key={month.month} to={`/summary/${snapshot.year}/${month.month}`} style={{ "--month-accent": month.theme.accent } as CSSProperties}><span>{String(month.month).padStart(2, "0")}</span><strong>{month.topFeeling ?? "未识别感受词"}</strong><small>{month.topSubject ?? "较少描述音乐对象"} · {month.entryCount} 篇</small></Link>)}</div></section>
+      <section className="yearbook-months"><div className="section-heading"><div><span className="eyebrow">MONTHLY TRAJECTORY</span><h2>十二个月的听感轨迹</h2></div><span>{snapshot.months.length} 个有效月份</span></div><div className="yearbook-month-strip">{snapshot.months.map((month) => <Link key={month.month} to={`/summary/${snapshot.year}/${month.month}${basisQuery}`} style={{ "--month-accent": month.theme.accent } as CSSProperties}><span>{String(month.month).padStart(2, "0")}</span><strong>{month.topFeeling ?? "未识别感受词"}</strong><small>{month.topSubject ?? "较少描述音乐对象"} · {month.entryCount} 篇</small></Link>)}</div></section>
       <PairSection snapshot={snapshot} />
       <MetricSection title="年度表达方式" question="你更常借助画面、空间、身体还是技术语言？" metrics={snapshot.analysis.expressions} layer="expression" />
       {snapshot.migrations.length ? <section className="migration-section"><span className="eyebrow">AESTHETIC MIGRATION</span><h2>审美迁徙</h2><div className="migration-list">{snapshot.migrations.map((item) => <p key={`${item.kind}-${item.term}`}><span>{item.kind === "new" ? "新出现" : item.kind === "persistent" ? "持续" : "渐隐"}</span>{item.text}</p>)}</div></section> : null}
@@ -295,9 +335,10 @@ function YearbookArtwork({ snapshot, entries }: { snapshot: YearlyListeningSnaps
 }
 
 function YearbookOverview({ snapshot, entries }: { snapshot: YearlyListeningSnapshot; entries: ReviewEntry[] }) {
+  const basisQuery = snapshot.reportBasis ? `?basis=${snapshot.reportBasis}` : "";
   const rated = entries.filter((entry) => entry.rating !== null);
   const average = rated.length ? (rated.reduce((sum, entry) => sum + (entry.rating ?? 0), 0) / rated.length).toFixed(1) : "—";
-  const months = MONTH_THEMES.map((theme, index) => ({ ...theme, month: index + 1, count: entries.filter((entry) => inRecordingPeriod(entry, snapshot.year, index + 1)).length }));
+  const months = MONTH_THEMES.map((theme, index) => ({ ...theme, month: index + 1, count: entries.filter((entry) => inPeriod(entry, reportBasisOf(snapshot), snapshot.year, index + 1)).length }));
   const peak = Math.max(1, ...months.map((month) => month.count));
   const topRated = [...rated].sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0)).slice(0, 3);
   const artists = new Set(entries.map((entry) => entry.artistName).filter(Boolean));
@@ -306,11 +347,11 @@ function YearbookOverview({ snapshot, entries }: { snapshot: YearlyListeningSnap
     <span className="eyebrow">A YEAR IN YOUR WORDS</span><h2>这一年，写下的音乐</h2>
     <div className="yearbook-numbers"><Stat label="已收录乐评" value={`${entries.length} 篇`} /><Stat label="写下的文字" value={`${snapshot.analysis.characterCount} 字`} /><Stat label="记录日" value={`${snapshot.context.exactDateCount} 天`} /><Stat label={`平均评分 · ${rated.length} 篇已评分`} value={average} /></div>
     <h3>十二个月的记录节奏</h3>
-    <div className="yearbook-bars" aria-label="每月乐评数量">{months.map((month) => <Link key={month.month} to={`/summary/${snapshot.year}/${month.month}`} aria-label={`${month.month} 月 ${month.count} 篇乐评`}><strong>{month.count}</strong><span className="yearbook-bar-track"><i style={{ height: `${month.count / peak * 100}%`, background: month.accent }} /></span><small>{month.month}月</small></Link>)}</div>
+    <div className="yearbook-bars" aria-label="每月乐评数量">{months.map((month) => <Link key={month.month} to={`/summary/${snapshot.year}/${month.month}${basisQuery}`} aria-label={`${month.month} 月 ${month.count} 篇乐评`}><strong>{month.count}</strong><span className="yearbook-bar-track"><i style={{ height: `${month.count / peak * 100}%`, background: month.accent }} /></span><small>{month.month}月</small></Link>)}</div>
     <p className="hint">{snapshot.months.length} 个月留下记录 · {artists.size} 位音乐人 · 空白月份也属于这一年</p>
     {genres.length ? <div className="yearbook-tags" aria-label="记录里的曲风和标签">{genres.map((genre) => <span key={genre}>{genre}</span>)}</div> : null}
     {topRated.length ? <><h3>最打动我的作品</h3><div className="yearbook-favorites">{topRated.map((entry, index) => <Link key={entry.id} to={`/entries/${entry.id}`}><span className="yearbook-rank">0{index + 1}</span><div><strong>{entry.title}</strong><small>{entry.artistName || "未填写音乐人"}</small></div><b>{entry.rating}{entry.ratingModifier} <small>/ 10</small></b></Link>)}</div></> : null}
-    <details className="yearbook-sources"><summary>查看本册全部 {entries.length} 篇乐评</summary>{[...entries].sort((a, b) => a.createdAt.localeCompare(b.createdAt)).map((entry) => <Link key={entry.id} to={`/entries/${entry.id}`}><span>{formatDateOnly(entry.createdAt)}</span><strong>{entry.title}</strong><small>{entry.content.length > 80 ? `${entry.content.slice(0, 80)}…` : entry.content}</small></Link>)}</details>
+    <details className="yearbook-sources"><summary>查看本册全部 {entries.length} 篇乐评</summary>{[...entries].sort((a, b) => (entryDate(a, reportBasisOf(snapshot)) ?? "").localeCompare(entryDate(b, reportBasisOf(snapshot)) ?? "")).map((entry) => <Link key={entry.id} to={`/entries/${entry.id}`}><span>{entryDate(entry, reportBasisOf(snapshot)) ?? "日期未填写"}</span><strong>{entry.title}</strong><small>{entry.content.length > 80 ? `${entry.content.slice(0, 80)}…` : entry.content}</small></Link>)}</details>
   </section>;
 }
 

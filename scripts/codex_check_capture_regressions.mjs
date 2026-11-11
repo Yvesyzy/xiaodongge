@@ -26,7 +26,10 @@ if (!origin) {
   }));
 }
 
-const browser = await chromium.launch({ headless: true, channel: "chrome" });
+// channel:"chrome" needs a launchable system Chrome; CI/isolated hosts can point at a cached Chromium instead.
+const browser = await chromium.launch(process.env.CODEX_QA_CHROME_PATH
+  ? { headless: true, executablePath: process.env.CODEX_QA_CHROME_PATH }
+  : { headless: true, channel: "chrome" });
 const result = { origin, m1: {}, m2: {}, limitations: ["OCR uses a synthetic Capacitor bridge; native OCR recognition quality and Android file-picker behavior remain device checks."] };
 
 function draftValue(draftId = "capture-regression") {

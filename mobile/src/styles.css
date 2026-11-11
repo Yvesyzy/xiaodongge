@@ -3887,3 +3887,25 @@ textarea {
 .codex-timeline-cover small { display:block; margin-top:6px; font-size:11px; overflow-wrap:anywhere; }
 .codex-back-notice { position:fixed; bottom:calc(100px + env(safe-area-inset-bottom)); left:50%; transform:translateX(-50%); z-index:1000; background:#22352ef2; color:#fff; border-radius:24px; padding:12px 20px; font-size:14px; width:max-content; max-width:90vw; pointer-events:none; text-align:center; }
 @media(max-width:360px) { .codex-timeline-card { padding:14px 10px; } .codex-timeline-cover { width:76px; margin-right:10px; } }
+
+/* 日期口径切换：归档页与月报年报页共用，沿用拟物外观开关 */
+.basis-switch.theme-choice { grid-template-columns: repeat(2, minmax(0, 1fr)); margin: 4px 0 14px; }
+.basis-switch button { font-size: 14px; }
+.stats-grid.basis-counts, .stats-grid.archive-basis-stats { margin-top: 4px; }
+.stat-card.active { border-color: var(--neu-ink); box-shadow: var(--shadow); }
+[data-theme="dark"] .stat-card.active { border-color: var(--amber); }
+
+/* 三个日期录入区 */
+.date-triad { display: grid; gap: 10px; padding: 14px; margin: 12px 0; border: 1px solid var(--neu-edge); border-radius: 14px; background: var(--neu-surface); box-shadow: var(--neu-control); }
+.date-triad-head { display: grid; gap: 4px; }
+.date-triad-head strong { color: var(--neu-ink); font-size: 15px; font-weight: 800; }
+.date-triad-head small { color: var(--neu-quiet); font-size: 12px; line-height: 1.6; }
+.date-triad .form-grid { margin: 0; }
+.recording-date-card { display: grid; gap: 4px; padding: 12px; border-radius: 12px; box-shadow: var(--neu-inset); }
+.recording-date-card > span { color: var(--neu-quiet); font-size: 12px; font-weight: 700; }
+.recording-date-card > strong { color: var(--neu-ink); font-size: 17px; font-variant-numeric: tabular-nums; }
+.recording-date-card > small { color: var(--neu-quiet); font-size: 12px; line-height: 1.6; }
+.recording-date-card > a { color: var(--neu-ink); font-size: 13px; font-weight: 700; }
+.date-extras { margin: 12px 0; padding: 10px 12px; border: 1px dashed var(--neu-edge); border-radius: 12px; }
+.date-extras summary { min-height: 40px; display: flex; align-items: center; color: var(--neu-quiet); font-size: 13px; font-weight: 700; cursor: pointer; }
+.date-extras label { display: grid; gap: 6px; margin-top: 8px; }

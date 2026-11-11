@@ -3,26 +3,17 @@ import {execFileSync} from 'node:child_process';
 import {mkdir,writeFile,copyFile,readFile} from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {chromium} from 'playwright';
-import {createServer} from 'vite';
+import {openCaptureSession} from './codex_capture_session.mjs';
 
 const project=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const root=path.dirname(project), assets=path.join(project,'public/codex_light'),qa=path.join(project,'qa/v6');
 await mkdir(assets,{recursive:true});
 await mkdir(qa,{recursive:true});
 process.chdir(root);
-const server=await createServer({configFile:path.join(root,'mobile/vite.config.ts'),cacheDir:path.join(project,'.cache/vite_light'),server:{host:'127.0.0.1',port:0,strictPort:true,forwardConsole:false}});
-await server.listen();
-const origin=`http://127.0.0.1:${server.httpServer.address().port}`;
-const browser=await chromium.launch({channel:'chrome',headless:true});
-const context=await browser.newContext({viewport:{width:390,height:844},deviceScaleFactor:3,timezoneId:'Asia/Shanghai',locale:'zh-CN',colorScheme:'light'});
-const page=await context.newPage();
-await page.clock.setFixedTime(new Date('2026-09-29T12:00:00+08:00'));
+const session=await openCaptureSession(root,project,'vite_light');
+const {page,origin,errors}=session;
 const appVersion=JSON.parse(await readFile(path.join(root,'package.json'),'utf8')).version;
-const errors=[],manifest={version:appVersion,theme:'light',readerTheme:'light',capture:'Current React mobile UI; isolated synthetic data; actual light theme',viewport:{width:390,height:844,scale:3},assets:{},layout:{}};
-page.on('pageerror',e=>errors.push(e.message));
-page.setDefaultTimeout(15000);
-await page.route('**/*',route=>{try {if(new URL(route.request().url()).origin===origin)return route.continue();}catch{}return route.abort();});
+const manifest={version:appVersion,theme:'light',readerTheme:'light',capture:'Current React mobile UI; isolated synthetic data; actual light theme',viewport:{width:390,height:844,scale:3},assets:{},layout:{}};
 const names=['晚风经过','潮汐记','房间里的回声','夜行列车','未完成的夏天','小岛来信','低速飞行','晴天后的房间','城市边缘','静默的河','蓝色钟摆','远处的灯','山海之间','无声散步','慢行'];
 const passages=[
  '最先留住我的，是鼓点之间的空白。\n\n贝斯慢慢向前走，人声像隔着一扇半开的窗。那时我只觉得它很安静，适合把回家的路再走慢一点。\n\n听到最后一首，我没有立刻摘下耳机。风从身边过去，音乐留下了一点温度。',
@@ -148,4 +139,4 @@ try {
  await writeFile(path.join(qa,'codex_capture_light_error.txt'),String(error.stack));
  await page.screenshot({path:path.join(qa,'codex_capture_light_error.png')});
  throw error;
-} finally {await browser.close();await server.close();}
+} finally {await session.close();}

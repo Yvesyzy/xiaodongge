@@ -7,7 +7,10 @@ import { qaOptions } from "./codex_qa_options.mjs";
 
 const { origin, output } = qaOptions({ origin: "http://127.0.0.1:5189", output: "release/codex_storage_integrity" });
 
-const browser = await chromium.launch({ headless: true, channel: "chrome" });
+// channel:"chrome" needs a launchable system Chrome; CI/isolated hosts can point at a cached Chromium instead.
+const browser = await chromium.launch(process.env.CODEX_QA_CHROME_PATH
+  ? { headless: true, executablePath: process.env.CODEX_QA_CHROME_PATH }
+  : { headless: true, channel: "chrome" });
 let result;
 try {
   const page = await browser.newPage({ timezoneId: "Asia/Shanghai" });

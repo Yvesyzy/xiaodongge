@@ -3,8 +3,7 @@ import {execFileSync} from 'node:child_process';
 import {mkdir,readFile,writeFile} from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {chromium} from 'playwright';
-import {createServer} from 'vite';
+import {openCaptureSession} from './codex_capture_session.mjs';
 
 const project=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..'),root=path.dirname(project);
 const assets=path.join(project,'public/codex_theme_v5'),qa=path.join(project,'qa/v6');
@@ -14,15 +13,9 @@ const previous=JSON.parse(await readFile(path.join(project,'public/codex_light/c
 const version=JSON.parse(await readFile(path.join(root,'package.json'),'utf8')).version;
 assert.equal(version,previous.version,'Base UI and theme capture must use the same App version');
 const covers=await Promise.all(demo.entries.map(async(_,i)=>'data:image/png;base64,'+(await readFile(path.join(project,`public/codex_light/codex_cover_${String(i).padStart(2,'0')}.png`))).toString('base64')));
-const server=await createServer({configFile:path.join(root,'mobile/vite.config.ts'),cacheDir:path.join(project,'.cache/vite_theme_v5'),server:{host:'127.0.0.1',port:0,strictPort:true,forwardConsole:false}});
-await server.listen();const origin=`http://127.0.0.1:${server.httpServer.address().port}`;
-const browser=await chromium.launch({channel:'chrome',headless:true});
-const context=await browser.newContext({viewport:{width:390,height:844},deviceScaleFactor:3,timezoneId:'Asia/Shanghai',locale:'zh-CN',colorScheme:'light'});
-const page=await context.newPage();page.setDefaultTimeout(15000);
-await page.clock.setFixedTime(new Date('2026-09-29T12:00:00+08:00'));
-const errors=[],manifest={version,viewport:{width:390,height:844,scale:3},capture:'Actual theme buttons; isolated synthetic data and original light covers',assets:{},palette:{},layout:{},globalEvents:[],readerEvents:[]};
-page.on('pageerror',error=>errors.push(error.message));
-await page.route('**/*',route=>{try{if(new URL(route.request().url()).origin===origin)return route.continue();}catch{}return route.abort();});
+const session=await openCaptureSession(root,project,'vite_theme_v5');
+const {page,origin,errors}=session;
+const manifest={version,viewport:{width:390,height:844,scale:3},capture:'Actual theme buttons; isolated synthetic data and original light covers',assets:{},palette:{},layout:{},globalEvents:[],readerEvents:[]};
 const goto=async(route,selector)=>{await page.goto(origin+'/#'+route);await page.locator(selector).first().waitFor();await page.evaluate(()=>document.fonts.ready);await page.waitForTimeout(300);};
 const palette=()=>page.evaluate(()=>{const css=getComputedStyle(document.documentElement);return Object.fromEntries(['--paper-soft','--paper','--ink','--muted','--amber','--amber-ink','--line','--neu-ink','--on-deep','--green-900'].map(key=>[key,css.getPropertyValue(key).trim()]));});
 const snapshot=()=>page.evaluate(()=>({entries:localStorage.getItem('music-feelings-mobile-entries'),appData:localStorage.getItem('music-feelings-mobile-app-data')}));
@@ -92,4 +85,4 @@ try{
  execFileSync('python',[path.join(project,'scripts/codex_contact.py'),'--theme'],{stdio:'inherit',windowsHide:true});
  console.log('PASS actual global and reader switches',Object.keys(manifest.assets).length);
 }catch(error){await writeFile(path.join(qa,'codex_capture_theme_error.txt'),String(error.stack));await page.screenshot({path:path.join(qa,'codex_capture_theme_error.png')});throw error;}
-finally{await browser.close();await server.close();}
+finally{await session.close();}

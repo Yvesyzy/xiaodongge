@@ -1,6 +1,6 @@
 import { LISTENING_ANALYSIS_VERSION, analyzeListeningEntries, applySemanticOverrides, mergeListeningAnalyses, type ListeningAnalysis, type SemanticOverride } from "../../shared/listeningAnalysis";
 import { classifyDay, parseWeatherRecord, type DayContext, type DayKind, type WeatherRecord } from "../../shared/listeningContext";
-import { localDateOf } from "./format";
+import { DATE_BASIS_LABELS, entryDate, inPeriod, isReportBasis, type DateBasis, type ReportBasis } from "./dateBasis";
 import type { ReviewEntry } from "./types";
 
 export const LISTENING_YEARBOOK_VERSION = 1;
@@ -54,7 +54,9 @@ export type ContextOverview = {
 
 export type MonthlyListeningSnapshot = {
   version: number;
+  // dateBasis 保留为旧快照兼容标记；实际统计口径放在 reportBasis。
   dateBasis?: "createdAt";
+  reportBasis?: ReportBasis;
   scope: "month";
   year: number;
   month: number;
@@ -77,6 +79,7 @@ export type AestheticMigration = {
 export type YearlyListeningSnapshot = {
   version: number;
   dateBasis?: "createdAt";
+  reportBasis?: ReportBasis;
   scope: "year";
   year: number;
   title: string;
@@ -96,8 +99,8 @@ export type YearlyListeningSnapshot = {
   migrations: AestheticMigration[];
 };
 
-export function buildDayListeningSnapshot(date: string, entries: ReviewEntry[], weather: WeatherRecord | null, overrides: SemanticOverride[] = []): ListeningDaySnapshot {
-  const sourceEntries = automaticEntries(entries).filter((entry) => exactDate(entry) === date);
+export function buildDayListeningSnapshot(date: string, entries: ReviewEntry[], weather: WeatherRecord | null, overrides: SemanticOverride[] = [], basis: DateBasis = "createdAt"): ListeningDaySnapshot {
+  const sourceEntries = automaticEntries(entries).filter((entry) => entryDate(entry, basis) === date);
   return {
     date,
     entryIds: sourceEntries.map((entry) => entry.id),
@@ -108,18 +111,19 @@ export function buildDayListeningSnapshot(date: string, entries: ReviewEntry[], 
   };
 }
 
-export function buildMonthlyListeningSnapshot(year: number, month: number, entries: ReviewEntry[], weather: WeatherRecord[] = [], overrides: SemanticOverride[] = []): MonthlyListeningSnapshot {
+export function buildMonthlyListeningSnapshot(year: number, month: number, entries: ReviewEntry[], weather: WeatherRecord[] = [], overrides: SemanticOverride[] = [], basis: DateBasis = "createdAt"): MonthlyListeningSnapshot {
   if (!Number.isInteger(month) || month < 1 || month > 12) throw new Error("月份范围必须是 1-12");
-  const monthEntries = entries.filter((entry) => inRecordingPeriod(entry, year, month));
+  const monthEntries = entries.filter((entry) => inPeriod(entry, basis, year, month));
   const sourceEntries = automaticEntries(monthEntries);
   if (!sourceEntries.length) throw new Error("该月份没有歌曲或专辑乐评，无法生成月度总结");
   const weatherByDate = new Map(weather.map((item) => [item.date, item]));
-  const dates = unique(sourceEntries.map(exactDate).filter((date): date is string => !!date)).sort();
-  const days = dates.map((date) => buildDayListeningSnapshot(date, sourceEntries, weatherByDate.get(date) ?? null, overrides));
+  const dates = unique(sourceEntries.map((entry) => entryDate(entry, basis)).filter((date): date is string => !!date)).sort();
+  const days = dates.map((date) => buildDayListeningSnapshot(date, sourceEntries, weatherByDate.get(date) ?? null, overrides, basis));
   const analysis = applySemanticOverrides(analyzeListeningEntries(sourceEntries), overrides);
   return {
     version: LISTENING_YEARBOOK_VERSION,
     dateBasis: "createdAt",
+    ...(isReportBasis(basis) ? { reportBasis: basis } : {}),
     scope: "month",
     year,
     month,
@@ -133,7 +137,7 @@ export function buildMonthlyListeningSnapshot(year: number, month: number, entri
   };
 }
 
-export function buildYearlyListeningSnapshot(year: number, months: MonthlyListeningSnapshot[], undatedEntries: ReviewEntry[], overrides: SemanticOverride[] = []): YearlyListeningSnapshot {
+export function buildYearlyListeningSnapshot(year: number, months: MonthlyListeningSnapshot[], undatedEntries: ReviewEntry[], overrides: SemanticOverride[] = [], basis: DateBasis = "createdAt"): YearlyListeningSnapshot {
   const orderedMonths = [...months].sort((a, b) => a.month - b.month);
   const undated = automaticEntries(undatedEntries.filter((entry) => entry.year === year && entry.month === null));
   const analyses = [...orderedMonths.map((month) => month.analysis), ...(undated.length ? [applySemanticOverrides(analyzeListeningEntries(undated), overrides)] : [])];
@@ -143,6 +147,7 @@ export function buildYearlyListeningSnapshot(year: number, months: MonthlyListen
   return {
     version: LISTENING_YEARBOOK_VERSION,
     dateBasis: "createdAt",
+    ...(isReportBasis(basis) ? { reportBasis: basis } : {}),
     scope: "year",
     year,
     title: listeningTitle(`${year}`, analysis),
@@ -160,6 +165,7 @@ export function monthlySnapshotToMarkdown(snapshot: MonthlyListeningSnapshot, re
     `# ${snapshot.year} 年 ${snapshot.month} 月听感总结`,
     "",
     `主题：${snapshot.theme.name}`,
+    `统计口径：${DATE_BASIS_LABELS[snapshot.reportBasis ?? "createdAt"]}`,
     `模式：${summaryModeLabel(snapshot.mode)}`,
     `分析乐评：${snapshot.analysis.sourceEntryCount} 篇`,
     "",
@@ -187,6 +193,7 @@ export function yearlySnapshotToMarkdown(snapshot: YearlyListeningSnapshot) {
     `# ${snapshot.year} 年私人听感标本册`,
     "",
     snapshot.title,
+    `统计口径：${DATE_BASIS_LABELS[snapshot.reportBasis ?? "createdAt"]}`,
     `分析乐评：${snapshot.analysis.sourceEntryCount} 篇；涉及月份：${snapshot.months.length} 个。`,
     "",
     "## 年度主要感受",
@@ -224,6 +231,7 @@ export function parseYearlyListeningSnapshot(value: string): YearlyListeningSnap
 
 function isMonthlySnapshot(value: unknown): value is MonthlyListeningSnapshot {
   if (isRecord(value) && value.dateBasis !== undefined && value.dateBasis !== "createdAt") return false;
+  if (isRecord(value) && value.reportBasis !== undefined && !isReportBasis(value.reportBasis)) return false;
   if (!isRecord(value) || value.version !== LISTENING_YEARBOOK_VERSION || value.scope !== "month" || !Number.isInteger(value.year) || !isMonth(value.month) || typeof value.title !== "string" || (value.mode !== "memory" && value.mode !== "full") || !isTheme(value.theme, value.month) || !isListeningAnalysis(value.analysis) || !Array.isArray(value.days) || !value.days.every(isDaySnapshot) || !isContextOverview(value.context) || !isStringArray(value.reflectionEntryIds)) return false;
   // Legacy reports used manual archive months with listening-day context; preserve their validated data.
   // Only reports explicitly generated by recording date require all days to belong to that month.
@@ -232,6 +240,7 @@ function isMonthlySnapshot(value: unknown): value is MonthlyListeningSnapshot {
 
 function isYearlySnapshot(value: unknown): value is YearlyListeningSnapshot {
   if (isRecord(value) && value.dateBasis !== undefined && value.dateBasis !== "createdAt") return false;
+  if (isRecord(value) && value.reportBasis !== undefined && !isReportBasis(value.reportBasis)) return false;
   if (!isRecord(value) || value.version !== LISTENING_YEARBOOK_VERSION || value.scope !== "year" || !Number.isInteger(value.year) || typeof value.title !== "string" || (value.mode !== "memory" && value.mode !== "compact" && value.mode !== "full") || !isListeningAnalysis(value.analysis) || !Array.isArray(value.months) || !isNonNegativeInt(value.undatedEntryCount) || !isContextOverview(value.context) || !Array.isArray(value.migrations)) return false;
   if (!value.months.every((month) => isRecord(month) && isMonth(month.month) && typeof month.title === "string" && (month.mode === "memory" || month.mode === "full") && isTheme(month.theme, month.month) && isNonNegativeInt(month.entryCount) && isNullableString(month.topFeeling) && isNullableString(month.topSubject))) return false;
   return value.migrations.every((item) => isRecord(item) && (item.kind === "new" || item.kind === "persistent" || item.kind === "fading") && typeof item.term === "string" && Array.isArray(item.months) && item.months.every(isMonth) && typeof item.text === "string");
@@ -376,11 +385,8 @@ function automaticEntries(entries: ReviewEntry[]): ReviewEntry[] {
   return entries.filter((entry) => entry.type === "song" || entry.type === "album");
 }
 
-function exactDate(entry: ReviewEntry) {
-  return localDateOf(entry.createdAt);
-}
-
-// Reports use the first formal save; editing or changing listening metadata never moves a review.
+// 旧口径兼容入口：月报、年报的历史调用方与回归脚本仍按首次正式保存时间判断。
+// 新页面统一改用 dateBasis.ts 的 inPeriod，支持发行时间 / 首次收听时间 / 乐评记录时间。
 export function inRecordingPeriod(entry: ReviewEntry, year: number, month?: number) {
   const date = new Date(entry.createdAt);
   return date.getFullYear() === year && (month === undefined || date.getMonth() + 1 === month);

@@ -7,6 +7,7 @@ import { Link, useSearchParams } from "react-router-dom";
 import { excerpt } from "./format";
 import { listEntryDrafts } from "./entryDraft";
 import { inRecordingPeriod, parseMonthlyListeningSnapshot } from "./listeningYearbook";
+import { isNewRelease, releaseYearOf } from "./dateBasis";
 import { RecapInsights } from "./codex_RecapInsights";
 import { store } from "./store";
 import type { MonthlySummary, ReviewEntry } from "./types";
@@ -171,12 +172,14 @@ function JournalContent({ year, all }: { year: number; all: ReviewEntry[] }) {
   if (view === "months") return <>
     <MonthRecap year={year} entries={entries} states={monthStates} loading={monthlySummaries === null} error={monthlyError} />
     <RecordScopeSummary musicCount={entries.length} reflectionCount={reflections.length} draftCount={draftCount} />
+    <AlbumEraSummary entries={entries} year={year} />
     <ReflectionLinks entries={reflections} />{secondary}{exportDialog}
   </>;
 
   if (!entries.length && view !== "rank" && view !== "rank-edit") return <>
-    <h1>年度总览</h1><p className="journal-muted">{year} 年 · 按首次正式保存时间</p><p className="journal-stat">0 篇正式音乐记录</p>
+    <h1>年度总览</h1><p className="journal-muted">{year} 年 · 按乐评记录时间</p><p className="journal-stat">0 篇正式音乐记录</p>
     <AnnualFacts entries={entries} /><RecordScopeSummary musicCount={0} reflectionCount={reflections.length} draftCount={draftCount} />
+    <AlbumEraSummary entries={entries} year={year} />
     <div className="journal-empty"><span aria-hidden="true" className="journal-empty-icon">＋</span><h2>这一年还没有正式音乐记录</h2><p>写下一点听歌感受，正式保存后就会出现在这里。</p><p className="journal-muted">草稿不会计入年度总结。</p><div className="journal-stack"><Link className="journal-primary" to="/new">写第一篇记录</Link><Link className="journal-button" to="/drafts">打开草稿箱</Link></div><p className="journal-muted">已有其他年份的记录？可以通过右上角切换年份。</p></div>
     {topError && <p className="journal-error" role="alert">{topError}；重新打开本页可重试。</p>}
     {topReady && topAlbums.albums.length > 0 && <section><h2>我的年度专辑榜单</h2><p className="journal-muted">榜单已保存；即使原乐评已删除，仍可查看与导出。</p><div className="journal-stack"><Link className="journal-button" to={href("rank")}>查看年度专辑榜单（{topAlbums.albums.length} 张）</Link><Link className="journal-button" to={href("rank-edit")}>编辑榜单</Link></div></section>}
@@ -190,6 +193,7 @@ function JournalContent({ year, all }: { year: number; all: ReviewEntry[] }) {
       <div className="journal-actions"><Link className="journal-primary" to={href("work", entries[0].id)}>开始阅读</Link><button onClick={() => setExportKind("cover")}>分享年记</button></div>
       {edition.message && <div className="journal-quote"><small>给这一年的话</small><p>{edition.message}</p></div>}
       <AnnualFacts entries={entries} /><RecordScopeSummary musicCount={entries.length} reflectionCount={reflections.length} draftCount={draftCount} />
+      <AlbumEraSummary entries={entries} year={year} />
       {editionError && <p className="journal-error" role="alert">{editionError}；重新打开本页可重试。</p>}
       {topError && <p className="journal-error" role="alert">{topError}；榜单展示暂不可用，重新打开本页可重试。</p>}
       <div className="journal-actions journal-curation-actions"><Link className="journal-button" to={href("edit")}>编辑年度精选</Link>{edition.entryIds.length > 0 ? <span className="journal-muted">已选 {edition.entryIds.length} 篇代表作品</span> : null}</div>
@@ -201,7 +205,8 @@ function JournalContent({ year, all }: { year: number; all: ReviewEntry[] }) {
     {view === "overview" && <>
       <h1>年度总览</h1><p className="journal-muted">{year} 年 · 记录截至 {cutoff}</p><p className="journal-stat"><strong>{entries.length}</strong> 篇记录 <span>{counts.filter(Boolean).length} 个记录月份</span></p>
       <AnnualFacts entries={entries} /><RecordScopeSummary musicCount={entries.length} reflectionCount={reflections.length} draftCount={draftCount} />
-      {entries.length >= 6 ? <><h2>月份记录</h2><p className="journal-muted">按首次正式保存时间统计；后续修改不改变月份。</p><div className="journal-bars" aria-label="十二个月记录数量">{counts.map((count, i) => <button key={i} aria-label={`${i + 1}月：${count}篇记录`} aria-pressed={params.get("month") === String(i + 1)} onClick={() => setMonth(String(i + 1))}><span className="journal-bar-area"><span className="journal-bar-value">{!count && journalFuture(year, i + 1) ? "—" : count}</span><i style={{ height: `${count / Math.max(1, ...counts) * 124}px` }} /></span><span>{i + 1}月</span></button>)}</div><p className="journal-muted journal-legend">0：暂无记录　—：月份未到</p><RecapInsights entries={entries} /></> : <p className="journal-muted journal-small-data">当前记录较少，先完整呈现作品与原文摘录，暂不做月份趋势解读。</p>}
+      <AlbumEraSummary entries={entries} year={year} />
+      {entries.length >= 6 ? <><h2>月份记录</h2><p className="journal-muted">按乐评记录时间统计；后续修改不改变月份。</p><div className="journal-bars" aria-label="十二个月记录数量">{counts.map((count, i) => <button key={i} aria-label={`${i + 1}月：${count}篇记录`} aria-pressed={params.get("month") === String(i + 1)} onClick={() => setMonth(String(i + 1))}><span className="journal-bar-area"><span className="journal-bar-value">{!count && journalFuture(year, i + 1) ? "—" : count}</span><i style={{ height: `${count / Math.max(1, ...counts) * 124}px` }} /></span><span>{i + 1}月</span></button>)}</div><p className="journal-muted journal-legend">0：暂无记录　—：月份未到</p><RecapInsights entries={entries} /></> : <p className="journal-muted journal-small-data">当前记录较少，先完整呈现作品与原文摘录，暂不做月份趋势解读。</p>}
       {entries.length <= 5 && <JournalQuotes entries={entries} href={href} edition={edition} compact />}
       <JournalList entries={entries} href={href} />
       <div className="journal-stack"><button className="journal-primary" onClick={() => setExportKind("overview")}>保存概览图片</button><button onClick={() => setExportKind("index")}>保存全年记录索引</button><button onClick={() => setExportKind("works")}>分批保存全年作品全文</button></div><p className="journal-muted">导出收录全年 {entries.length} 篇，不受当前筛选或折叠影响。</p>
@@ -242,7 +247,7 @@ function JournalContent({ year, all }: { year: number; all: ReviewEntry[] }) {
 
 function MonthRecap({ year, entries, states, loading, error }: { year: number; entries: ReviewEntry[]; states: Array<{ month: number; count: number; state: MonthlyRecapState; summary: MonthlySummary | null }>; loading: boolean; error: string }) {
   return <section className="journal-months-view">
-    <h1>月度回顾</h1><p className="journal-muted">{year} 年 · 按首次正式保存时间查看每月正式音乐记录与月报状态。</p><p className="journal-stat"><strong>{entries.length}</strong> 篇正式音乐记录</p>
+    <h1>月度回顾</h1><p className="journal-muted">{year} 年 · 按乐评记录时间查看每月正式音乐记录与月报状态。</p><p className="journal-stat"><strong>{entries.length}</strong> 篇正式音乐记录</p>
     {error ? <p className="journal-error" role="alert">{error}；状态已按需要更新保守显示。</p> : null}
     {loading ? <p role="status">正在读取月报状态…</p> : <div className="journal-month-grid">{states.map((item) => <Link key={item.month} className={`journal-month-card journal-month-${item.state}`} to={`/summary/${year}/${item.month}`}><div><span className="journal-month-number">{String(item.month).padStart(2, "0")}</span><strong>{item.count ? `${item.count} 篇正式音乐记录` : "暂无正式音乐记录"}</strong><small>{item.summary ? `月报生成于 ${recapDate(item.summary.generatedAt)}` : item.count ? "进入月报页可生成" : "该月没有计入年度回顾的正式音乐记录"}</small></div><span className="journal-month-status">{monthStateLabel(item.state)}</span><span aria-hidden="true">→</span></Link>)}</div>}
     <p className="journal-muted journal-month-footnote">月报状态依据当前正式音乐记录的来源快照判断；记录变化后会显示“需要更新”。月度、年度自述与草稿单独保留。</p>
@@ -284,6 +289,24 @@ function AnnualFacts({ entries }: { entries: ReviewEntry[] }) {
   const songs = groupMusicEntries(entries, "song").length;
   const months = new Set(entries.map((entry) => new Date(entry.createdAt).getMonth() + 1)).size;
   return <div className="journal-facts" aria-label="年度记录统计"><div><strong>{albums}</strong><span>张不同专辑</span></div><div><strong>{songs}</strong><span>首不同歌曲</span></div><div><strong>{months}</strong><span>个活跃月份</span></div><div><strong>{average}</strong><span>平均评分 · {rated.length} 篇已评分</span></div></div>;
+}
+
+function AlbumEraSummary({ entries, year }: { entries: ReviewEntry[]; year: number }) {
+  const candidates = topAlbumCandidates(entries);
+  const fresh = candidates.filter((item) => isNewRelease(item.entry, year)).length;
+  const older = candidates.filter((item) => releaseYearOf(item.entry) !== null && !isNewRelease(item.entry, year)).length;
+  const unknown = candidates.length - fresh - older;
+  return <section className="journal-era-summary" aria-label="新老专辑统计">
+    <span className="eyebrow">NEW & BACKLIST</span>
+    <h2>新老专辑一起统计</h2>
+    <p className="journal-muted">按专辑/歌曲发行日期自动识别，{year} 年发行的算新专辑；年度总结不筛选年代，两类作品一起收录。</p>
+    <div className="journal-scope-summary journal-era-facts">
+      <div><strong>{fresh}</strong><span>{year} 年新专辑</span></div>
+      <div><strong>{older}</strong><span>往年专辑</span></div>
+      <div><strong>{unknown}</strong><span>未填发行日期</span></div>
+    </div>
+    <div className="journal-actions"><Link className="journal-button" to={`/annual-report?year=${year}`}>打开年度报告（只看新专辑）→</Link></div>
+  </section>;
 }
 
 function topAlbumKey(album: YearTopAlbum) { return JSON.stringify([album.albumName, album.artistName ?? ""]); }
@@ -373,7 +396,7 @@ function ReflectionLinks({ entries }: { entries: ReviewEntry[] }) {
 }
 
 function JournalSecondaryNav({ year }: { year: number }) {
-  return <div className="journal-secondary-nav"><Link to={`/summary/analysis?year=${year}`}>月报与听感分析 →</Link><span>这是独立的语义分析入口；草稿不计入，月度与年度自述单独保留。</span></div>;
+  return <div className="journal-secondary-nav"><Link to={`/annual-report?year=${year}`}>年度报告（只看今年新专辑）→</Link><Link to={`/summary/analysis?year=${year}&basis=firstListenedAt`}>月报与听感分析 →</Link><span>年度报告与年度总结分开保存；月报年报可切换发行时间 / 首次收听时间两种口径。草稿不计入，月度与年度自述单独保留。</span></div>;
 }
 
 function JournalCover({ entry, year }: { entry: ReviewEntry; year?: number }) {

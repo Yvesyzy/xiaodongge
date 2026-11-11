@@ -1,5 +1,6 @@
 import { ENTRY_TYPE_LABELS, type ReviewEntry, type YearlySummary } from "./types";
 import { localDateOf } from "./format";
+import { entryDate } from "./dateBasis";
 
 const ENTRY_CSV_COLUMNS = ["类型", "标题", "年份", "月份", "听歌日期", "评分", "歌曲", "专辑", "艺术家", "发行日期", "流派", "时长（毫秒）", "元数据来源", "情绪", "曲风/标签", "正文", "创建时间", "更新时间"];
 const SUMMARY_CSV_COLUMNS = ["年份", "标题", "源记录数", "生成时间", "正文", "创建时间", "更新时间"];
@@ -38,7 +39,7 @@ export function formatEntriesTxt(entries: ReviewEntry[], summaries: YearlySummar
       readableMeta("歌曲", entry.songName),
       readableMeta("专辑", entry.albumName),
       readableMeta("艺术家", entry.artistName),
-      readableMeta("发行日期", entry.musicMetadata?.releaseDate ?? null),
+      readableMeta("发行日期", entryDate(entry, "releaseDate")),
       readableMeta("流派", entry.musicMetadata?.genre ?? null),
       readableMeta("时长", entry.musicMetadata?.durationMs === undefined ? null : `${entry.musicMetadata.durationMs} 毫秒`),
       readableMeta("元数据来源", metadataSource(entry)),
@@ -80,7 +81,7 @@ export function formatEntriesCsv(entries: ReviewEntry[], summaries: YearlySummar
     entry.songName ?? "",
     entry.albumName ?? "",
     entry.artistName ?? "",
-    entry.musicMetadata?.releaseDate ?? "",
+    entryDate(entry, "releaseDate") ?? "",
     entry.musicMetadata?.genre ?? "",
     entry.musicMetadata?.durationMs === undefined ? "" : String(entry.musicMetadata.durationMs),
     metadataSource(entry) ?? "",

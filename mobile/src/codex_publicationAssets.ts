@@ -2,10 +2,11 @@ import { Capacitor } from "@capacitor/core";
 import { NativeExport, saveFile } from "./nativeExport";
 import { blobToBase64, downloadBlob } from "./shareCard";
 import { journalDate, journalRating } from "./codex_yearbookModel";
+import { entryDate, type DateBasis } from "./dateBasis";
 import { store } from "./store";
 import type { ReviewEntry } from "./types";
 import type { YearTopAlbums } from "../../shared/backupAppData";
-import type { PublicationDraft, PublicationSection } from "./codex_publicationModel";
+import type { PublicationDraft, PublicationMetaField, PublicationSection } from "./codex_publicationModel";
 
 export const PUBLICATION_MAX_BYTES = 8 * 1024 * 1024;
 export const DEFAULT_PUBLICATION_PRIVACY = { hideRating: false, hideDate: false, hideBrand: false, hideContent: false };
@@ -15,6 +16,35 @@ export function publicationBlobBytes(blob: Blob): Promise<Uint8Array> {
 }
 function publicationBlobText(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("稿件读取无效")); reader.onerror = () => reject(new Error("稿件读取失败")); reader.readAsText(blob, "utf-8"); });
+}
+
+// 与乐评表单/详情页的三个时间字段一一对应；缺失时保留「未填写」，读者能看出是没填而非漏导出。
+const PUBLICATION_DATE_FIELDS: readonly [string, DateBasis][] = [
+  ["专辑/歌曲发行时间", "releaseDate"],
+  ["首次收听时间", "firstListenedAt"],
+  ["乐评记录时间", "recordedAt"],
+];
+
+// 与乐评详情页的字段顺序一致：专辑/歌曲/艺术家 → 总评 → 六项维度（含旧版词曲）→ 三个日期。
+function publicationMetaFields(entry: ReviewEntry): PublicationMetaField[] {
+  const fields: PublicationMetaField[] = [];
+  for (const [label, value] of [["专辑", entry.albumName], ["歌曲", entry.songName], ["艺术家", entry.artistName]] as const) {
+    if (value) fields.push({ label, value, kind: "music" });
+  }
+  if (entry.rating !== null) fields.push({ label: "评分", value: journalRating(entry), kind: "rating" });
+  const dimensions: [string, number | null | undefined][] = [
+    ["制作", entry.ratingProduction], ["词", entry.ratingLyrics], ["曲", entry.ratingComposition],
+    ["人声", entry.ratingVocals], ["旧版词曲", entry.ratingSongwriting],
+    ["原创性", entry.ratingOriginality], ["共鸣", entry.ratingResonance],
+  ];
+  for (const [label, value] of dimensions) {
+    if (typeof value === "number") fields.push({ label, value: `${value}/10`, kind: "rating" });
+  }
+  for (const [label, basis] of PUBLICATION_DATE_FIELDS) {
+    const date = entryDate(entry, basis);
+    fields.push({ label, value: date ? date.replaceAll("-", ".") : "未填写", kind: "date" });
+  }
+  return fields;
 }
 
 export async function publicationSections(entries: ReviewEntry[]): Promise<{ sections: PublicationSection[]; warnings: string[] }> {
@@ -30,7 +60,8 @@ export async function publicationSections(entries: ReviewEntry[]): Promise<{ sec
     }
     sections.push({ id: entry.id, title: entry.title, content: entry.content,
       musicLabel: [entry.albumName, entry.songName, entry.artistName].filter(Boolean).join(" / "),
-      ratingText: entry.rating === null ? "" : journalRating(entry), dateText: journalDate(entry), coverDataUrl, includeImage: Boolean(coverDataUrl) });
+      ratingText: entry.rating === null ? "" : journalRating(entry), dateText: journalDate(entry),
+      metaFields: publicationMetaFields(entry), coverDataUrl, includeImage: Boolean(coverDataUrl) });
   }
   return { sections, warnings };
 }
@@ -44,7 +75,9 @@ export async function publicationRankSections(year: number, rank: YearTopAlbums)
       if (cover) coverDataUrl = await publicationPng(cover);
     } catch (error) { warnings.push(`${album.albumName}：${message(error)}，入选理由仍保留。`); }
     sections.push({ id: `rank:${year}:${index + 1}:${JSON.stringify([album.albumName, album.artistName])}`, title: `第 ${index + 1} 名 · ${album.albumName}`, content: album.note,
-      musicLabel: album.artistName || "", ratingText: "", dateText: "", coverDataUrl, includeImage: Boolean(coverDataUrl) });
+      musicLabel: album.artistName || "", ratingText: "", dateText: "",
+      metaFields: album.artistName ? [{ label: "艺术家", value: album.artistName, kind: "music" as const }] : [],
+      coverDataUrl, includeImage: Boolean(coverDataUrl) });
   }
   return { sections, warnings };
 }
@@ -106,21 +139,29 @@ export async function publicationCover(draft: PublicationDraft): Promise<Blob> {
   if (image) { const side = 320; const scale = Math.max(side / image.naturalWidth, side / image.naturalHeight); ctx.save(); ctx.beginPath(); ctx.rect(824, 104, side, side); ctx.clip(); ctx.drawImage(image, 824 + (side - image.naturalWidth * scale) / 2, 104 + (side - image.naturalHeight * scale) / 2, image.naturalWidth * scale, image.naturalHeight * scale); ctx.restore(); }
   return new Promise((resolve, reject) => canvas.toBlob(blob => { canvas.width = 0; blob ? resolve(blob) : reject(new Error("横版封面生成失败")); }, "image/png"));
 }
+// ponytail: text/* crosses the bridge as UTF-8; Android rejects base64 for any other binary MIME.
+// Previously only text/html took this path, so every new text format was silently mis-encoded.
+async function publicationPayload(blob: Blob, mimeType: string) {
+  return mimeType.startsWith("text/")
+    ? { content: await publicationBlobText(blob) }
+    : { content: await blobToBase64(blob), encoding: "base64" as const };
+}
+
 export async function savePublicationBlob(blob: Blob, fileName: string, mimeType: string): Promise<"saved" | "cancelled" | "downloaded"> {
   if (!blob.size || blob.size > PUBLICATION_MAX_BYTES) throw new Error("导出内容超过8MiB，请减少配图或分篇出稿；当前文字仍保留");
   if (!Capacitor.isNativePlatform()) { downloadBlob(blob, fileName); return "downloaded"; }
-  const result = await saveFile({ fileName, mimeType, content: mimeType === "text/html" ? await publicationBlobText(blob) : await blobToBase64(blob), ...(mimeType === "text/html" ? {} : { encoding: "base64" as const }) });
+  const result = await saveFile({ fileName, mimeType, ...(await publicationPayload(blob, mimeType)) });
   return result.status;
 }
-export async function sharePublicationBlob(blob: Blob, fileName: string): Promise<"opened" | "cancelled"> {
+export async function sharePublicationBlob(blob: Blob, fileName: string, mimeType = "application/zip"): Promise<"opened" | "cancelled"> {
   if (!blob.size || blob.size > PUBLICATION_MAX_BYTES) throw new Error("素材包超过8MiB，请减少配图后重试");
   if (Capacitor.isNativePlatform()) {
-    const result = await NativeExport.shareFile({ fileName, mimeType: "application/zip", encoding: "base64", content: await blobToBase64(blob) });
+    const result = await NativeExport.shareFile({ fileName, mimeType, ...(await publicationPayload(blob, mimeType)) });
     if (result?.status !== "opened") throw new Error("系统未确认打开分享菜单");
     return "opened";
   }
-  const file = new File([blob], fileName, { type: "application/zip" });
-  if (typeof navigator.share !== "function" || navigator.canShare?.({ files: [file] }) === false) throw new Error("当前浏览器不支持分享素材包，可先下载再发送");
-  try { await navigator.share({ files: [file], title: "公众号稿与配图" }); return "opened"; }
+  const file = new File([blob], fileName, { type: mimeType });
+  if (typeof navigator.share !== "function" || navigator.canShare?.({ files: [file] }) === false) throw new Error("当前浏览器不支持分享稿件，可先下载再发送");
+  try { await navigator.share({ files: [file], title: "公众号稿" }); return "opened"; }
   catch (error) { if (error instanceof DOMException && error.name === "AbortError") return "cancelled"; throw error; }
 }

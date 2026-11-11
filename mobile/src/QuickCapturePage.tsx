@@ -3,6 +3,7 @@ import { Capacitor } from "@capacitor/core";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { MOOD_CATEGORIES, MOOD_TAGS } from "../../shared/moods";
 import { toAlbumFirstRecognition } from "./albumFirst";
+import { WheelDateField } from "./abu_WheelDateField";
 import { countNewDrafts, createNewDraftId, MAX_NEW_DRAFTS, readEntryDraft, removeEntryDraft, writeEntryDraft, type EntryDraft, type EntryDraftCaptureMode } from "./entryDraft";
 import { findEntryIdentityMatches, sameMusicIdentity, type MusicIdentity } from "./musicIdentity";
 import { mergeMusicMetadata } from "./musicMetadata";
@@ -503,7 +504,7 @@ export default function QuickCapturePage() {
 
       <form className="quick-capture-form" onSubmit={submit}>
         <label>一句话感受<textarea rows={5} value={content} onChange={(event) => edit(setContent, event.target.value)} placeholder="这一次，哪里最打动你？" required /></label>
-        <label>收听日期<input type="date" value={listenedOn} onChange={(event) => edit(setListenedOn, event.target.value)} required /></label>
+        <WheelDateField name="listenedOn" label="收听日期" value={listenedOn} onChange={(next) => edit(setListenedOn, next)} required />
         {message ? <p className="hint" role="status">{message}</p> : null}
         {error ? <p className="error">{error}</p> : null}
         <button className="primary-button full" type="submit" disabled={busy}>{busy ? "保存中" : `保存${entryType === "album" ? "专辑" : "歌曲"}听感`}</button>

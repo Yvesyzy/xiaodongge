@@ -22,7 +22,7 @@ try {
       content: '温暖的人声让我平静。鼓点明亮，旋律像回忆里的海。', tags: [], moods: ['平静'],
       rating: 8, ratingModifier: null, ratingProduction: null, ratingSongwriting: null,
       ratingOriginality: null, ratingResonance: null, compositeRatingLocked: false,
-      firstListenedAt: '2020-01-01T00:00:00.000Z', listenedAt: '2026-08-10T00:00:00.000Z',
+      firstListenedAt: i < 3 ? '2026-05-10T04:00:00.000Z' : '2026-08-10T04:00:00.000Z', listenedAt: '2026-08-10T00:00:00.000Z',
       createdAt: i < 3 ? '2026-05-10T04:00:00.000Z' : '2026-08-10T04:00:00.000Z', updatedAt: '2026-09-05T04:00:00.000Z',
     }));
     localStorage.setItem('music-feelings-mobile-entries', JSON.stringify(entries));

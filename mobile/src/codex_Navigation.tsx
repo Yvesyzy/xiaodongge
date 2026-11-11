@@ -36,6 +36,10 @@ function routeIdentity(pathname: string, search: string) {
 function parentRoute(pathname: string, search: string) {
   if (pathname.startsWith("/albums/")) return "/albums";
   if (pathname.startsWith("/songs/")) return "/songs";
+  if (pathname === "/annual-report") {
+    const query = new URLSearchParams(search);
+    return `/summary?year=${query.get("year") ?? new Date().getFullYear()}`;
+  }
   if (pathname === "/summary") {
     const query = new URLSearchParams(search);
     query.set("view", ["work", "quotes"].includes(query.get("view") ?? "") ? "overview" : "cover");

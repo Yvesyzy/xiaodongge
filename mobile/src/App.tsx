@@ -9,7 +9,9 @@ import { toAlbumFirstRecognition } from "./albumFirst";
 import { BACKUP_HEALTH_KEY, inspectBackup, parseBackupHealth, type BackupHealth, type BackupPreview } from "./backupHealth";
 import { assertStorageWritable, getRestoreState, storageGeneration } from "./codex_restoreState";
 import { findSimilarEntry } from "./entryDuplicate";
-import { excerpt, formatDate, formatDateOnly, monthLabel } from "./format";
+import { WheelDateField } from "./abu_WheelDateField";
+import { ARCHIVE_BASES, DATE_BASIS_LABELS, entryDate, isArchiveBasis, isNewRelease, type ArchiveBasis } from "./dateBasis";
+import { excerpt, formatDate, formatDateOnly, localDateOf, monthLabel } from "./format";
 import type { Insight } from "./insights";
 import { journalRating } from "./codex_yearbookModel";
 import { mergeMusicMetadata } from "./musicMetadata";
@@ -76,6 +78,7 @@ const DailyListeningNote = lazy(() => import("./ListeningYearbookView").then(mod
 const MonthlyListeningPage = lazy(() => import("./ListeningYearbookView").then(module => ({ default: module.MonthlyListeningPage })));
 const YearlyListeningPage = lazy(() => import("./ListeningYearbookView").then(module => ({ default: module.YearlyListeningPage })));
 const SimpleYearbookPage = lazy(() => import("./codex_YearbookPage"));
+const AnnualReportPage = lazy(() => import("./codex_AnnualReportPage"));
 const ReviewShare = lazy(() => import("./codex_ReviewShare"));
 const AlbumTimelinePage = lazy(() => import("./codex_AlbumTimeline"));
 const DiagnosticsPage = lazy(() => import("./codex_DiagnosticsPage"));
@@ -153,6 +156,7 @@ export default function App() {
           <Route path="/search" element={<SearchPage />} />
           <Route path="/compatibility" element={<CompatibilityPage />} />
           <Route path="/summary" element={<SimpleYearbookPage />} />
+          <Route path="/annual-report" element={<AnnualReportPage />} />
           <Route path="/summary/analysis" element={<YearlyListeningPage />} />
           <Route path="/summary/:year/:month" element={<MonthlyListeningPage />} />
           <Route path="/abstract-map" element={<AbstractMusicMapPage />} />
@@ -394,32 +398,68 @@ function shortDate(value: string) {
 }
 
 function TimelinePage() {
+  const [params, setParams] = useSearchParams();
+  const requested = params.get("basis");
+  const basis: ArchiveBasis = isArchiveBasis(requested) ? requested : "recordedAt";
   const [entries, setEntries] = useState<ReviewEntry[]>([]);
-  useEffect(() => void store.listEntries().then(setEntries), []);
+  const [moments, setMoments] = useState<ListeningMoment[]>([]);
+  useEffect(() => {
+    void Promise.all([store.listEntries(), store.listListeningMoments()]).then(([all, allMoments]) => { setEntries(all); setMoments(allMoments); });
+  }, []);
+  const dateOf = (entry: ReviewEntry) => {
+    const date = entryDate(entry, basis)?.replaceAll("-", ".") ?? "日期未填写";
+    if (basis !== "recordedAt") return date;
+    // 乐评记录时间包含首次正式保存与后续每一次追加收听。
+    const extra = moments.filter((moment) => moment.entryId === entry.id)
+      .map((moment) => localDateOf(moment.listenedAt)).filter((value): value is string => !!value).sort();
+    return extra.length ? `${date} · 追加 ${extra.length} 次，最近 ${extra[extra.length - 1].replaceAll("-", ".")}` : date;
+  };
   const groups = useMemo(() => {
-    const yearMap = new Map<number, Map<number | null, ReviewEntry[]>>();
+    const yearMap = new Map<number, Map<number, ReviewEntry[]>>();
+    const undated: ReviewEntry[] = [];
     for (const entry of entries) {
-      if (!yearMap.has(entry.year)) yearMap.set(entry.year, new Map());
-      const monthMap = yearMap.get(entry.year) as Map<number | null, ReviewEntry[]>;
-      monthMap.set(entry.month, [...(monthMap.get(entry.month) ?? []), entry]);
+      const date = entryDate(entry, basis);
+      if (!date) { undated.push(entry); continue; }
+      const year = Number(date.slice(0, 4));
+      const month = Number(date.slice(5, 7));
+      if (!yearMap.has(year)) yearMap.set(year, new Map());
+      const monthMap = yearMap.get(year) as Map<number, ReviewEntry[]>;
+      monthMap.set(month, [...(monthMap.get(month) ?? []), entry]);
     }
-    return Array.from(yearMap.entries());
-  }, [entries]);
-
+    for (const monthMap of yearMap.values()) {
+      for (const items of monthMap.values()) items.sort((a, b) => (entryDate(b, basis) ?? "").localeCompare(entryDate(a, basis) ?? ""));
+    }
+    const sorted = [...yearMap.entries()].sort((a, b) => b[0] - a[0])
+      .map(([year, monthMap]) => [year, [...monthMap.entries()].sort((a, b) => b[0] - a[0])] as const);
+    return { sorted, undated };
+  }, [entries, basis]);
+  const both = ARCHIVE_BASES.map((value) => ({ value, count: entries.filter((entry) => entryDate(entry, value) !== null).length }));
   return (
-    <Page title="时间轴" text="按年份和月份回看所有记录。">
-      {!groups.length ? <Empty text="暂无记录。" /> : null}
-      {groups.map(([year, monthMap]) => (
+    <Page title="时间轴" text="按发行时间或乐评记录时间回看所有记录，两种口径同时统计。">
+      <div className="basis-switch theme-choice" role="group" aria-label="归档口径">
+        {ARCHIVE_BASES.map((value) => (
+          <button key={value} type="button" aria-pressed={basis === value} onClick={() => { const next = new URLSearchParams(params); next.set("basis", value); setParams(next, { replace: true }); }}>
+            {value === "releaseDate" ? "按发行时间" : "按记录时间"}
+          </button>
+        ))}
+      </div>
+      <div className="stats-grid archive-basis-stats">
+        {both.map((item) => <div className={`stat-card${basis === item.value ? " active" : ""}`} key={item.value}><span>{DATE_BASIS_LABELS[item.value]}</span><strong>{item.count} 篇</strong></div>)}
+      </div>
+      <p className="hint">当前按{DATE_BASIS_LABELS[basis]}归档，日期精确到年月日；另一种口径同步统计，点上方按钮即可切换。缺少该日期的记录放在最后。</p>
+      {!groups.sorted.length && !groups.undated.length ? <Empty text="暂无记录。" /> : null}
+      {groups.sorted.map(([year, monthGroups]) => (
         <section key={year} className="year-block">
           <h2>{year}</h2>
-          {Array.from(monthMap.entries()).map(([month, items]) => (
-            <div key={`${year}-${month ?? "year"}`}>
+          {monthGroups.map(([month, items]) => (
+            <div key={`${year}-${month}`}>
               <h3>{monthLabel(month)}</h3>
-              <EntryList entries={items} showCovers />
+              <EntryList entries={items} showCovers dateOf={dateOf} />
             </div>
           ))}
         </section>
       ))}
+      {groups.undated.length ? <section className="year-block"><h2>未填写{DATE_BASIS_LABELS[basis]}</h2><EntryList entries={groups.undated} dateOf={() => null} /></section> : null}
     </Page>
   );
 }
@@ -1050,6 +1090,7 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
         ratingOriginality: multiDimension ? ratingOriginality : null,
         ratingResonance: multiDimension ? ratingResonance : null,
         compositeRatingLocked: multiDimension && meanRating === null && compositeLockedRef.current,
+        releaseDate: readPlainDate(form, "releaseDate"),
         firstListenedAt: readDate(form, "firstListenedAt"),
         listenedAt: readDate(form, "listenedAt"),
       };
@@ -1180,17 +1221,34 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
         </section>
 
 
-        <div className="form-grid">
-          <label>归档年份<input name="year" type="number" min="1" max="9999" defaultValue={source?.year ?? new Date().getFullYear()} required /></label>
-          <label>归档月份<input name="month" type="number" min="1" max="12" defaultValue={source?.month ?? ""} /></label>
-        </div>
-        <p className="hint">月报、年报按乐评首次正式保存的时间统计；归档年月和收听日期用于整理作品。</p>
+        <section className="date-triad">
+          <div className="date-triad-head">
+            <strong>三个日期</strong>
+            <small>发行日期与乐评记录时间用于归档整理；发行日期与首次收听时间用于月报年报。按发行日期还能自动识别今年新专辑。</small>
+          </div>
+          <div className="form-grid">
+            <WheelDateField name="releaseDate" label="专辑/歌曲发行日期" defaultValue={source?.releaseDate ?? source?.musicMetadata?.releaseDate?.slice(0, 10) ?? ""} allowClear />
+            <WheelDateField name="firstListenedAt" label="首次收听时间" defaultValue={source?.firstListenedAt ? new Date(source.firstListenedAt).toLocaleDateString("en-CA") : ""} allowClear />
+          </div>
+          <div className="recording-date-card">
+            <span>乐评记录时间</span>
+            <strong>{source ? formatDateOnly(source.createdAt) : "保存正式乐评时自动生成"}</strong>
+            <small>首次正式保存，以及之后每一次「再次听见」追加的收听记录；修改乐评不会改变首次记录日。</small>
+            {source ? <Link to={`/entries/${source.id}`}>查看这条乐评的全部收听记录 →</Link> : null}
+          </div>
+          <p className="hint">三种时间都精确到年月日。时间轴与月报年报页各有口径切换按钮，可随时换一种时间整理作品。</p>
+        </section>
+        <input type="hidden" name="year" defaultValue={source?.year ?? new Date().getFullYear()} />
+        <input type="hidden" name="month" defaultValue={source?.month ?? new Date().getMonth() + 1} />
         <label>专辑<input name="albumName" defaultValue={source?.albumName ?? ""} /></label>
         <label>歌曲<input name="songName" defaultValue={source?.songName ?? ""} /></label>
 
         {musicMetadata ? <MusicMetadataDetails metadata={musicMetadata} title="更多音乐信息" /> : null}
 
-        <label>收听日期<input name="listenedAt" type="date" defaultValue={source?.listenedAt ? new Date(source.listenedAt).toLocaleDateString("en-CA") : ""} /></label>
+        <details className="date-extras">
+          <summary>更多日期设置</summary>
+          <WheelDateField name="listenedAt" label="本次收听日期（用于重听对比）" defaultValue={source?.listenedAt ? new Date(source.listenedAt).toLocaleDateString("en-CA") : ""} allowClear />
+        </details>
         <GenrePicker
           selectedTags={selectedGenreTags}
           onToggleTag={toggleGenre}
@@ -1239,8 +1297,6 @@ function EntryFormPage({ mode }: { mode: "create" | "edit" }) {
             <RatingSlider value={ratingResonance} modifier={null} onChange={setRatingResonance} name="ratingResonance" showModifier={false} label="共鸣" />
           </div>
         ) : null}
-        <label>首次收听时间<input name="firstListenedAt" type="date" defaultValue={source?.firstListenedAt ? new Date(source.firstListenedAt).toLocaleDateString("en-CA") : ""} /></label>
-
         </details>
         <div className={`draft-status${draftError ? " error-state" : ""}`}>
           <span role="status" aria-live="polite">{draftStatus}</span>
@@ -1624,9 +1680,11 @@ function EntryDetailPage() {
             <Meta label="共鸣" value={entry.ratingResonance !== null ? `${entry.ratingResonance}/10` : null} />
           </>
         ) : null}
-        <Meta label="首次收听" value={formatDateOnly(entry.firstListenedAt)} />
-        <Meta label="收听日期" value={formatDateOnly(entry.listenedAt)} />
-        <Meta label="首次正式保存" value={formatDate(entry.createdAt)} />
+        <Meta label="专辑/歌曲发行日期" value={entry.releaseDate ?? entry.musicMetadata?.releaseDate ?? null} />
+        {entry.releaseDate || entry.musicMetadata?.releaseDate ? <Meta label="专辑年代" value={isNewRelease(entry, new Date().getFullYear()) ? `${new Date().getFullYear()} 年新专辑` : "往年专辑"} /> : null}
+        <Meta label="首次收听时间" value={formatDateOnly(entry.firstListenedAt)} />
+        <Meta label="乐评记录时间" value={formatDate(entry.createdAt)} />
+        <Meta label="本次收听日期" value={formatDateOnly(entry.listenedAt)} />
         <Meta label="更新时间" value={formatDate(entry.updatedAt)} />
       </div>
       {entry.musicMetadata ? <MusicMetadataDetails metadata={entry.musicMetadata} title="完整音乐元数据" open /> : null}
@@ -1668,7 +1726,7 @@ function EntryDetailPage() {
 
         {showMomentForm ? (
           <form className="moment-form" ref={momentFormRef} onChange={() => setMomentDirty(true)} onSubmit={addMoment}>
-            <label>收听日期<input name="momentListenedAt" type="date" defaultValue={new Date().toLocaleDateString("en-CA")} /></label>
+            <WheelDateField name="momentListenedAt" label="收听日期" defaultValue={new Date().toLocaleDateString("en-CA")} allowClear />
             <div className="moment-form-row">
               <label>评分<input name="momentRating" type="number" min="0.5" max="10" step="0.5" placeholder="0.5-10" /></label>
               <label>修饰符<select name="momentRatingModifier" defaultValue=""><option value="">无</option><option value="+">+</option><option value="-">-</option></select></label>
@@ -2594,7 +2652,8 @@ function MorePage() {
   const items = [
     ["/publication", "公众号出稿", "选择原文，预览编辑，复制排版或导出稿件与配图。"],
     ["/social", "好友圈", "邀请听友，分享乐评动态与彼此的近况。"],
-    ["/timeline", "时间轴", "按时间查看所有听感记录。"],
+    ["/timeline", "时间轴", "按发行时间或乐评记录时间归档，两种口径可切换。"],
+    ["/annual-report", "年度报告", "只看今年发行的新专辑，含年度前十五专辑；与年度总结分开。"],
     ["/abstract-map", "抽象地图", "按情绪把记录放进听歌大陆。"],
     ["/insights", "情绪洞察", "按天气和季节看你的听歌偏好。"],
     ["/albums", "专辑", "按专辑名称聚合记录。"],
@@ -3031,9 +3090,9 @@ function SectionTitle({ title }: { title: string }) {
   return <h2 className="section-title">{title}</h2>;
 }
 
-function EntryList({ entries, emptyText = "暂无记录。", showCovers = false }: { entries: ReviewEntry[]; emptyText?: string; showCovers?: boolean }) {
+function EntryList({ entries, emptyText = "暂无记录。", showCovers = false, dateOf }: { entries: ReviewEntry[]; emptyText?: string; showCovers?: boolean; dateOf?: (entry: ReviewEntry) => string | null }) {
   if (!entries.length) return <Empty text={emptyText} />;
-  return <div className="card-list">{entries.map((entry) => <div key={entry.id} className={`codex-entry-list-item${showCovers && (entry.type === "album" || entry.type === "song") ? " codex-timeline-card" : ""}`}>{showCovers && (entry.type === "album" || entry.type === "song") && <TimelineCover entry={entry} />}<Link to={`/entries/${entry.id}`} className="entry-card"><span>{ENTRY_TYPE_LABELS[entry.type]} / {entry.year} / {monthLabel(entry.month)}</span><h2>{entry.title}</h2><p>{[entry.songName, entry.albumName, entry.artistName].filter(Boolean).join(" / ") || "未关联音乐信息"}</p><p>{excerpt(entry.content)}</p></Link><EntryShareMenu entry={entry} /></div>)}</div>;
+  return <div className="card-list">{entries.map((entry) => <div key={entry.id} className={`codex-entry-list-item${showCovers && (entry.type === "album" || entry.type === "song") ? " codex-timeline-card" : ""}`}>{showCovers && (entry.type === "album" || entry.type === "song") && <TimelineCover entry={entry} />}<Link to={`/entries/${entry.id}`} className="entry-card"><span>{dateOf ? `${ENTRY_TYPE_LABELS[entry.type]} / ${dateOf(entry) ?? "日期未填写"}${isNewRelease(entry, new Date().getFullYear()) ? " · 今年新专辑" : ""}` : `${ENTRY_TYPE_LABELS[entry.type]} / ${entry.year} / ${monthLabel(entry.month)}`}</span><h2>{entry.title}</h2><p>{[entry.songName, entry.albumName, entry.artistName].filter(Boolean).join(" / ") || "未关联音乐信息"}</p><p>{excerpt(entry.content)}</p></Link><EntryShareMenu entry={entry} /></div>)}</div>;
 }
 
 function TimelineCover({ entry }: { entry: ReviewEntry }) {
@@ -3209,6 +3268,7 @@ function readDraftFields(form: HTMLFormElement): EntryDraftFields {
     artistName: value("artistName"),
     listenedAt: value("listenedAt"),
     firstListenedAt: value("firstListenedAt"),
+    releaseDate: value("releaseDate"),
     tags: value("tags"),
     rating: value("rating"),
     ratingModifier: value("ratingModifier"),
@@ -3313,8 +3373,14 @@ function readNumber(form: FormData, key: string) {
 
 function readDate(form: FormData, key: string) {
   const value = readText(form, key);
-  // ponytail: <input type="date"> 返回 YYYY-MM-DD，用本地时间构造避免 UTC 偏移
+  // ponytail: 滚轮选择与手填都返回 YYYY-MM-DD，用本地时间构造 ISO 避免 UTC 偏移
   return value ? new Date(value + "T00:00:00").toISOString() : null;
+}
+
+// 发行日期是纯本地年月日，不转 ISO，避免 UTC+8 落到前一天。
+function readPlainDate(form: FormData, key: string) {
+  const value = readText(form, key);
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : null;
 }
 
 async function fileToCoverDataUrl(file: File) {

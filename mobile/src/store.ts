@@ -9,6 +9,7 @@ import { formatEntriesCsv, formatEntriesTxt } from "./exportFormats";
 import { buildDayListeningSnapshot, buildMonthlyListeningSnapshot, buildYearlyListeningSnapshot, inRecordingPeriod, monthlySnapshotToMarkdown, parseMonthlyListeningSnapshot, parseYearlyListeningSnapshot, yearlySnapshotToMarkdown, type ListeningDaySnapshot, type MonthlyListeningSnapshot, type YearlyListeningSnapshot } from "./listeningYearbook";
 import { readMusicMetadata } from "./musicMetadata";
 import { groupMusicEntries } from "./musicIdentity";
+import { activeMonths, entryDate, inPeriod, type DateBasis } from "./dateBasis";
 import { BACKUP_HEALTH_KEY, readBackupAppData, readPreferredQuote, readSemanticOverride, readYearTopAlbums, SEMANTIC_OVERRIDES_KEY, TOP_ALBUMS_PREFIX, WEATHER_LOCATION_KEY } from "../../shared/backupAppData";
 import type { BackupPreview } from "./backupHealth";
 import { listRawEntryDrafts, readStoredEntryDraft, MAX_NEW_DRAFTS, type StoredEntryDraft } from "./entryDraft";
@@ -51,6 +52,7 @@ CREATE TABLE IF NOT EXISTS ReviewEntry (
   ratingOriginality REAL,
   ratingResonance REAL,
   compositeRatingLocked INTEGER NOT NULL DEFAULT 0,
+  releaseDate TEXT,
   firstListenedAt TEXT,
   listenedAt TEXT,
   createdAt TEXT NOT NULL,
@@ -167,6 +169,9 @@ class Store {
     if (!(columns.values ?? []).some((column) => column.name === "firstListenedAt")) {
       await this.db.run("ALTER TABLE ReviewEntry ADD COLUMN firstListenedAt TEXT");
     }
+    if (!(columns.values ?? []).some((column) => column.name === "releaseDate")) {
+      await this.db.run("ALTER TABLE ReviewEntry ADD COLUMN releaseDate TEXT");
+    }
     for (const dim of ["ratingProduction", "ratingSongwriting", "ratingLyrics", "ratingComposition", "ratingVocals", "ratingOriginality", "ratingResonance"] as const) {
       if (!(columns.values ?? []).some((column) => column.name === dim)) {
         await this.db.run(`ALTER TABLE ReviewEntry ADD COLUMN ${dim} REAL`);
@@ -211,7 +216,7 @@ class Store {
       return entry;
     }
     await this.dbReady().run(
-      `INSERT INTO ReviewEntry (id, type, title, year, month, albumName, songName, artistName, musicMetadata, content, tags, moods, rating, ratingModifier, ratingProduction, ratingSongwriting, ratingLyrics, ratingComposition, ratingVocals, ratingOriginality, ratingResonance, compositeRatingLocked, firstListenedAt, listenedAt, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO ReviewEntry (id, type, title, year, month, albumName, songName, artistName, musicMetadata, content, tags, moods, rating, ratingModifier, ratingProduction, ratingSongwriting, ratingLyrics, ratingComposition, ratingVocals, ratingOriginality, ratingResonance, compositeRatingLocked, releaseDate, firstListenedAt, listenedAt, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       entryValues(entry),
     );
     await this.markGeneratedSummariesStale([entry]);
@@ -230,8 +235,8 @@ class Store {
       return entry;
     }
     await this.dbReady().run(
-      `UPDATE ReviewEntry SET type=?, title=?, year=?, month=?, albumName=?, songName=?, artistName=?, musicMetadata=?, content=?, tags=?, moods=?, rating=?, ratingModifier=?, ratingProduction=?, ratingSongwriting=?, ratingLyrics=?, ratingComposition=?, ratingVocals=?, ratingOriginality=?, ratingResonance=?, compositeRatingLocked=?, firstListenedAt=?, listenedAt=?, updatedAt=? WHERE id=?`,
-      [entry.type, entry.title, entry.year, entry.month, entry.albumName, entry.songName, entry.artistName, encodeMusicMetadata(entry.musicMetadata), entry.content, JSON.stringify(entry.tags), JSON.stringify(entry.moods), entry.rating, entry.ratingModifier, entry.ratingProduction, entry.ratingSongwriting, entry.ratingLyrics ?? null, entry.ratingComposition ?? null, entry.ratingVocals ?? null, entry.ratingOriginality, entry.ratingResonance, entry.compositeRatingLocked ? 1 : 0, entry.firstListenedAt, entry.listenedAt, entry.updatedAt, id],
+      `UPDATE ReviewEntry SET type=?, title=?, year=?, month=?, albumName=?, songName=?, artistName=?, musicMetadata=?, content=?, tags=?, moods=?, rating=?, ratingModifier=?, ratingProduction=?, ratingSongwriting=?, ratingLyrics=?, ratingComposition=?, ratingVocals=?, ratingOriginality=?, ratingResonance=?, compositeRatingLocked=?, releaseDate=?, firstListenedAt=?, listenedAt=?, updatedAt=? WHERE id=?`,
+      [entry.type, entry.title, entry.year, entry.month, entry.albumName, entry.songName, entry.artistName, encodeMusicMetadata(entry.musicMetadata), entry.content, JSON.stringify(entry.tags), JSON.stringify(entry.moods), entry.rating, entry.ratingModifier, entry.ratingProduction, entry.ratingSongwriting, entry.ratingLyrics ?? null, entry.ratingComposition ?? null, entry.ratingVocals ?? null, entry.ratingOriginality, entry.ratingResonance, entry.compositeRatingLocked ? 1 : 0, entry.releaseDate ?? null, entry.firstListenedAt, entry.listenedAt, entry.updatedAt, id],
     );
     await this.markGeneratedSummariesStale([old, entry]);
     return entry;
@@ -255,8 +260,19 @@ class Store {
   }
 
   private async markGeneratedSummariesStale(entries: ReviewEntry[]) {
-    const years = unique(entries.map((entry) => new Date(entry.createdAt).getFullYear()));
-    const months = unique(entries.map((entry) => `${new Date(entry.createdAt).getFullYear()}-${new Date(entry.createdAt).getMonth() + 1}`));
+    // 一次编辑可能同时改变三种口径的归属期，取并集避免漏标失效。
+    const periods = new Set<string>();
+    for (const entry of entries) {
+      for (const basis of ["createdAt", "firstListenedAt", "releaseDate"] as const) {
+        const date = entryDate(entry, basis);
+        if (date) {
+          periods.add(String(Number(date.slice(0, 4))));
+          periods.add(`${Number(date.slice(0, 4))}-${Number(date.slice(5, 7))}`);
+        }
+      }
+    }
+    const years = [...periods].filter((item) => /^\d+$/.test(item)).map(Number);
+    const months = [...periods].filter((item) => /^\d+-\d+$/.test(item));
     if (!years.length && !months.length) return;
     await this.init();
     if (!Capacitor.isNativePlatform()) {
@@ -401,9 +417,12 @@ class Store {
     dispatchCoverChanged();
   }
 
-  async getYearStats(year: number, source?: ReviewEntry[]) {
-    const entries = (source ?? await this.listEntries()).filter((entry) => inRecordingPeriod(entry, year));
-    return calculateYearStats(year, entries.map((entry) => ({ ...entry, month: new Date(entry.createdAt).getMonth() + 1 })));
+  async getYearStats(year: number, source?: ReviewEntry[], basis: DateBasis = "createdAt") {
+    const entries = (source ?? await this.listEntries()).filter((entry) => inPeriod(entry, basis, year));
+    return calculateYearStats(year, entries.map((entry) => {
+      const date = entryDate(entry, basis);
+      return { ...entry, month: date ? Number(date.slice(5, 7)) : null };
+    }));
   }
 
   async getSummary(year: number) {
@@ -429,12 +448,12 @@ class Store {
     return (result.values ?? []).map(rowToMonthlySummary);
   }
 
-  async generateMonthlySummary(year: number, month: number) {
-    const entries = (await this.listEntries()).filter((entry) => inRecordingPeriod(entry, year, month));
+  async generateMonthlySummary(year: number, month: number, basis: DateBasis = "createdAt") {
+    const entries = (await this.listEntries()).filter((entry) => inPeriod(entry, basis, year, month));
     const sourceEntries = entries.filter(isAutomaticEntry);
     if (!sourceEntries.length) throw new Error("该月份没有歌曲或专辑乐评，无法生成月度总结");
     const weather = await this.cachedWeatherForEntries(sourceEntries);
-    const snapshot = buildMonthlyListeningSnapshot(year, month, entries, weather, await this.getSemanticOverrides());
+    const snapshot = buildMonthlyListeningSnapshot(year, month, entries, weather, await this.getSemanticOverrides(), basis);
     parseMonthlyListeningSnapshot(JSON.stringify(snapshot));
     const existing = await this.getMonthlySummary(year, month);
     const now = new Date().toISOString();
@@ -466,20 +485,21 @@ class Store {
     return summary;
   }
 
-  async generateSummary(year: number) {
-    const entries = (await this.listEntries()).filter((entry) => inRecordingPeriod(entry, year)).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  async generateSummary(year: number, basis: DateBasis = "createdAt") {
+    const entries = (await this.listEntries()).filter((entry) => inPeriod(entry, basis, year))
+      .sort((a, b) => (entryDate(a, basis) ?? "").localeCompare(entryDate(b, basis) ?? "") || a.id.localeCompare(b.id));
     const sourceEntries = entries.filter(isAutomaticEntry);
     if (!sourceEntries.length) throw new Error("该年份没有歌曲或专辑乐评，无法生成年度总结");
-    const months = unique(sourceEntries.map((entry) => new Date(entry.createdAt).getMonth() + 1)).sort((a, b) => a - b);
+    const months = activeMonths(sourceEntries, basis, year);
     const monthSnapshots: MonthlyListeningSnapshot[] = [];
     for (const month of months) {
       try {
-        monthSnapshots.push(parseMonthlyListeningSnapshot((await this.generateMonthlySummary(year, month)).analysisJson));
+        monthSnapshots.push(parseMonthlyListeningSnapshot((await this.generateMonthlySummary(year, month, basis)).analysisJson));
       } catch (error) {
         throw new Error(`${month} 月生成失败，年度标本册未更新：${error instanceof Error ? error.message : "请重试"}`);
       }
     }
-    const snapshot = buildYearlyListeningSnapshot(year, monthSnapshots, [], await this.getSemanticOverrides());
+    const snapshot = buildYearlyListeningSnapshot(year, monthSnapshots, [], await this.getSemanticOverrides(), basis);
     parseYearlyListeningSnapshot(JSON.stringify(snapshot));
     const includedIds = new Set(snapshot.analysis.sourceEntryIds);
     if (includedIds.size !== sourceEntries.length || sourceEntries.some((entry) => !includedIds.has(entry.id))) {
@@ -1126,6 +1146,7 @@ function rowToEntry(row: Record<string, unknown>): ReviewEntry {
     ratingOriginality: row.ratingOriginality === null || row.ratingOriginality === undefined ? null : Number(row.ratingOriginality),
     ratingResonance: row.ratingResonance === null || row.ratingResonance === undefined ? null : Number(row.ratingResonance),
     compositeRatingLocked: Number(row.compositeRatingLocked) === 1,
+    releaseDate: nullableString(row.releaseDate),
     firstListenedAt: nullableString(row.firstListenedAt),
     listenedAt: nullableString(row.listenedAt),
     createdAt: String(row.createdAt),
@@ -1194,7 +1215,7 @@ function rowToListeningMoment(row: Record<string, unknown>): ListeningMoment {
 }
 
 function entryValues(entry: ReviewEntry) {
-  return [entry.id, entry.type, entry.title, entry.year, entry.month, entry.albumName, entry.songName, entry.artistName, encodeMusicMetadata(entry.musicMetadata), entry.content, JSON.stringify(entry.tags), JSON.stringify(entry.moods), entry.rating, entry.ratingModifier, entry.ratingProduction, entry.ratingSongwriting, entry.ratingLyrics ?? null, entry.ratingComposition ?? null, entry.ratingVocals ?? null, entry.ratingOriginality, entry.ratingResonance, entry.compositeRatingLocked ? 1 : 0, entry.firstListenedAt, entry.listenedAt, entry.createdAt, entry.updatedAt];
+  return [entry.id, entry.type, entry.title, entry.year, entry.month, entry.albumName, entry.songName, entry.artistName, encodeMusicMetadata(entry.musicMetadata), entry.content, JSON.stringify(entry.tags), JSON.stringify(entry.moods), entry.rating, entry.ratingModifier, entry.ratingProduction, entry.ratingSongwriting, entry.ratingLyrics ?? null, entry.ratingComposition ?? null, entry.ratingVocals ?? null, entry.ratingOriginality, entry.ratingResonance, entry.compositeRatingLocked ? 1 : 0, entry.releaseDate ?? null, entry.firstListenedAt, entry.listenedAt, entry.createdAt, entry.updatedAt];
 }
 
 function summaryValues(summary: YearlySummary) {
@@ -1229,6 +1250,7 @@ function validateEntry(entry: ReviewEntry) {
     if (value !== null && !isHalfStep(value)) throw new Error(`${label}评分必须是 0.5 的整数倍`);
   }
   if (entry.firstListenedAt !== null && !isValidDateString(entry.firstListenedAt)) throw new Error("首次收听时间必须是有效时间字符串");
+  if (entry.releaseDate !== null && entry.releaseDate !== undefined && !isValidReleaseDate(entry.releaseDate)) throw new Error("发行日期必须是 YYYY-MM-DD 日期");
   readMusicMetadata(entry.musicMetadata, "entry.musicMetadata");
 }
 
@@ -1474,6 +1496,7 @@ function readEntry(value: unknown, metadataRequired = false): ReviewEntry {
     ratingOriginality: readNullableNumber(value.ratingOriginality, "entries.ratingOriginality"),
     ratingResonance: readNullableNumber(value.ratingResonance, "entries.ratingResonance"),
     compositeRatingLocked: value.compositeRatingLocked === true,
+    releaseDate: readNullableReleaseDate(value.releaseDate, "entries.releaseDate"),
     firstListenedAt: readNullableDate(value.firstListenedAt, "entries.firstListenedAt"),
     listenedAt: readNullableDate(value.listenedAt, "entries.listenedAt"),
     createdAt: readDate(value.createdAt, "entries.createdAt"),
@@ -1603,6 +1626,18 @@ function readDate(value: unknown, key: string) {
 function readNullableDate(value: unknown, key: string) {
   if (value === null || value === undefined) return null;
   return readDate(value, key);
+}
+
+function readNullableReleaseDate(value: unknown, key: string) {
+  if (value === null || value === undefined) return null;
+  if (!isValidReleaseDate(value)) throw new Error(`${key} 必须是 YYYY-MM-DD 日期`);
+  return value;
+}
+
+function isValidReleaseDate(value: unknown): value is string {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const date = new Date(`${value}T00:00:00`);
+  return !Number.isNaN(date.getTime()) && localDateOf(date.toISOString()) === value;
 }
 
 function isValidDateString(value: unknown): value is string {

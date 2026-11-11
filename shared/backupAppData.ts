@@ -16,6 +16,8 @@ export function readJournalEdition(value: unknown): JournalEdition {
 }
 
 export const TOP_ALBUMS_PREFIX = "top-albums:";
+/** 年度报告（仅今年发行的新专辑）的独立榜单键，与年度总结的榜单分开保存。 */
+export const ANNUAL_REPORT_ALBUMS_PREFIX = "annual-report-albums:";
 export type YearTopAlbum = { albumName: string; artistName: string | null; note: string };
 export type YearTopAlbums = { albums: YearTopAlbum[] };
 
@@ -40,6 +42,7 @@ export function readBackupAppData(value: unknown) {
     else if (key.startsWith("listening-quote:")) readPreferredQuote(JSON.parse(raw));
     else if (/^journal-edition:[1-9]\d{0,3}$/.test(key)) readJournalEdition(JSON.parse(raw));
     else if (/^top-albums:[1-9]\d{0,3}$/.test(key)) readYearTopAlbums(JSON.parse(raw));
+    else if (/^annual-report-albums:[1-9]\d{0,3}$/.test(key)) readYearTopAlbums(JSON.parse(raw));
     else if (key === DAILY_RESURFACING_KEY) {
       if (!parseDailyResurfacingState(raw)) throw new Error("今日重逢状态格式无效");
     } else if (key === SEMANTIC_OVERRIDES_KEY) {

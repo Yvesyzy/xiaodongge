@@ -64,7 +64,8 @@ export function quickCaptureToEntryInput(input: QuickCaptureInput): EntryInput {
     ratingOriginality: null,
     ratingResonance: null,
     compositeRatingLocked: false,
-    firstListenedAt: null,
+    // 速记填写的收听日期就是这条乐评的首次收听时间，否则月报年报的新口径会漏掉速记。
+    firstListenedAt: listenedAt,
     listenedAt,
   };
 }

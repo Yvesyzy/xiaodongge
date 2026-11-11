@@ -7,7 +7,10 @@ import { qaOptions } from './codex_qa_options.mjs';
 
 const { origin, output: outputDirectory } = qaOptions({ output: 'release/codex_qa/native_export_ui' });
 const evidence = { version: 1, origin, checks: [], calls: [], backupHealthBefore: null, backupHealthAfter: null };
-const browser = await chromium.launch({ headless: true, channel: 'chrome' });
+// channel:'chrome' needs a launchable system Chrome; CI/isolated hosts can point at a cached Chromium instead.
+const browser = await chromium.launch(process.env.CODEX_QA_CHROME_PATH
+  ? { headless: true, executablePath: process.env.CODEX_QA_CHROME_PATH }
+  : { headless: true, channel: 'chrome' });
 let activePage = null;
 
 try {

@@ -20,8 +20,10 @@
 
 默认Git Credential Manager推送出现挂起，已确认并只停止本任务的Git进程树。随后对单次Git命令使用已有GitHub CLI凭据及HTTP/1.1完成普通推送，全局Git配置未改，没有使用Git Data API重建提交。相同方式推送v3.1.2标签。
 
-本机验收记录在`release/codex_privacy_signed_20261008/`的`codex_github_release.json`、`codex_github_draft_assets.json`及发布核验JSON。保留最终APK/SHA与必要记录；没有下载额外APK副本或新建测试profile。
+本机验收记录在`release/codex_privacy_signed_20261008/`的`codex_github_release.json`及`codex_github_publish_verification.json`。过期草稿及草稿资产快照已在2026-10-09清理，正式发布元数据与两个资产digest保留。保留最终APK/SHA与必要记录；没有下载额外APK副本或新建测试profile。
 
-此前旧版本清理与9456字节辅助脚本删除仍受自动审核阻断，本轮没有重试或绕过。本聊天已核实累计生成量下限468,090,754字节的自动清理触发状态继续有效；新增文件仅为必要发布说明和核验记录。
+截至本次发布，旧版本清理与9456字节辅助脚本删除仍受工具审核阻断，发布阶段没有重试或绕过。本聊天当时核实累计生成量下限468,090,754字节的自动清理触发状态继续有效；新增文件仅为必要发布说明和核验记录。
+
+2026-10-09后续清理已移除这些旧版目录和旧辅助脚本；实删726文件/237,228,029字节，保留3.1.2最终包和共享依赖。本轮剩余9,905字节临时脚本删除仍受策略阻断，详见[清理交接](codex_session_summary_2026-10-09_task_cleanup.md)。
 
 后续：手机验收增强功能及撤回；处理16KB原生库问题；正式商店上架前补实名政策、公网URL、版权和APP备案材料。

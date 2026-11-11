@@ -1,0 +1,1439 @@
+{
+  "files": 34300,
+  "bytes": 3732668212,
+  "errors": [],
+  "hash_files_read": 4813,
+  "hash_bytes_read": 728051434,
+  "duplicate_group_count": 683,
+  "empty_directory_count": 352,
+  "subtree_totals_over_100KB": {
+    "android/app": {
+      "files": 1495,
+      "bytes": 432858473
+    },
+    "release/codex_v320_release_20261010/checks": {
+      "files": 560,
+      "bytes": 134300881
+    },
+    "release/codex_cover_signed_20261010/checks": {
+      "files": 558,
+      "bytes": 133011172
+    },
+    "release/codex_zhuoyitong_signed_final_20261009/checks": {
+      "files": 556,
+      "bytes": 132996657
+    },
+    "release/codex_zhuoyitong_delivery_20261009/checks": {
+      "files": 556,
+      "bytes": 132958146
+    },
+    "release/codex_privacy_signed_20261008/(files)": {
+      "files": 26,
+      "bytes": 76632127
+    },
+    "release/codex_harmony_signed_final_20261009/(files)": {
+      "files": 20,
+      "bytes": 76275214
+    },
+    "release/codex_v320_release_20261010/(files)": {
+      "files": 26,
+      "bytes": 75957127
+    },
+    "release/codex_zhuoyitong_delivery_20261009/(files)": {
+      "files": 16,
+      "bytes": 75889365
+    },
+    "release/codex_cover_signed_20261010/(files)": {
+      "files": 10,
+      "bytes": 75856929
+    },
+    "release/codex_zhuoyitong_signed_final_20261009/(files)": {
+      "files": 9,
+      "bytes": 75852343
+    },
+    "codex_video/public": {
+      "files": 65,
+      "bytes": 39366883
+    },
+    "codex_video/output": {
+      "files": 4,
+      "bytes": 23443230
+    },
+    "mobile/src": {
+      "files": 68,
+      "bytes": 19945612
+    },
+    "release/codex_zhuoyitong_signed_20261009/checks": {
+      "files": 69,
+      "bytes": 16402033
+    },
+    "docs/designs": {
+      "files": 34,
+      "bytes": 15917532
+    },
+    "android/.gradle": {
+      "files": 13,
+      "bytes": 9949634
+    },
+    "codex_video/qa": {
+      "files": 65,
+      "bytes": 9600081
+    },
+    "release/codex_privacy_signed_20261008/checks": {
+      "files": 107,
+      "bytes": 9034732
+    },
+    "release/codex_signed_test_20261010_110016/checks": {
+      "files": 34,
+      "bytes": 8877481
+    },
+    "mobile/dist": {
+      "files": 18,
+      "bytes": 8659859
+    },
+    ".firecrawl/codex_store_comparison_20261008_xiaomi_honor_huawei": {
+      "files": 35,
+      "bytes": 5725503
+    },
+    "android/capacitor-cordova-android-plugins": {
+      "files": 1281,
+      "bytes": 4206905
+    },
+    "release/codex_cover_20261010/capture-verified": {
+      "files": 25,
+      "bytes": 4003600
+    },
+    "release/codex_cover_20261010/capture-final": {
+      "files": 25,
+      "bytes": 4003483
+    },
+    "release/codex_cover_20261010/capture-fixed": {
+      "files": 25,
+      "bytes": 4003402
+    },
+    "release/codex_cover_20261010/capture": {
+      "files": 24,
+      "bytes": 4000346
+    },
+    "release/codex_zhuoyitong_delivery_20261009/compatibility": {
+      "files": 24,
+      "bytes": 3983386
+    },
+    "release/codex_cover_20261010/privacy": {
+      "files": 24,
+      "bytes": 3972282
+    },
+    "release/codex_cover_20261010/capture-delivery": {
+      "files": 22,
+      "bytes": 3903273
+    },
+    "docs/shots": {
+      "files": 14,
+      "bytes": 3863483
+    },
+    "release/codex_zhuoyitong_after_20261009/vite-cache": {
+      "files": 21,
+      "bytes": 3857109
+    },
+    "release/codex_zhuoyitong_after_final_20261009/vite-cache": {
+      "files": 21,
+      "bytes": 3857109
+    },
+    "release/codex_zhuoyitong_before_20261009/vite-cache": {
+      "files": 21,
+      "bytes": 3857109
+    },
+    "release/codex_zhuoyitong_capture_retry_20261009/vite-cache": {
+      "files": 21,
+      "bytes": 3857109
+    },
+    "release/codex_zhuoyitong_final_checks_20261009/vite-cache": {
+      "files": 21,
+      "bytes": 3857109
+    },
+    "release/codex_zhuoyitong_harmony_regression_20261009/vite-cache": {
+      "files": 21,
+      "bytes": 3857109
+    },
+    "release/codex_zhuoyitong_privacy_20261009/vite-cache": {
+      "files": 21,
+      "bytes": 3857109
+    },
+    "release/codex_capture_vite_cache/deps": {
+      "files": 21,
+      "bytes": 3857019
+    },
+    ".firecrawl/(top-level files)": {
+      "files": 57,
+      "bytes": 1320486
+    },
+    ".firecrawl/codex_store_comparison_20261008_oppo_vivo_tencent": {
+      "files": 38,
+      "bytes": 874594
+    },
+    "docs/(top-level files)": {
+      "files": 20,
+      "bytes": 555119
+    },
+    "release/codex_windows_album_acceptance_20261007/(files)": {
+      "files": 10,
+      "bytes": 489729
+    },
+    "docs/session-summaries": {
+      "files": 67,
+      "bytes": 295800
+    },
+    "release/codex_privacy_android_build_final_20261008/(files)": {
+      "files": 12,
+      "bytes": 229847
+    },
+    "codex_video/(top-level files)": {
+      "files": 9,
+      "bytes": 174390
+    },
+    "docs/superpowers": {
+      "files": 19,
+      "bytes": 134686
+    },
+    "android/build": {
+      "files": 1,
+      "bytes": 133285
+    },
+    "release/codex_zhuoyitong_after_20261009/(files)": {
+      "files": 3,
+      "bytes": 126413
+    },
+    "release/codex_harmony_signed_final_20261009/compatibility": {
+      "files": 3,
+      "bytes": 126340
+    },
+    "release/codex_zhuoyitong_harmony_regression_20261009/(files)": {
+      "files": 3,
+      "bytes": 126225
+    },
+    "release/codex_zhuoyitong_after_final_20261009/(files)": {
+      "files": 3,
+      "bytes": 126194
+    },
+    "release/codex_zhuoyitong_final_checks_20261009/(files)": {
+      "files": 3,
+      "bytes": 126158
+    },
+    "release/codex_privacy_android_build_final_20261008/codex_browser_evidence": {
+      "files": 3,
+      "bytes": 115089
+    },
+    "release/codex_privacy_signed_20261008/privacy": {
+      "files": 3,
+      "bytes": 115089
+    },
+    "release/codex_zhuoyitong_privacy_20261009/(files)": {
+      "files": 3,
+      "bytes": 114993
+    }
+  },
+  "apk_files": [
+    {
+      "path": "android/app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk",
+      "bytes": 582987,
+      "tracked": false,
+      "sha256": "f3266f150a3553ff107c56a7b469fb577d2ebaaef7f2df5019f4a4f92785c644"
+    },
+    {
+      "path": "android/app/build/outputs/apk/release/app-release.apk",
+      "bytes": 75796464,
+      "tracked": false,
+      "sha256": "6ba2da51083118f72d4d7c0d11831aaf2c405ba84c4368eface556bd8d98195f"
+    },
+    {
+      "path": "release/codex_cover_signed_20261010/codex_xiaodongge-v3.1.5-35-test.apk",
+      "bytes": 75796476,
+      "tracked": false,
+      "sha256": "261a0106565dbd83c1d177667694f01fd4fb5de00eb7c11197ee25a28a650302"
+    },
+    {
+      "path": "release/codex_harmony_signed_final_20261009/codex_xiaodongge-v3.1.3-33-test.apk",
+      "bytes": 75789421,
+      "tracked": false,
+      "sha256": "009201a437e47cd92da580c369911bf896fba7c0818f61d40fa875394db99fc1"
+    },
+    {
+      "path": "release/codex_privacy_signed_20261008/codex_xiaodongge-v3.1.2-32-test.apk",
+      "bytes": 75783913,
+      "tracked": false,
+      "sha256": "d8a38af20902d204016737667792164fdeac71739635239f1b4dd739adc5af5d"
+    },
+    {
+      "path": "release/codex_v320_release_20261010/codex_xiaodongge-v3.2.0-36.apk",
+      "bytes": 75796464,
+      "tracked": false,
+      "sha256": "6ba2da51083118f72d4d7c0d11831aaf2c405ba84c4368eface556bd8d98195f"
+    },
+    {
+      "path": "release/codex_zhuoyitong_delivery_20261009/codex_xiaodongge-v3.1.4-34-test.apk",
+      "bytes": 75794788,
+      "tracked": false,
+      "sha256": "54e3a7671086d4314bd0ba1ed193c7a946cefec1a93697b586669f94a6a0919c"
+    },
+    {
+      "path": "release/codex_zhuoyitong_signed_final_20261009/codex_xiaodongge-v3.1.4-34-test.apk",
+      "bytes": 75794780,
+      "tracked": false,
+      "sha256": "0517cf080b88961a188eccca646f652699f9d1bf5a58958e9da03bb4e1ffb8ad"
+    }
+  ],
+  "largest_duplicates": [
+    {
+      "sha256": "3adc5a32bcd1babbf8adf5db0b191e8c41486355b384cfbd49d6e9e795fddfc9",
+      "bytes_each": 7783528,
+      "extra_copy_bytes": 85618808,
+      "paths": [
+        "android/app/build/intermediates/assets/debug/mergeDebugAssets/public/assets/codex_noto_sans_sc-CKpHA6Ef.woff2",
+        "android/app/build/intermediates/assets/release/mergeReleaseAssets/public/assets/codex_noto_sans_sc-CKpHA6Ef.woff2",
+        "android/app/src/main/assets/public/assets/codex_noto_sans_sc-CKpHA6Ef.woff2",
+        "codex_video/public/codex_light/codex_noto_sans_sc.woff2"
+      ],
+      "copies": 12
+    },
+    {
+      "sha256": "6ba2da51083118f72d4d7c0d11831aaf2c405ba84c4368eface556bd8d98195f",
+      "bytes_each": 75796464,
+      "extra_copy_bytes": 75796464,
+      "paths": [
+        "android/app/build/outputs/apk/release/app-release.apk",
+        "release/codex_v320_release_20261010/codex_xiaodongge-v3.2.0-36.apk"
+      ],
+      "copies": 2
+    },
+    {
+      "sha256": "3ddffb498b60f7f9512e341d4ee3abe4e1580c4fd65ef9b2c8ce9e490de467d8",
+      "bytes_each": 11626128,
+      "extra_copy_bytes": 34878384,
+      "paths": [
+        "android/app/build/intermediates/merged_native_libs/debug/mergeDebugNativeLibs/out/lib/x86_64/libmlkit_google_ocr_pipeline.so",
+        "android/app/build/intermediates/merged_native_libs/release/mergeReleaseNativeLibs/out/lib/x86_64/libmlkit_google_ocr_pipeline.so",
+        "android/app/build/intermediates/stripped_native_libs/debug/stripDebugDebugSymbols/out/lib/x86_64/libmlkit_google_ocr_pipeline.so",
+        "android/app/build/intermediates/stripped_native_libs/release/stripReleaseDebugSymbols/out/lib/x86_64/libmlkit_google_ocr_pipeline.so"
+      ],
+      "copies": 4
+    },
+    {
+      "sha256": "50b7ee3a7efe130ae236456f5d953bc91fa9c3fbb17a38d78e79148bf3e6c2d7",
+      "bytes_each": 11561048,
+      "extra_copy_bytes": 34683144,
+      "paths": [
+        "android/app/build/intermediates/merged_native_libs/debug/mergeDebugNativeLibs/out/lib/x86/libmlkit_google_ocr_pipeline.so",
+        "android/app/build/intermediates/merged_native_libs/release/mergeReleaseNativeLibs/out/lib/x86/libmlkit_google_ocr_pipeline.so",
+        "android/app/build/intermediates/stripped_native_libs/debug/stripDebugDebugSymbols/out/lib/x86/libmlkit_google_ocr_pipeline.so",
+        "android/app/build/intermediates/stripped_native_libs/release/stripReleaseDebugSymbols/out/lib/x86/libmlkit_google_ocr_pipeline.so"
+      ],
+      "copies": 4
+    },
+    {
+      "sha256": "fa41d509a661e8aa8b3e3ac1a28541f8823f308414fcad733fe26d61feea2646",
+      "bytes_each": 11064544,
+      "extra_copy_bytes": 33193632,
+      "paths": [
+        "android/app/build/intermediates/merged_native_libs/debug/mergeDebugNativeLibs/out/lib/arm64-v8a/libmlkit_google_ocr_pipeline.so",
+        "android/app/build/intermediates/merged_native_libs/release/mergeReleaseNativeLibs/out/lib/arm64-v8a/libmlkit_google_ocr_pipeline.so",
+        "android/app/build/intermediates/stripped_native_libs/debug/stripDebugDebugSymbols/out/lib/arm64-v8a/libmlkit_google_ocr_pipeline.so",
+        "android/app/build/intermediates/stripped_native_libs/release/stripReleaseDebugSymbols/out/lib/arm64-v8a/libmlkit_google_ocr_pipeline.so"
+      ],
+      "copies": 4
+    }
+  ],
+  "source_duplicates": [],
+  "links_not_followed": [
+    {
+      "path": "release/codex_zhuoyitong_signed_final_20261009/checks/legacy-web/app/node_modules",
+      "target": "\\\\?\\D:\\codex\\workspaces\\codex\\小懂哥\\node_modules"
+    },
+    {
+      "path": "release/codex_zhuoyitong_delivery_20261009/checks/legacy-web/app/node_modules",
+      "target": "\\\\?\\D:\\codex\\workspaces\\codex\\小懂哥\\node_modules"
+    },
+    {
+      "path": "release/codex_v320_release_20261010/checks/legacy-web/app/node_modules",
+      "target": "\\\\?\\D:\\codex\\workspaces\\codex\\小懂哥\\node_modules"
+    },
+    {
+      "path": "release/codex_cover_signed_20261010/checks/legacy-web/app/node_modules",
+      "target": "\\\\?\\D:\\codex\\workspaces\\codex\\小懂哥\\node_modules"
+    }
+  ],
+  "generated_prefixes": [
+    {
+      "path": "android/app/build",
+      "files": 1414,
+      "bytes": 423795141
+    },
+    {
+      "path": "android/build",
+      "files": 1,
+      "bytes": 133285
+    },
+    {
+      "path": "android/.gradle",
+      "files": 13,
+      "bytes": 9949634
+    },
+    {
+      "path": "android/capacitor-cordova-android-plugins/build",
+      "files": 1276,
+      "bytes": 4204714
+    },
+    {
+      "path": "android/app/src/main/assets/public",
+      "files": 20,
+      "bytes": 8659859
+    },
+    {
+      "path": "mobile/dist",
+      "files": 18,
+      "bytes": 8659859
+    },
+    {
+      "path": ".firecrawl",
+      "files": 130,
+      "bytes": 7920583
+    },
+    {
+      "path": "codex_video/qa",
+      "files": 65,
+      "bytes": 9600081
+    }
+  ],
+  "release_cache_totals": {
+    "directories": 51,
+    "files": 1951,
+    "bytes": 575937030
+  },
+  "release_cache_directories": [
+    {
+      "path": "release/codex_capture_vite_cache",
+      "files": 21,
+      "bytes": 3857019
+    },
+    {
+      "path": "release/codex_cover_20261010/capture-delivery/vite-cache",
+      "files": 21,
+      "bytes": 3857199
+    },
+    {
+      "path": "release/codex_cover_20261010/capture-final/vite-cache",
+      "files": 21,
+      "bytes": 3857199
+    },
+    {
+      "path": "release/codex_cover_20261010/capture-fixed/vite-cache",
+      "files": 21,
+      "bytes": 3857199
+    },
+    {
+      "path": "release/codex_cover_20261010/capture-verified/vite-cache",
+      "files": 21,
+      "bytes": 3857199
+    },
+    {
+      "path": "release/codex_cover_20261010/capture/vite-cache",
+      "files": 21,
+      "bytes": 3857199
+    },
+    {
+      "path": "release/codex_cover_20261010/privacy/vite-cache",
+      "files": 21,
+      "bytes": 3857199
+    },
+    {
+      "path": "release/codex_cover_signed_20261010/checks/guards/export-size/cache",
+      "files": 21,
+      "bytes": 3857379
+    },
+    {
+      "path": "release/codex_cover_signed_20261010/checks/guards/month-pagination/cache",
+      "files": 21,
+      "bytes": 3857379
+    },
+    {
+      "path": "release/codex_cover_signed_20261010/checks/guards/monthly-action/cache",
+      "files": 21,
+      "bytes": 3857379
+    },
+    {
+      "path": "release/codex_cover_signed_20261010/checks/legacy-web/app/.next",
+      "files": 262,
+      "bytes": 94926572
+    },
+    {
+      "path": "release/codex_cover_signed_20261010/checks/mobile-dist",
+      "files": 18,
+      "bytes": 8659859
+    },
+    {
+      "path": "release/codex_cover_signed_20261010/checks/vite-cache-app",
+      "files": 21,
+      "bytes": 3857199
+    },
+    {
+      "path": "release/codex_cover_signed_20261010/checks/vite-cache-prototype",
+      "files": 21,
+      "bytes": 3857199
+    },
+    {
+      "path": "release/codex_harmony_signed_final_20261009/checks/guards/export-size/cache",
+      "files": 2,
+      "bytes": 2005
+    },
+    {
+      "path": "release/codex_harmony_signed_final_20261009/checks/guards/month-pagination/cache",
+      "files": 2,
+      "bytes": 2005
+    },
+    {
+      "path": "release/codex_harmony_signed_final_20261009/checks/guards/monthly-action/cache",
+      "files": 2,
+      "bytes": 2005
+    },
+    {
+      "path": "release/codex_signed_test_20261010_110016/checks/mobile-dist",
+      "files": 18,
+      "bytes": 8659859
+    },
+    {
+      "path": "release/codex_signed_test_20261010_110016/checks/vite-cache-prototype",
+      "files": 10,
+      "bytes": 205546
+    },
+    {
+      "path": "release/codex_v320_release_20261010/checks/guards/export-size/cache",
+      "files": 21,
+      "bytes": 3857379
+    },
+    {
+      "path": "release/codex_v320_release_20261010/checks/guards/month-pagination/cache",
+      "files": 21,
+      "bytes": 3857379
+    },
+    {
+      "path": "release/codex_v320_release_20261010/checks/guards/monthly-action/cache",
+      "files": 21,
+      "bytes": 3857379
+    },
+    {
+      "path": "release/codex_v320_release_20261010/checks/legacy-web/app/.next",
+      "files": 264,
+      "bytes": 96180605
+    },
+    {
+      "path": "release/codex_v320_release_20261010/checks/mobile-dist",
+      "files": 18,
+      "bytes": 8659859
+    },
+    {
+      "path": "release/codex_v320_release_20261010/checks/vite-cache-app",
+      "files": 21,
+      "bytes": 3857199
+    },
+    {
+      "path": "release/codex_v320_release_20261010/checks/vite-cache-prototype",
+      "files": 21,
+      "bytes": 3857199
+    },
+    {
+      "path": "release/codex_zhuoyitong_after_20261009/vite-cache",
+      "files": 21,
+      "bytes": 3857109
+    },
+    {
+      "path": "release/codex_zhuoyitong_after_final_20261009/vite-cache",
+      "files": 21,
+      "bytes": 3857109
+    },
+    {
+      "path": "release/codex_zhuoyitong_before_20261009/vite-cache",
+      "files": 21,
+      "bytes": 3857109
+    },
+    {
+      "path": "release/codex_zhuoyitong_capture_retry_20261009/vite-cache",
+      "files": 21,
+      "bytes": 3857109
+    },
+    {
+      "path": "release/codex_zhuoyitong_delivery_20261009/checks/guards/export-size/cache",
+      "files": 21,
+      "bytes": 3857379
+    },
+    {
+      "path": "release/codex_zhuoyitong_delivery_20261009/checks/guards/month-pagination/cache",
+      "files": 21,
+      "bytes": 3857379
+    },
+    {
+      "path": "release/codex_zhuoyitong_delivery_20261009/checks/guards/monthly-action/cache",
+      "files": 21,
+      "bytes": 3857379
+    },
+    {
+      "path": "release/codex_zhuoyitong_delivery_20261009/checks/legacy-web/app/.next",
+      "files": 262,
+      "bytes": 94961849
+    },
+    {
+      "path": "release/codex_zhuoyitong_delivery_20261009/checks/mobile-dist",
+      "files": 18,
+      "bytes": 8654835
+    },
+    {
+      "path": "release/codex_zhuoyitong_delivery_20261009/checks/vite-cache-app",
+      "files": 21,
+      "bytes": 3857199
+    },
+    {
+      "path": "release/codex_zhuoyitong_delivery_20261009/checks/vite-cache-prototype",
+      "files": 21,
+      "bytes": 3857199
+    },
+    {
+      "path": "release/codex_zhuoyitong_delivery_20261009/compatibility/vite-cache",
+      "files": 21,
+      "bytes": 3857199
+    },
+    {
+      "path": "release/codex_zhuoyitong_final_checks_20261009/vite-cache",
+      "files": 21,
+      "bytes": 3857109
+    },
+    {
+      "path": "release/codex_zhuoyitong_harmony_regression_20261009/vite-cache",
+      "files": 21,
+      "bytes": 3857109
+    },
+    {
+      "path": "release/codex_zhuoyitong_privacy_20261009/vite-cache",
+      "files": 21,
+      "bytes": 3857109
+    },
+    {
+      "path": "release/codex_zhuoyitong_signed_20261009/checks/mobile-dist",
+      "files": 18,
+      "bytes": 8654779
+    },
+    {
+      "path": "release/codex_zhuoyitong_signed_20261009/checks/vite-cache-app",
+      "files": 21,
+      "bytes": 3857199
+    },
+    {
+      "path": "release/codex_zhuoyitong_signed_20261009/checks/vite-cache-prototype",
+      "files": 21,
+      "bytes": 3857199
+    },
+    {
+      "path": "release/codex_zhuoyitong_signed_final_20261009/checks/guards/export-size/cache",
+      "files": 21,
+      "bytes": 3857379
+    },
+    {
+      "path": "release/codex_zhuoyitong_signed_final_20261009/checks/guards/month-pagination/cache",
+      "files": 21,
+      "bytes": 3857379
+    },
+    {
+      "path": "release/codex_zhuoyitong_signed_final_20261009/checks/guards/monthly-action/cache",
+      "files": 21,
+      "bytes": 3857379
+    },
+    {
+      "path": "release/codex_zhuoyitong_signed_final_20261009/checks/legacy-web/app/.next",
+      "files": 262,
+      "bytes": 94994704
+    },
+    {
+      "path": "release/codex_zhuoyitong_signed_final_20261009/checks/mobile-dist",
+      "files": 18,
+      "bytes": 8654835
+    },
+    {
+      "path": "release/codex_zhuoyitong_signed_final_20261009/checks/vite-cache-app",
+      "files": 21,
+      "bytes": 3857199
+    },
+    {
+      "path": "release/codex_zhuoyitong_signed_final_20261009/checks/vite-cache-prototype",
+      "files": 21,
+      "bytes": 3857199
+    }
+  ],
+  "git_temporary_objects": [
+    {
+      "path": ".git/objects/04/tmp_obj_5PkW9c",
+      "bytes": 4476928,
+      "tracked": false
+    },
+    {
+      "path": ".git/objects/04/tmp_obj_BY0PUN",
+      "bytes": 17555456,
+      "tracked": false
+    },
+    {
+      "path": ".git/objects/04/tmp_obj_H9aZSs",
+      "bytes": 19283968,
+      "tracked": false
+    },
+    {
+      "path": ".git/objects/04/tmp_obj_Irn6QZ",
+      "bytes": 17833984,
+      "tracked": false
+    },
+    {
+      "path": ".git/objects/04/tmp_obj_KHSvnL",
+      "bytes": 19316736,
+      "tracked": false
+    },
+    {
+      "path": ".git/objects/04/tmp_obj_L5Zw1w",
+      "bytes": 33468416,
+      "tracked": false
+    },
+    {
+      "path": ".git/objects/04/tmp_obj_RotpU4",
+      "bytes": 18804736,
+      "tracked": false
+    },
+    {
+      "path": ".git/objects/04/tmp_obj_cGRPhi",
+      "bytes": 21491712,
+      "tracked": false
+    },
+    {
+      "path": ".git/objects/04/tmp_obj_o1UbgM",
+      "bytes": 22659072,
+      "tracked": false
+    },
+    {
+      "path": ".git/objects/04/tmp_obj_oxRsGj",
+      "bytes": 22609920,
+      "tracked": false
+    },
+    {
+      "path": ".git/objects/04/tmp_obj_rXnTVI",
+      "bytes": 19595264,
+      "tracked": false
+    },
+    {
+      "path": ".git/objects/04/tmp_obj_sHSbNI",
+      "bytes": 31817728,
+      "tracked": false
+    },
+    {
+      "path": ".git/objects/93/tmp_obj_VnWt9v",
+      "bytes": 20832256,
+      "tracked": false
+    },
+    {
+      "path": ".git/objects/93/tmp_obj_WNfWd0",
+      "bytes": 13369344,
+      "tracked": false
+    },
+    {
+      "path": ".git/objects/93/tmp_obj_fFrEUZ",
+      "bytes": 22278144,
+      "tracked": false
+    },
+    {
+      "path": ".git/objects/93/tmp_obj_geHuYd",
+      "bytes": 17833984,
+      "tracked": false
+    },
+    {
+      "path": ".git/objects/93/tmp_obj_j8tD8z",
+      "bytes": 19939328,
+      "tracked": false
+    },
+    {
+      "path": ".git/objects/93/tmp_obj_lyMC9n",
+      "bytes": 23465984,
+      "tracked": false
+    }
+  ],
+  "git_temporary_object_bytes": 366632960,
+  "release_cleanup_scripts": [
+    {
+      "path": "release/codex_harmony_signed_final_20261009/codex_cleanup.ps1",
+      "bytes": 8786,
+      "tracked": false
+    },
+    {
+      "path": "release/codex_privacy_signed_20261008/codex_cleanup_20261009.ps1",
+      "bytes": 9905,
+      "tracked": false
+    },
+    {
+      "path": "release/codex_windows_album_acceptance_20261007/codex_cleanup_execute.ps1",
+      "bytes": 4918,
+      "tracked": false
+    }
+  ],
+  "dependency_sizes": [
+    {
+      "path": "node_modules/three",
+      "files": 1195,
+      "bytes": 23171943
+    },
+    {
+      "path": "node_modules/@types/three",
+      "files": 928,
+      "bytes": 1831739
+    },
+    {
+      "path": "node_modules/@capacitor/filesystem",
+      "files": 1739,
+      "bytes": 9011133
+    },
+    {
+      "path": "node_modules/electron",
+      "files": 205,
+      "bytes": 388832478
+    }
+  ],
+  "historical_design_candidates": {
+    "files": 21,
+    "bytes": 6659015,
+    "paths": [
+      "docs/designs/codex_rank_collector_page_1.png",
+      "docs/designs/codex_rank_collector_page_2.png",
+      "docs/designs/codex_rank_collector_page_3.png",
+      "docs/designs/codex_rank_collector_preview.html",
+      "docs/designs/codex_rank_edition_page_1.png",
+      "docs/designs/codex_rank_edition_page_2.png",
+      "docs/designs/codex_rank_edition_page_3.png",
+      "docs/designs/codex_rank_edition_preview.html",
+      "docs/designs/codex_rank_jade_page_1.png",
+      "docs/designs/codex_rank_jade_page_2.png",
+      "docs/designs/codex_rank_jade_page_3.png",
+      "docs/designs/codex_rank_jade_preview.html",
+      "docs/designs/codex_rank_jade_view_1.jpg",
+      "docs/designs/codex_rank_jade_view_2.jpg",
+      "docs/designs/codex_rank_jade_view_3.jpg",
+      "docs/designs/codex_rank_lapis_page_1.png",
+      "docs/designs/codex_rank_lapis_page_2.png",
+      "docs/designs/codex_rank_lapis_page_3.png",
+      "docs/designs/codex_rank_lapis_preview.html",
+      "docs/designs/codex_rank_letterpress_preview.html",
+      "docs/designs/codex_rank_letterpress_preview.png"
+    ]
+  },
+  "root": "D:\\codex\\workspaces\\codex\\小懂哥",
+  "snapshot_at_utc": "2026-10-10T05:51:38.392919+00:00",
+  "method": "os.scandir, lstat/reparse-point exclusion; SHA256 size-group candidates excluding dependencies, .git, .gradle, secrets and databases",
+  "project_files_excluding_audit_helper": 34299,
+  "project_bytes_excluding_audit_helper": 3732662677,
+  "top_level": {
+    "node_modules": {
+      "files": 27417,
+      "bytes": 1319554533
+    },
+    "release": {
+      "files": 3068,
+      "bytes": 1085103043
+    },
+    ".git": {
+      "files": 331,
+      "bytes": 688699203
+    },
+    "android": {
+      "files": 2801,
+      "bytes": 447209366
+    },
+    "codex_video": {
+      "files": 153,
+      "bytes": 72701319
+    },
+    "(root files)": {
+      "files": 19,
+      "bytes": 61150440
+    },
+    "mobile": {
+      "files": 93,
+      "bytes": 28630107
+    },
+    "docs": {
+      "files": 159,
+      "bytes": 20782158
+    },
+    ".firecrawl": {
+      "files": 130,
+      "bytes": 7920583
+    },
+    "scripts": {
+      "files": 60,
+      "bytes": 575206
+    },
+    "desktop": {
+      "files": 15,
+      "bytes": 102704
+    },
+    "shared": {
+      "files": 9,
+      "bytes": 91430
+    },
+    "src": {
+      "files": 37,
+      "bytes": 65129
+    },
+    "prisma": {
+      "files": 4,
+      "bytes": 51422
+    },
+    ".workbuddy": {
+      "files": 1,
+      "bytes": 13858
+    },
+    ".zcode": {
+      "files": 1,
+      "bytes": 6778
+    },
+    "tmp": {
+      "files": 1,
+      "bytes": 5535
+    },
+    ".claude": {
+      "files": 1,
+      "bytes": 5398
+    }
+  },
+  "release_directories": {
+    "codex_zhuoyitong_delivery_20261009": {
+      "files": 608,
+      "bytes": 212887788
+    },
+    "codex_v320_release_20261010": {
+      "files": 591,
+      "bytes": 210290475
+    },
+    "codex_cover_signed_20261010": {
+      "files": 573,
+      "bytes": 208900761
+    },
+    "codex_zhuoyitong_signed_final_20261009": {
+      "files": 570,
+      "bytes": 208881026
+    },
+    "codex_privacy_signed_20261008": {
+      "files": 140,
+      "bytes": 85813831
+    },
+    "codex_harmony_signed_final_20261009": {
+      "files": 89,
+      "bytes": 76549581
+    },
+    "codex_cover_20261010": {
+      "files": 151,
+      "bytes": 23925313
+    },
+    "codex_zhuoyitong_signed_20261009": {
+      "files": 71,
+      "bytes": 16403734
+    },
+    "codex_signed_test_20261010_110016": {
+      "files": 36,
+      "bytes": 8889650
+    },
+    "codex_zhuoyitong_after_20261009": {
+      "files": 24,
+      "bytes": 3983522
+    },
+    "codex_zhuoyitong_harmony_regression_20261009": {
+      "files": 24,
+      "bytes": 3983334
+    },
+    "codex_zhuoyitong_after_final_20261009": {
+      "files": 24,
+      "bytes": 3983303
+    },
+    "codex_zhuoyitong_final_checks_20261009": {
+      "files": 24,
+      "bytes": 3983267
+    },
+    "codex_zhuoyitong_privacy_20261009": {
+      "files": 24,
+      "bytes": 3972102
+    },
+    "codex_zhuoyitong_capture_retry_20261009": {
+      "files": 23,
+      "bytes": 3905828
+    },
+    "codex_zhuoyitong_before_20261009": {
+      "files": 22,
+      "bytes": 3859728
+    },
+    "codex_capture_vite_cache": {
+      "files": 21,
+      "bytes": 3857019
+    },
+    "codex_windows_album_acceptance_20261007": {
+      "files": 10,
+      "bytes": 489729
+    },
+    "codex_privacy_android_build_final_20261008": {
+      "files": 15,
+      "bytes": 344936
+    },
+    "codex_android_store_audit_20261008": {
+      "files": 17,
+      "bytes": 85084
+    },
+    "codex_privacy_capture_20261008": {
+      "files": 2,
+      "bytes": 48719
+    },
+    "codex_zhuoyitong_android_unit_20261009": {
+      "files": 5,
+      "bytes": 32453
+    },
+    "codex_windows_acceptance": {
+      "files": 4,
+      "bytes": 31860
+    }
+  },
+  "excluded_initial_audit_helper": [
+    {
+      "path": "tmp/codex_workspace_audit_20261010.py",
+      "bytes": 5535,
+      "tracked": false
+    }
+  ],
+  "priority_rebuildable_candidates": [
+    {
+      "path": "release/codex_capture_vite_cache",
+      "files": 21,
+      "bytes": 3857019,
+      "reason": "Recreated by current verification/build scripts"
+    },
+    {
+      "path": "release/codex_cover_20261010/capture-delivery/vite-cache",
+      "files": 21,
+      "bytes": 3857199,
+      "reason": "Recreated by current verification/build scripts"
+    },
+    {
+      "path": "release/codex_cover_20261010/capture-final/vite-cache",
+      "files": 21,
+      "bytes": 3857199,
+      "reason": "Recreated by current verification/build scripts"
+    },
+    {
+      "path": "release/codex_cover_20261010/capture-fixed/vite-cache",
+      "files": 21,
+      "bytes": 3857199,
+      "reason": "Recreated by current verification/build scripts"
+    },
+    {
+      "path": "release/codex_cover_20261010/capture-verified/vite-cache",
+      "files": 21,
+      "bytes": 3857199,
+      "reason": "Recreated by current verification/build scripts"
+    },
+    {
+      "path": "release/codex_cover_20261010/capture/vite-cache",
+      "files": 21,
+      "bytes": 3857199,
+      "reason": "Recreated by current verification/build scripts"
+    },
+    {
+      "path": "release/codex_cover_20261010/privacy/vite-cache",
+      "files": 21,
+      "bytes": 3857199,
+      "reason": "Recreated by current verification/build scripts"
+    },
+    {
+      "path": "release/codex_cover_signed_20261010/checks/guards/export-size/cache",
+      "files": 21,
+      "bytes": 3857379,
+      "reason": "Recreated by current verification/build scripts"
+    },
+    {
+      "path": "release/codex_cover_signed_20261010/checks/guards/month-pagination/cache",
+      "files": 21,
+      "bytes": 3857379,
+      "reason": "Recreated by current verification/build scripts"
+    },
+    {
+      "path": "release/codex_cover_signed_20261010/checks/guards/monthly-action/cache",
+      "files": 21,
+      "bytes": 3857379,
+      "reason": "Recreated by current verification/build scripts"
+    },
+    {
+      "path": "release/codex_cover_signed_20261010/checks/legacy-web/app/.next",
+      "files": 262,
+      "bytes": 94926572,
+      "reason": "Recreated by current verification/build scripts"
+    },
+    {
+      "path": "release/codex_cover_signed_20261010/checks/mobile-dist",
+      "files": 18,
+      "bytes": 8659859,
+      "reason": "Recreated by current verification/build scripts"
+    },
+    {
+      "path": "release/codex_cover_signed_20261010/checks/vite-cache-app",
+      "files": 21,
+      "bytes": 3857199,
+      "reason": "Recreated by current verification/build scripts"
+    },
+    {
+      "path": "release/codex_cover_signed_20261010/checks/vite-cache-prototype",
+      "files": 21,
+      "bytes": 3857199,
+      "reason": "Recreated by current verification/build scripts"
+    },
+    {
+      "path": "release/codex_harmony_signed_final_20261009/checks/guards/export-size/cache",
+      "files": 2,
+      "bytes": 2005,
+      "reason": "Recreated by current verification/build scripts"
+    },
+    {
+      "path": "release/codex_harmony_signed_final_20261009/checks/guards/month-pagination/cache",
+      "files": 2,
+      "bytes": 2005,
+      "reason": "Recreated by current verification/build scripts"
+    },
+    {
+      "path": "release/codex_harmony_signed_final_20261009/checks/guards/monthly-action/cache",
+      "files": 2,
+      "bytes": 2005,
+      "reason": "Recreated by current verification/build scripts"
+    },
+    {
+      "path": "release/codex_signed_test_20261010_110016/checks/mobile-dist",
+      "files": 18,
+      "bytes": 8659859,
+      "reason": "Recreated by current verification/build scripts"
+    },
+    {
+      "path": "release/codex_signed_test_20261010_110016/checks/vite-cache-prototype",
+      "files": 10,
+      "bytes": 205546,
+      "reason": "Recreated by current verification/build scripts"
+    },
+    {
+      "path": "release/codex_v320_release_20261010/checks/guards/export-size/cache",
+      "files": 21,
+      "bytes": 3857379,
+      "reason": "Recreated by current verification/build scripts"
+    },
+    {
+      "path": "release/codex_v320_release_20261010/checks/guards/month-pagination/cache",
+      "files": 21,
+      "bytes": 3857379,
+      "reason": "Recreated by current verification/build scripts"
+    },
+    {
+      "path": "release/codex_v320_release_20261010/checks/guards/monthly-action/cache",
+      "files": 21,
+      "bytes": 3857379,
+      "reason": "Recreated by current verification/build scripts"
+    },
+    {
+      "path": "release/codex_v320_release_20261010/checks/legacy-web/app/.next",
+      "files": 264,
+      "bytes": 96180605,
+      "reason": "Recreated by current verification/build scripts"
+    },
+    {
+      "path": "release/codex_v320_release_20261010/checks/mobile-dist",
+      "files": 18,
+      "bytes": 8659859,
+      "reason": "Recreated by current verification/build scripts"
+    },
+    {
+      "path": "release/codex_v320_release_20261010/checks/vite-cache-app",
+      "files": 21,
+      "bytes": 3857199,
+      "reason": "Recreated by current verification/build scripts"
+    },
+    {
+      "path": "release/codex_v320_release_20261010/checks/vite-cache-prototype",
+      "files": 21,
+      "bytes": 3857199,
+      "reason": "Recreated by current verification/build scripts"
+    },
+    {
+      "path": "release/codex_zhuoyitong_after_20261009/vite-cache",
+      "files": 21,
+      "bytes": 3857109,
+      "reason": "Recreated by current verification/build scripts"
+    },
+    {
+      "path": "release/codex_zhuoyitong_after_final_20261009/vite-cache",
+      "files": 21,
+      "bytes": 3857109,
+      "reason": "Recreated by current verification/build scripts"
+    },
+    {
+      "path": "release/codex_zhuoyitong_before_20261009/vite-cache",
+      "files": 21,
+      "bytes": 3857109,
+      "reason": "Recreated by current verification/build scripts"
+    },
+    {
+      "path": "release/codex_zhuoyitong_capture_retry_20261009/vite-cache",
+      "files": 21,
+      "bytes": 3857109,
+      "reason": "Recreated by current verification/build scripts"
+    },
+    {
+      "path": "release/codex_zhuoyitong_delivery_20261009/checks/guards/export-size/cache",
+      "files": 21,
+      "bytes": 3857379,
+      "reason": "Recreated by current verification/build scripts"
+    },
+    {
+      "path": "release/codex_zhuoyitong_delivery_20261009/checks/guards/month-pagination/cache",
+      "files": 21,
+      "bytes": 3857379,
+      "reason": "Recreated by current verification/build scripts"
+    },
+    {
+      "path": "release/codex_zhuoyitong_delivery_20261009/checks/guards/monthly-action/cache",
+      "files": 21,
+      "bytes": 3857379,
+      "reason": "Recreated by current verification/build scripts"
+    },
+    {
+      "path": "release/codex_zhuoyitong_delivery_20261009/checks/legacy-web/app/.next",
+      "files": 262,
+      "bytes": 94961849,
+      "reason": "Recreated by current verification/build scripts"
+    },
+    {
+      "path": "release/codex_zhuoyitong_delivery_20261009/checks/mobile-dist",
+      "files": 18,
+      "bytes": 8654835,
+      "reason": "Recreated by current verification/build scripts"
+    },
+    {
+      "path": "release/codex_zhuoyitong_delivery_20261009/checks/vite-cache-app",
+      "files": 21,
+      "bytes": 3857199,
+      "reason": "Recreated by current verification/build scripts"
+    },
+    {
+      "path": "release/codex_zhuoyitong_delivery_20261009/checks/vite-cache-prototype",
+      "files": 21,
+      "bytes": 3857199,
+      "reason": "Recreated by current verification/build scripts"
+    },
+    {
+      "path": "release/codex_zhuoyitong_delivery_20261009/compatibility/vite-cache",
+      "files": 21,
+      "bytes": 3857199,
+      "reason": "Recreated by current verification/build scripts"
+    },
+    {
+      "path": "release/codex_zhuoyitong_final_checks_20261009/vite-cache",
+      "files": 21,
+      "bytes": 3857109,
+      "reason": "Recreated by current verification/build scripts"
+    },
+    {
+      "path": "release/codex_zhuoyitong_harmony_regression_20261009/vite-cache",
+      "files": 21,
+      "bytes": 3857109,
+      "reason": "Recreated by current verification/build scripts"
+    },
+    {
+      "path": "release/codex_zhuoyitong_privacy_20261009/vite-cache",
+      "files": 21,
+      "bytes": 3857109,
+      "reason": "Recreated by current verification/build scripts"
+    },
+    {
+      "path": "release/codex_zhuoyitong_signed_20261009/checks/mobile-dist",
+      "files": 18,
+      "bytes": 8654779,
+      "reason": "Recreated by current verification/build scripts"
+    },
+    {
+      "path": "release/codex_zhuoyitong_signed_20261009/checks/vite-cache-app",
+      "files": 21,
+      "bytes": 3857199,
+      "reason": "Recreated by current verification/build scripts"
+    },
+    {
+      "path": "release/codex_zhuoyitong_signed_20261009/checks/vite-cache-prototype",
+      "files": 21,
+      "bytes": 3857199,
+      "reason": "Recreated by current verification/build scripts"
+    },
+    {
+      "path": "release/codex_zhuoyitong_signed_final_20261009/checks/guards/export-size/cache",
+      "files": 21,
+      "bytes": 3857379,
+      "reason": "Recreated by current verification/build scripts"
+    },
+    {
+      "path": "release/codex_zhuoyitong_signed_final_20261009/checks/guards/month-pagination/cache",
+      "files": 21,
+      "bytes": 3857379,
+      "reason": "Recreated by current verification/build scripts"
+    },
+    {
+      "path": "release/codex_zhuoyitong_signed_final_20261009/checks/guards/monthly-action/cache",
+      "files": 21,
+      "bytes": 3857379,
+      "reason": "Recreated by current verification/build scripts"
+    },
+    {
+      "path": "release/codex_zhuoyitong_signed_final_20261009/checks/legacy-web/app/.next",
+      "files": 262,
+      "bytes": 94994704,
+      "reason": "Recreated by current verification/build scripts"
+    },
+    {
+      "path": "release/codex_zhuoyitong_signed_final_20261009/checks/mobile-dist",
+      "files": 18,
+      "bytes": 8654835,
+      "reason": "Recreated by current verification/build scripts"
+    },
+    {
+      "path": "release/codex_zhuoyitong_signed_final_20261009/checks/vite-cache-app",
+      "files": 21,
+      "bytes": 3857199,
+      "reason": "Recreated by current verification/build scripts"
+    },
+    {
+      "path": "release/codex_zhuoyitong_signed_final_20261009/checks/vite-cache-prototype",
+      "files": 21,
+      "bytes": 3857199,
+      "reason": "Recreated by current verification/build scripts"
+    },
+    {
+      "path": "android/app/build",
+      "files": 1414,
+      "bytes": 423795141,
+      "reason": "Build/cache output; preserve final APK and current verification results"
+    },
+    {
+      "path": "android/build",
+      "files": 1,
+      "bytes": 133285,
+      "reason": "Build/cache output; preserve final APK and current verification results"
+    },
+    {
+      "path": "android/.gradle",
+      "files": 13,
+      "bytes": 9949634,
+      "reason": "Build/cache output; preserve final APK and current verification results"
+    },
+    {
+      "path": "android/capacitor-cordova-android-plugins/build",
+      "files": 1276,
+      "bytes": 4204714,
+      "reason": "Build/cache output; preserve final APK and current verification results"
+    },
+    {
+      "path": "android/app/src/main/assets/public",
+      "files": 20,
+      "bytes": 8659859,
+      "reason": "Build/cache output; preserve final APK and current verification results"
+    },
+    {
+      "path": "mobile/dist",
+      "files": 18,
+      "bytes": 8659859,
+      "reason": "Build/cache output; preserve final APK and current verification results"
+    },
+    {
+      "path": "tsconfig.tsbuildinfo",
+      "bytes": 149879,
+      "tracked": false,
+      "reason": "TypeScript incremental cache"
+    }
+  ],
+  "priority_rebuildable_file_count": 4694,
+  "priority_rebuildable_bytes": 1031489401,
+  "archive_check": {
+    "archive": "D:\\codex\\workspaces\\codex\\小懂哥\\codex_xiaodongge_video_final_2026-10-07.zip",
+    "bytes": 60670232,
+    "sha256": "fb6b68808bfc0f3d04e2bc3c4ac41968508298d05d677f2f8220a3e0980c5756",
+    "archive_file_count": 116,
+    "same_as_local_count": 111,
+    "same_as_local_bytes": 63504256,
+    "differences": [
+      {
+        "path": "codex_video/qa/v6/codex_audio_cleanup_result.json",
+        "bytes": 704
+      },
+      {
+        "path": "codex_video/qa/v6/codex_post_cleanup_checks.json",
+        "bytes": 1020
+      }
+    ]
+  },
+  "git_readonly_checks": {
+    "count_objects_exit": 0,
+    "garbage_files": 18,
+    "garbage_bytes": 366632960,
+    "fsck_full_no_dangling_exit": 1,
+    "fsck_invalid_reflog_entries": 10,
+    "invalid_reflog_object_ids": [
+      "33bc2d98610421341c1d661a199899fd1e17cce8",
+      "b8f0e7d65daa4f7438cd485359ef2bf492a8bf6f",
+      "a424e230cc7c3617b3c8b92faed293d4fac5beb5"
+    ],
+    "fsck_full_no_reflogs_no_dangling_exit": 0,
+    "mutations": "none; no gc, prune or reflog changes"
+  },
+  "protected_artifacts": [
+    {
+      "path": "release/codex_cover_signed_20261010/codex_xiaodongge-v3.1.5-35-test.apk",
+      "bytes": 75796476,
+      "tracked": false,
+      "sha256": "261a0106565dbd83c1d177667694f01fd4fb5de00eb7c11197ee25a28a650302"
+    },
+    {
+      "path": "release/codex_harmony_signed_final_20261009/codex_xiaodongge-v3.1.3-33-test.apk",
+      "bytes": 75789421,
+      "tracked": false,
+      "sha256": "009201a437e47cd92da580c369911bf896fba7c0818f61d40fa875394db99fc1"
+    },
+    {
+      "path": "release/codex_v320_release_20261010/codex_xiaodongge-v3.2.0-36.apk",
+      "bytes": 75796464,
+      "tracked": false,
+      "sha256": "6ba2da51083118f72d4d7c0d11831aaf2c405ba84c4368eface556bd8d98195f"
+    }
+  ],
+  "scope_notes": [
+    "Sizes are logical regular-file lengths; junction targets were not followed and sizes do not measure allocated clusters.",
+    "Initial helper was generated by this audit and is excluded from the pre-existing project count.",
+    "Duplicate groups identify equal bytes, not authorization or runtime redundancy.",
+    "All four junction targets were independently verified in PowerShell to the existing root node_modules.",
+    "Only project-owned code was reviewed; dependency internals and external Windows repository were not audited.",
+    "No original project files deleted, moved or modified; no build/test/deployment scripts executed."
+  ],
+  "tool_versions": {
+    "PowerShell": "7.6.5",
+    "Python": "3.12.10",
+    "Node": "24.13.0",
+    "Git": "2.55.0.windows.2",
+    "ripgrep": "15.2.0"
+  },
+  "head_at_audit": "3ba6d8cb9f5c503ba3072925f01bef161c80b12e",
+  "audit_temporary_cleanup": {
+    "status": "blocked",
+    "reason": "Automatic execution approval rejected exact-path non-recursive PowerShell deletion: blocked by policy; no specific reason provided",
+    "command_executed": false,
+    "deleted_files": 0,
+    "deleted_bytes": 0,
+    "retried_or_bypassed": false,
+    "retained_temporary_files": [
+      {"path": "tmp/codex_workspace_audit_20261010.py", "bytes": 18957},
+      {"path": "tmp/codex_video_archive_audit_20261010.json", "bytes": 538}
+    ]
+  }
+}

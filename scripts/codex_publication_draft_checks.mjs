@@ -55,9 +55,9 @@ export async function checkPublicationDraftFailures(browser, origin, entry) {
     page.once('dialog', dialog => dialog.dismiss());
     await page.getByRole('button', { name: '关闭分享预览', exact: true }).click();
     assert.equal(await page.locator('.review-share-dialog[open]').count(), 1, 'failed-save leave cancellation keeps input');
-    await page.getByRole('button', { name: '复制标题', exact: true }).click();
-    await page.getByText('已复制标题，请填入公众号标题栏。', { exact: true }).waitFor();
-    assert.equal(await page.evaluate(() => window.__codexFailureCopy), '配额不足时的当前输入', 'failed autosave still allows copying the current draft');
+    await page.getByRole('button', { name: '复制 Markdown 全文', exact: true }).click();
+    await page.getByText('已复制 Markdown 全文；粘贴到公众号编辑器可自动识别，或另存为 .md 后导入。', { exact: true }).waitFor();
+    assert.ok((await page.evaluate(() => window.__codexFailureCopy)).includes('配额不足时的当前输入'), 'failed autosave still allows copying the current draft');
     await page.evaluate(() => { Storage.prototype.setItem = window.__codexPublicationSetItem; });
     await page.getByRole('button', { name: '关闭分享预览', exact: true }).click();
     const saved = await page.evaluate(key => JSON.parse(localStorage.getItem(key)).draft.title, key);

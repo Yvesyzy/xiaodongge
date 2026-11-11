@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useMemo, useRef, useState, type ReactNode } from 
 import { Capacitor } from "@capacitor/core";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { MOOD_TAGS } from "../../shared/moods";
+import { WheelDateField } from "./abu_WheelDateField";
 import { formatDateOnly } from "./format";
 import { compareRelisten } from "./relistenComparison";
 import RatingSlider from "./RatingSlider";
@@ -256,7 +257,7 @@ export default function RelistenPage() {
           <div className="quick-mood-all">{MOOD_TAGS.map((mood) => <button type="button" key={mood} className={moods.includes(mood) ? "selected" : ""} onClick={() => toggleMood(mood)}>{mood}</button>)}</div>
         </fieldset>
         <label>一句话感受<textarea rows={5} value={content} onChange={(event) => { setDirty(true); setContent(event.target.value); }} placeholder="不要看过去，现在的你听见了什么？" required /></label>
-        <label>收听日期<input type="date" value={listenedOn} onChange={(event) => { setDirty(true); setListenedOn(event.target.value); }} required /></label>
+        <WheelDateField name="listenedOn" label="收听日期" value={listenedOn} onChange={(next) => { setDirty(true); setListenedOn(next); }} required />
         {message ? <p className="hint" role="status">{message}</p> : null}
         {error ? <p className="error">{error}</p> : null}
         <button className="primary-button full" disabled={saving}>{saving ? "保存中" : "保存并揭晓"}</button>

@@ -2,7 +2,7 @@
 
 第六版主题为「把听过，变成记得」。保留真实曲风层级、多个大类及「电子 → House → Deep House」展开与选择，一分钟叙事、横竖构图、真实浅深切换及38个音乐重音。2026-10-07修复中段伴奏过度衰减：盲重听保留柔和钢琴，持续可听；原视频流及画面时间完全不变。
 
-Yves已选定此版。更新后的定稿ZIP位于项目根目录：`codex_xiaodongge_video_final_2026-10-07.zip`，外部校验文件为同名`.sha256.txt`。包内含当前横竖成片、MP3、WAV、完整素材／字体、影片源码与脚本、锁文件、JSON验收和音频修复交接；逐文件大小及SHA-256见包内清单，打包后的实际校验结果见本机`qa/v6/codex_package_checks.json`。使用方法见`codex_交付说明.md`，最新交接见`../docs/session-summaries/codex_session_summary_2026-10-07_video_audio_fix.md`。
+Yves已选定此版。定稿ZIP位于项目根目录：`codex_xiaodongge_video_final_2026-10-07.zip`，外部校验文件为同名`.sha256.txt`。包内含横竖成片、MP3、WAV、完整素材／字体、影片源码与脚本、锁文件、JSON验收和音频修复交接；逐文件大小及SHA-256见包内清单，打包后的实际校验结果见本机`qa/v6/codex_package_checks.json`。ZIP是2026-10-07冻结的交付快照；当前维护源码在本目录，2026-10-10精简了采集公共层与重复命令，成片、WAV和ZIP摘要保持不变。使用方法见`codex_交付说明.md`，音频交接见`../docs/session-summaries/codex_session_summary_2026-10-07_video_audio_fix.md`。
 
 工程：`D:\codex\workspaces\codex\小懂哥\codex_video`。
 
@@ -52,7 +52,7 @@ npm.cmd run render
 npm.cmd run check
 ```
 
-Studio的Composition为`Xiaodongge-Portrait`和`Xiaodongge-Landscape`，横竖构图分别排布。单独渲染使用`npm.cmd run render:portrait`或`npm.cmd run render:landscape`。`:v6`别名与默认命令一致；旧版本参数和入口不再支持。
+Studio的Composition为`Xiaodongge-Portrait`和`Xiaodongge-Landscape`，横竖构图分别排布。单独渲染使用`npm.cmd run render:portrait`或`npm.cmd run render:landscape`；使用上面的默认命令操作当前 v6 工程。
 
 图片、字体及音频均在本地，可离线重渲染。`npm.cmd run capture`依次执行`capture:light`、`capture:theme`和`capture:genre`，仅在需要拍摄当前App时使用；它会更新现有素材。只更新曲风控件可执行`npm.cmd run capture:genre`。采集使用独立Vite服务与隔离浏览器，阻断外部请求并在结束时释放服务。
 

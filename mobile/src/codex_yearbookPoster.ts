@@ -1,4 +1,4 @@
-import { localDateOf } from "./format";
+import { entryDate, type DateBasis } from "./dateBasis";
 import type { YearlyListeningSnapshot } from "./listeningYearbook";
 import type { ReviewEntry } from "./types";
 
@@ -26,14 +26,15 @@ export type YearbookPosterStats = {
 };
 
 export function buildYearbookPosterStats(snapshot: YearlyListeningSnapshot, entries: ReviewEntry[]): YearbookPosterStats {
-  const includedEntries = entries.filter((entry) => isReportEntry(entry) && localDateOf(entry.createdAt)?.startsWith(`${snapshot.year}-`));
+  const basis: DateBasis = snapshot.reportBasis ?? "createdAt";
+  const includedEntries = entries.filter((entry) => isReportEntry(entry) && entryDate(entry, basis)?.startsWith(`${snapshot.year}-`));
   const ids = new Set(includedEntries.map((entry) => entry.id));
   if (snapshot.dateBasis !== "createdAt" || ids.size !== includedEntries.length || ids.size !== snapshot.analysis.sourceEntryCount || snapshot.analysis.sourceEntryIds.length !== ids.size || snapshot.analysis.sourceEntryIds.some((id) => !ids.has(id))) {
     throw new Error("记录与年度标本册不一致，请重新生成后再导出");
   }
   const monthlyCounts = Array.from({ length: 12 }, () => 0);
   for (const entry of includedEntries) {
-    const date = localDateOf(entry.createdAt);
+    const date = entryDate(entry, basis);
     const month = date ? Number(date.slice(5, 7)) : 0;
     if (month >= 1 && month <= 12) monthlyCounts[month - 1] += 1;
   }

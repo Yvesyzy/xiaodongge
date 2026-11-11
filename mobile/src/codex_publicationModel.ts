@@ -5,6 +5,13 @@ export type PublicationPrivacy = {
   hideContent: boolean;
 };
 
+// 结构化元信息：从乐评逐项带出，旧草稿没有这个字段时回退到扁平三行。
+export type PublicationMetaField = {
+  label: string;
+  value: string;
+  kind: "music" | "rating" | "date";
+};
+
 export type PublicationSection = {
   id: string;
   title: string;
@@ -14,6 +21,7 @@ export type PublicationSection = {
   dateText: string;
   coverDataUrl: string | null;
   includeImage: boolean;
+  metaFields?: PublicationMetaField[];
 };
 
 export type PublicationDraft = {
@@ -36,6 +44,7 @@ export type Publication = {
   plainText: string;
   htmlFragment: string;
   htmlDocument: string;
+  markdown: string;
   images: PublicationImage[];
 };
 
@@ -106,6 +115,33 @@ function exactKeys(value: Record<string, unknown>, allowed: readonly string[], l
   if (actual.length !== allowed.length || actual.some((key) => typeof key !== "string" || !allowedSet.has(key))) {
     fail(`${label}包含无法恢复的字段。`);
   }
+}
+
+function allowedKeys(value: Record<string, unknown>, required: readonly string[], optional: readonly string[], label: string): void {
+  const allowed = new Set([...required, ...optional]);
+  const actual = Reflect.ownKeys(value);
+  if (actual.some((key) => typeof key !== "string" || !allowed.has(key)) || required.some((key) => !(key in value))) {
+    fail(`${label}包含无法恢复的字段。`);
+  }
+}
+
+const META_KINDS = new Set(["music", "rating", "date"]);
+const MAX_META_FIELDS = 32;
+const MAX_META_LABEL_CHARACTERS = 40;
+
+function validateMetaFields(value: unknown, sectionIndex: number): PublicationMetaField[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value)) fail(`第${sectionIndex + 1}篇文章的元信息列表格式不正确。`);
+  if (value.length > MAX_META_FIELDS) fail(`第${sectionIndex + 1}篇文章的元信息项目过多。`);
+  return value.map((item, fieldIndex) => {
+    const label = `第${sectionIndex + 1}篇文章的第${fieldIndex + 1}项元信息`;
+    const field = record(item, label);
+    exactKeys(field, ["label", "value", "kind"], label);
+    const fieldLabel = text(field.label, `${label}名称`, MAX_META_LABEL_CHARACTERS, true);
+    const fieldValue = text(field.value, `${label}内容`, MAX_SECTION_METADATA_CHARACTERS, true);
+    if (typeof field.kind !== "string" || !META_KINDS.has(field.kind)) fail(`${label}类型不正确。`);
+    return { label: fieldLabel, value: fieldValue, kind: field.kind as PublicationMetaField["kind"] };
+  });
 }
 
 function text(value: unknown, label: string, maxCharacters: number, required = false): string {
@@ -214,7 +250,7 @@ function validatePrivacy(value: unknown): PublicationPrivacy {
 
 function validateSection(value: unknown, sectionIndex: number): PublicationSection {
   const section = record(value, `第${sectionIndex + 1}篇文章`);
-  exactKeys(section, ["id", "title", "content", "musicLabel", "ratingText", "dateText", "coverDataUrl", "includeImage"], `第${sectionIndex + 1}篇文章`);
+  allowedKeys(section, ["id", "title", "content", "musicLabel", "ratingText", "dateText", "coverDataUrl", "includeImage"], ["metaFields"], `第${sectionIndex + 1}篇文章`);
   const id = text(section.id, `第${sectionIndex + 1}篇文章的id`, MAX_ID_CHARACTERS, true);
   const title = text(section.title, `第${sectionIndex + 1}篇文章的标题`, MAX_SECTION_TITLE_CHARACTERS, true);
   const content = text(section.content, `第${sectionIndex + 1}篇文章的正文`, MAX_CONTENT_CHARACTERS);
@@ -222,6 +258,7 @@ function validateSection(value: unknown, sectionIndex: number): PublicationSecti
   const ratingText = text(section.ratingText, `第${sectionIndex + 1}篇文章的评分`, MAX_SECTION_METADATA_CHARACTERS);
   const dateText = text(section.dateText, `第${sectionIndex + 1}篇文章的日期`, MAX_SECTION_METADATA_CHARACTERS);
   const includeImage = bool(section.includeImage, `第${sectionIndex + 1}篇文章的配图选项`);
+  const metaFields = validateMetaFields(section.metaFields, sectionIndex);
   let coverDataUrl: string | null;
   if (section.coverDataUrl === null) coverDataUrl = null;
   else {
@@ -231,7 +268,7 @@ function validateSection(value: unknown, sectionIndex: number): PublicationSecti
     coverDataUrl = section.coverDataUrl;
     validatePngDataUrl(coverDataUrl);
   }
-  return { id, title, content, musicLabel, ratingText, dateText, coverDataUrl, includeImage };
+  return { id, title, content, musicLabel, ratingText, dateText, coverDataUrl, includeImage, ...(metaFields ? { metaFields } : {}) };
 }
 
 function validateDraft(value: unknown): PublicationDraft {
@@ -251,7 +288,8 @@ function validateDraft(value: unknown): PublicationDraft {
     ids.add(section.id);
   }
   const privacy = validatePrivacy(draft.privacy);
-  const textBytes = [title, author, intro, ...sections.flatMap((section) => [section.id, section.title, section.content, section.musicLabel, section.ratingText, section.dateText])]
+  const textBytes = [title, author, intro, ...sections.flatMap((section) => [section.id, section.title, section.content, section.musicLabel, section.ratingText, section.dateText,
+    ...(section.metaFields ?? []).flatMap((field) => [field.label, field.value])])]
     .reduce((total, item) => total + utf8ByteLength(item), 0);
   if (textBytes > MAX_TEXT_BYTES) fail("公众号稿文字总量超过2 MiB限制，请减少内容后重试。");
   return { version: 1, title, author, intro, sections, privacy };
@@ -283,12 +321,76 @@ function placementText(image: PublicationImage): string {
 
 const PUBLICATION_BRAND = "小懂哥 · 私人音乐档案";
 
+const RATING_DIMENSIONS_PER_LINE = 3;
+
+// 六个评分维度比较密集，每三项合成同一段落；其余元信息仍各占一行。
+// 用「 · 」在段落内分隔，不依赖公众号导入器不支持的行尾双空格硬换行。
+function groupedMetadataLines(fields: PublicationMetaField[], privacy: PublicationPrivacy): string[] {
+  const lines: string[] = [];
+  let group: string[] = [];
+  const flush = () => { if (group.length > 0) lines.push(group.join(" · ")); group = []; };
+  for (const field of fields) {
+    if ((field.kind === "rating" && privacy.hideRating) || (field.kind === "date" && privacy.hideDate)) continue;
+    const line = `${field.label}：${field.value}`;
+    if (field.kind === "rating" && field.label !== "评分") {
+      group.push(line);
+      if (group.length === RATING_DIMENSIONS_PER_LINE) flush();
+    } else {
+      flush();
+      lines.push(line);
+    }
+  }
+  flush();
+  return lines;
+}
+
 function metadataLines(section: PublicationSection, privacy: PublicationPrivacy): string[] {
+  const fields = section.metaFields;
+  if (fields && fields.length > 0) return groupedMetadataLines(fields, privacy);
   const lines: string[] = [];
   if (section.musicLabel.length > 0) lines.push(`音乐：${section.musicLabel}`);
   if (!privacy.hideRating && section.ratingText.length > 0) lines.push(`评分：${section.ratingText}`);
   if (!privacy.hideDate && section.dateText.length > 0) lines.push(`日期：${section.dateText}`);
   return lines;
+}
+
+// 公众号文档导入只可靠支持基础 Markdown；本地相对路径图片不会被转存，因此用文字占位。
+function mdSafe(value: string): string {
+  return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function mdLine(value: string): string {
+  return mdSafe(value)
+    .replace(/^(\s*)(#{1,6}|[-+*])(?=\s|$)/, "$1\\$2")
+    .replace(/^(\s*)(\d+)(\.\s)/, "$1$2\\$3");
+}
+
+function mdBody(value: string): string {
+  return value.split(/\r\n|\r|\n/).map(mdLine).join("\n");
+}
+
+function mdMetaLine(value: string): string {
+  return mdLine(value.replace(/\r\n|\r|\n/g, " "));
+}
+
+function buildMarkdown(draft: PublicationDraft, bySection: Map<number, PublicationImage>): string {
+  const oneLine = (value: string) => mdSafe(value).replace(/\r\n|\r|\n/g, " ");
+  const blocks: string[] = [`# ${oneLine(draft.title)}`];
+  if (draft.author.length > 0) blocks.push(`作者：${oneLine(draft.author)}`);
+  if (!draft.privacy.hideContent && draft.intro.length > 0) {
+    blocks.push(draft.intro.split(/\r\n|\r|\n/).map((line) => `> ${mdSafe(line)}`).join("\n"));
+  }
+  draft.sections.forEach((section, index) => {
+    const lines: string[] = [`## ${oneLine(section.title)}`];
+    // 公众号文档导入会吞掉「行尾双空格」硬换行，只有空行分隔的段落能稳定保留逐行排版。
+    for (const line of metadataLines(section, draft.privacy)) lines.push(mdMetaLine(line));
+    if (!draft.privacy.hideContent && section.content.length > 0) lines.push(mdBody(section.content));
+    const image = bySection.get(index);
+    if (image) lines.push(`> 【配图位置】${image.fileName} —— 请在公众号编辑器自行上传对应图片`);
+    blocks.push(lines.join("\n\n"));
+  });
+  if (!draft.privacy.hideBrand) blocks.push(`---\n\n${PUBLICATION_BRAND}`);
+  return `${blocks.join("\n\n")}\n`;
 }
 
 function makeImages(draft: PublicationDraft): { images: PublicationImage[]; bySection: Map<number, PublicationImage> } {
@@ -386,6 +488,7 @@ export function buildPublication(draft: PublicationDraft): Publication {
     plainText: buildPlainText(safeDraft, bySection),
     htmlFragment: renderFragment(safeDraft, bySection),
     htmlDocument: buildHtmlDocument(safeDraft, bySection),
+    markdown: buildMarkdown(safeDraft, bySection),
     images,
   };
 }

@@ -1,16 +1,13 @@
 import assert from 'node:assert/strict';
-import { execFile } from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { promisify } from 'node:util';
 import { chromium } from 'playwright';
 import { qaOptions } from './codex_qa_options.mjs';
 import { startQaViteServer } from './codex_qa_harness.mjs';
 import { makeJournalFixtures } from '../mobile/codex_journal_fixtures.mjs';
 import { checkPublicationDraftFailures } from './codex_publication_draft_checks.mjs';
 
-const execFileAsync = promisify(execFile);
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const workspaceRoot = path.resolve(scriptDirectory, '..');
 const defaultOutput = path.join(workspaceRoot, 'release', `codex_publication_check_${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}`);
@@ -43,6 +40,18 @@ const entries = [
     moods: ['平静'],
     rating: 8.5,
     ratingModifier: '+',
+    // Exercise the multi-dimension rating path end to end in the exported Markdown.
+    ratingProduction: 9,
+    ratingLyrics: 8,
+    ratingComposition: 8.5,
+    ratingVocals: 9,
+    ratingOriginality: 8,
+    ratingResonance: 7.5,
+    ratingSongwriting: null,
+    compositeRatingLocked: true,
+    // Exercise all three date bases end to end in the exported Markdown.
+    releaseDate: '2026-01-15',
+    firstListenedAt: '2026-05-20T04:00:00.000Z',
     year: 2026,
     month: 6,
     createdAt: '2026-06-02T04:00:00.000Z',
@@ -99,52 +108,6 @@ const evidence = {
   pageErrors: [],
 };
 
-const execPython = async (argumentsList) => {
-  try {
-    return await execFileAsync('python', argumentsList, { cwd: workspaceRoot, windowsHide: true, maxBuffer: 2 * 1024 * 1024 });
-  } catch (firstError) {
-    if (firstError?.code !== 'ENOENT') throw firstError;
-    return execFileAsync('python3', argumentsList, { cwd: workspaceRoot, windowsHide: true, maxBuffer: 2 * 1024 * 1024 });
-  }
-};
-
-async function inspectZip(zipPath) {
-  const python = String.raw`
-import io
-import json
-import sys
-import zipfile
-
-path = sys.argv[1]
-with zipfile.ZipFile(path, "r") as archive:
-    names = archive.namelist()
-    if archive.testzip() is not None:
-        raise RuntimeError("CRC校验失败")
-    if any((name in ("", ".", "..") or "/" in name or "\\\\" in name or ".." in name) for name in names):
-        raise RuntimeError("ZIP文件名包含路径风险")
-    result = {"names": names, "sizes": {name: archive.getinfo(name).file_size for name in names}, "images": {}, "texts": {}}
-    for name in names:
-        if name.lower().endswith((".html", ".txt")):
-            result["texts"][name] = archive.read(name).decode("utf-8")
-        if name.lower().endswith(".png"):
-            data = archive.read(name)
-            if data[:8] != b"\x89PNG\r\n\x1a\n":
-                raise RuntimeError("ZIP中PNG签名无效")
-            image = {"width": int.from_bytes(data[16:20], "big"), "height": int.from_bytes(data[20:24], "big"), "pillow": False}
-            try:
-                from PIL import Image
-                with Image.open(io.BytesIO(data)) as decoded:
-                    decoded.verify()
-                image["pillow"] = True
-            except ImportError:
-                pass
-            result["images"][name] = image
-print(json.dumps(result, ensure_ascii=True))
-`;
-  const { stdout } = await execPython(['-c', python, zipPath]);
-  return JSON.parse(stdout.trim());
-}
-
 async function downloadBytes(page, locator, artifactName) {
   const downloadEvent = page.waitForEvent('download');
   await locator.click();
@@ -155,11 +118,6 @@ async function downloadBytes(page, locator, artifactName) {
   await writeFile(path.join(outputDirectory, artifactName), bytes);
   evidence.artifacts[artifactName] = { suggestedFilename: download.suggestedFilename(), bytes: bytes.length };
   return bytes;
-}
-
-function pngDimensions(bytes) {
-  assert.equal(bytes.subarray(0, 8).toString('hex'), '89504e470d0a1a0a', 'PNG signature');
-  return { width: bytes.readUInt32BE(16), height: bytes.readUInt32BE(20) };
 }
 
 async function waitForComposer(page) {
@@ -187,7 +145,10 @@ async function setTheme(page, choice) {
   await page.waitForTimeout(80);
 }
 
-const browser = await chromium.launch({ headless: true, channel: 'chrome' });
+// channel:'chrome' needs a launchable system Chrome; CI/isolated hosts can point at a cached Chromium instead.
+const browser = await chromium.launch(process.env.CODEX_QA_CHROME_PATH
+  ? { headless: true, executablePath: process.env.CODEX_QA_CHROME_PATH }
+  : { headless: true, channel: 'chrome' });
 let page = null;
 let failure = null;
 
@@ -265,90 +226,78 @@ try {
   assert.ok((await preview.innerText()).includes('编辑正文'), 'edited body reaches preview');
   evidence.checks.push('single review share tab opens publication composer and edits title/author/intro/body');
 
-  await page.getByRole('button', { name: '复制排版正文', exact: true }).click();
-  await page.getByText('已复制排版正文；图片请按位置说明另行上传，尚未发布。', { exact: true }).waitFor();
-  const richClipboard = await page.evaluate(() => ({ ...window.__codexClipboard }));
-  assert.ok(richClipboard.text.includes('编辑正文'), 'rich copy includes plain text fallback');
-  assert.ok(richClipboard.html.includes('&lt;script&gt;'), 'rich copy escapes user script text');
-  assert.equal(/<script|<img/i.test(richClipboard.html), false, 'rich copy contains no executable/image element');
-  await page.getByRole('button', { name: '复制纯文字正文', exact: true }).click();
-  await page.getByText('已复制纯文字正文。', { exact: true }).waitFor();
-  const plainClipboard = await page.evaluate(() => ({ ...window.__codexClipboard }));
-  assert.ok(plainClipboard.text.includes('编辑正文'), 'plain copy includes edited body');
-  evidence.checks.push('rich and plain copy verified through explicit stub clipboard');
+  await page.getByRole('button', { name: '复制 Markdown 全文', exact: true }).click();
+  await page.getByText('已复制 Markdown 全文；粘贴到公众号编辑器可自动识别，或另存为 .md 后导入。', { exact: true }).waitFor();
+  const mdClipboard = await page.evaluate(() => ({ ...window.__codexClipboard }));
+  assert.ok(mdClipboard.text.includes('编辑正文'), 'markdown copy includes edited body');
+  assert.ok(mdClipboard.text.startsWith('# 编辑标题'), 'markdown copy carries the H1 title');
+  assert.match(mdClipboard.text, /&lt;script&gt;/, 'markdown copy escapes user script text');
+  assert.equal(/<script\b/i.test(mdClipboard.text), false, 'markdown copy has no raw script tag');
+  evidence.checks.push('Markdown full-text copy verified through explicit stub clipboard');
 
-  // Older WebViews provide FileReader but lack Blob.text()/arrayBuffer(). Export must still work.
-  await page.evaluate(() => { Blob.prototype.text = undefined; Blob.prototype.arrayBuffer = undefined; });
-
-  // Export and inspect actual browser downloads. ZIP is validated independently with Python zipfile + Pillow.
   const imageDetails = page.locator('details.codex-publication-images');
   await imageDetails.locator('summary').click();
   await page.getByAltText('公众号稿横版封面预览', { exact: true }).waitFor();
-  const zipBytes = await downloadBytes(page, page.getByRole('button', { name: '导出稿件与配图包', exact: true }), 'codex_publication_materials.zip');
-  const zipInspection = await inspectZip(path.join(outputDirectory, 'codex_publication_materials.zip'));
-  const expectedZipNames = [
-    'codex_publication_article.html', 'codex_publication_title.txt', 'codex_publication_body.txt',
-    'codex_publication_readme.txt', 'codex_publication_cover.png', 'codex_publication_image_001.png',
-  ];
-  assert.deepEqual(zipInspection.names.slice().sort(), expectedZipNames.slice().sort(), 'ZIP has the expected safe publication files');
-  assert.equal(zipInspection.images['codex_publication_cover.png'].width, 1200, 'ZIP cover width is 1200');
-  assert.equal(zipInspection.images['codex_publication_cover.png'].height, 510, 'ZIP cover height is 510');
-  assert.ok(zipInspection.images['codex_publication_image_001.png'].width <= 1024, 'ZIP section image width is bounded');
-  assert.ok(zipBytes.length > 22, 'ZIP contains central directory and payload');
 
-  const htmlBytes = await downloadBytes(page, page.getByRole('button', { name: '导出HTML稿', exact: true }), 'codex_publication_article.html');
-  const htmlDocument = htmlBytes.toString('utf8');
-  assert.match(htmlDocument, /Content-Security-Policy/, 'HTML export carries a CSP');
-  assert.match(htmlDocument, /&lt;script&gt;/, 'HTML export escapes malicious text');
-  assert.equal(/<script\b/i.test(htmlDocument), false, 'HTML export has no script element');
-  assert.match(htmlDocument, /data:image\/png;base64,/, 'HTML export embeds the selected PNG locally');
+  const mdBytes = await downloadBytes(page, page.getByRole('button', { name: '导出 Markdown 稿', exact: true }), 'codex_publication_article.md');
+  const markdown = mdBytes.toString('utf8');
+  assert.match(markdown, /^# 编辑标题 &lt;script&gt;bad\(\)&lt;\/script&gt;/, 'MD export carries the edited H1 with escaped HTML');
+  assert.match(markdown, /## 编辑章节标题/, 'MD export uses H2 for sections');
+  assert.match(markdown, /编辑正文 &lt;img src=x onerror=bad\(\)&gt;/, 'MD export keeps edited body text');
+  assert.equal(/<script\b/i.test(markdown), false, 'MD export has no raw script tag');
+  assert.equal(markdown.includes('!['), false, 'MD export has no broken relative-path images');
+  assert.match(markdown, /【配图位置】codex_publication_image_001\.png/, 'MD export marks image placement');
+  // Each metadata item must be its own block: the WeChat document importer drops
+  // trailing-space hard breaks, so only blank-line separated paragraphs survive.
+  assert.equal(markdown.includes('  \n'), false, 'MD export uses no trailing-space hard breaks');
+  const ratingGroupOne = '制作：9/10 · 词：8/10 · 曲：8.5/10';
+  const ratingGroupTwo = '人声：9/10 · 原创性：8/10 · 共鸣：7.5/10';
+  for (const line of [
+    '专辑：恶意专辑', '艺术家：测试音乐人', '评分：8.5+ / 10',
+    ratingGroupOne, ratingGroupTwo,
+    '专辑/歌曲发行时间：2026.01.15', '首次收听时间：2026.05.20', '乐评记录时间：2026.06.02',
+  ]) assert.ok(markdown.includes(`\n\n${line}\n\n`), `MD export separates "${line}" into its own paragraph`);
+  assert.equal(markdown.includes('\n\n制作：9/10\n\n'), false, 'rating dimensions are no longer one line each');
+  assert.equal(markdown.includes('\n\n日期：2026.06.02\n\n'), false, 'the old single date line is replaced by three separate dates');
+  const at = (line) => markdown.indexOf(`\n\n${line}\n\n`);
+  assert.ok(at('评分：8.5+ / 10') < at(ratingGroupOne) && at(ratingGroupOne) < at(ratingGroupTwo), 'overall rating precedes both three-item dimension rows');
+  assert.ok(at(ratingGroupTwo) < at('专辑/歌曲发行时间：2026.01.15'), 'both dimension rows precede the three dates');
+  assert.ok(at('专辑/歌曲发行时间：2026.01.15') < at('首次收听时间：2026.05.20')
+    && at('首次收听时间：2026.05.20') < at('乐评记录时间：2026.06.02'), 'the three dates follow the form field order');
+  await page.locator('details.codex-publication-markdown summary').click();
+  assert.equal(await page.getByLabel('Markdown 全文', { exact: true }).inputValue(), markdown, 'read-only full text matches the exported .md byte for byte');
+  evidence.checks.push('Markdown export downloaded and inspected; in-page full text matches the file');
 
-  const coverBytes = await downloadBytes(page, page.getByRole('button', { name: '导出横版封面', exact: true }), 'codex_publication_cover.png');
-  assert.deepEqual(pngDimensions(coverBytes), { width: 1200, height: 510 }, 'standalone cover export is 1200x510 PNG');
-  evidence.checks.push('ZIP/HTML/PNG downloads inspected; ZIP CRC and image dimensions verified independently');
-
-  // Browser sharing needs a second user gesture after ZIP preparation. The stub below explicitly
-  // simulates a cancelled system share and verifies edits invalidate the prepared package.
+  // Browser share stub: the .md file must reach navigator.share with the correct name.
   await page.evaluate(() => {
     window.__codexShareCalls = [];
     Object.defineProperty(navigator, 'canShare', { configurable: true, value: () => true });
     Object.defineProperty(navigator, 'share', { configurable: true, value: async payload => {
-      window.__codexShareCalls.push({ name: payload.files?.[0]?.name || '' });
+      window.__codexShareCalls.push({ name: payload.files?.[0]?.name || '', type: payload.files?.[0]?.type || '' });
       throw new DOMException('simulated cancellation', 'AbortError');
     } });
   });
-  const shareButton = page.getByRole('button', { name: '分享素材包', exact: true });
-  await shareButton.click();
-  await page.getByText('素材包已准备，请再次点击“分享素材包”打开系统分享。', { exact: true }).waitFor();
-  await page.getByLabel('推文标题', { exact: true }).fill('编辑后再次修改以失效素材包');
-  await page.waitForTimeout(100);
-  await shareButton.click();
-  await page.getByText('素材包已准备，请再次点击“分享素材包”打开系统分享。', { exact: true }).waitFor();
-  assert.equal(await page.evaluate(() => window.__codexShareCalls.length), 0, 'editing invalidates a prepared browser share package');
-  await shareButton.click();
+  await page.getByRole('button', { name: '分享 MD 文件', exact: true }).click();
   await page.getByText('已取消分享，稿件仍保留。', { exact: true }).waitFor();
-  assert.equal(await page.evaluate(() => window.__codexShareCalls.length), 1, 'second-click browser share invokes the stub once');
-  evidence.checks.push('browser ZIP share preparation, edit invalidation, and cancelled share');
+  assert.deepEqual(await page.evaluate(() => window.__codexShareCalls.map(call => call.name)), ['codex_publication_article.md'], 'MD share passes a .md file');
+  evidence.checks.push('browser MD share invokes navigator.share with the .md file and handles cancellation');
 
   // All four privacy flags are exercised together, including the content-hidden rule.
-  for (const label of ['隐藏评分', '隐藏记录日期', '隐藏小懂哥名称', '隐藏导语和正文']) await page.getByLabel(label, { exact: true }).check();
+  for (const label of ['隐藏评分', '隐藏日期', '隐藏小懂哥名称', '隐藏导语和正文']) await page.getByLabel(label, { exact: true }).check();
   await page.waitForTimeout(150);
+  const hiddenPattern = /编辑正文|导语|8\.5\+|2026\.06\.02|2026\.01\.15|2026\.05\.20|小懂哥|制作：9\/10|共鸣：7\.5\/10|专辑\/歌曲发行时间|首次收听时间|乐评记录时间/;
   const hiddenPreview = await preview.innerText();
   assert.doesNotMatch(hiddenPreview, /编辑正文|导语|评分|记录于|小懂哥/, 'all hidden publication fields leave the preview');
   assert.equal(await body.isDisabled(), true, 'hidden content disables intro/body editing');
-  await page.getByRole('button', { name: '复制纯文字正文', exact: true }).click();
-  await page.getByText('已复制纯文字正文。', { exact: true }).waitFor();
-  assert.doesNotMatch(await page.evaluate(() => window.__codexClipboard.text), /编辑正文|导语|8\.5\+|2026\.06\.02|小懂哥/, 'hidden copy has no private fields');
-  await page.evaluate(() => {
-    window.__codexCoverTexts = [];
-    const fill = CanvasRenderingContext2D.prototype.fillText;
-    CanvasRenderingContext2D.prototype.fillText = function(text, ...args) { window.__codexCoverTexts.push(text); return fill.call(this, text, ...args); };
-  });
-  await downloadBytes(page, page.getByRole('button', { name: '导出稿件与配图包', exact: true }), 'codex_publication_hidden.zip');
-  const hiddenZip = await inspectZip(path.join(outputDirectory, 'codex_publication_hidden.zip'));
-  assert.doesNotMatch(Object.values(hiddenZip.texts).join('\n'), /编辑正文|导语私密|8\.5\+|2026\.06\.02|小懂哥/, 'all ZIP text files, including instructions, respect privacy');
-  assert.doesNotMatch(await page.evaluate(() => window.__codexCoverTexts.join('\n')), /编辑正文|导语|8\.5\+|2026\.06\.02|小懂哥/, 'generated cover receives no hidden text');
-  evidence.checks.push('privacy applied to preview, copy, actual ZIP HTML/text/readme and generated-cover text');
+  await page.getByRole('button', { name: '复制 Markdown 全文', exact: true }).click();
+  await page.getByText('已复制 Markdown 全文；粘贴到公众号编辑器可自动识别，或另存为 .md 后导入。', { exact: true }).waitFor();
+  assert.doesNotMatch(await page.evaluate(() => window.__codexClipboard.text), hiddenPattern, 'hidden markdown copy has no private fields, rating dimensions or any of the three dates');
+  const hiddenMd = await downloadBytes(page, page.getByRole('button', { name: '导出 Markdown 稿', exact: true }), 'codex_publication_hidden.md');
+  assert.doesNotMatch(hiddenMd.toString('utf8'), hiddenPattern, 'exported markdown respects privacy, including dimensions and all three dates');
+  evidence.checks.push('privacy applied to preview, Markdown full-text copy and exported .md, including all three dates');
+
+  await page.getByLabel('推文标题', { exact: true }).fill('编辑后再次修改以核对草稿');
+  await page.waitForTimeout(600);
 
   // Close/reopen the single-share route and verify the local draft is restored without changing entries.
   await page.getByRole('button', { name: '关闭分享预览', exact: true }).click();
@@ -358,7 +307,7 @@ try {
   await page.getByLabel('公众号稿', { exact: true }).check();
   await waitForComposer(page);
   await page.getByText('已恢复这组来源的本机推文草稿。', { exact: true }).waitFor();
-  assert.equal(await page.getByLabel('推文标题', { exact: true }).inputValue(), '编辑后再次修改以失效素材包', 'draft title restored');
+  assert.equal(await page.getByLabel('推文标题', { exact: true }).inputValue(), '编辑后再次修改以核对草稿', 'draft title restored');
   assert.equal(await page.getByLabel('署名（可选）', { exact: true }).inputValue(), '作者 & <img onerror=bad()>', 'draft author restored');
   assert.equal(await page.locator('.codex-publication-section-editor textarea').first().inputValue(), '编辑正文 <img src=x onerror=bad()>\n换行 é👨‍👩‍👧‍👦', 'draft body restored');
   evidence.checks.push('single-review publication draft survives close/reopen and restores edited fields');
@@ -402,8 +351,11 @@ try {
     await store.generateSummary(2026);
   });
   await page.goto(`${origin}/#/summary/analysis?year=2026`);
-  await page.getByRole('button', { name: '分享已保存的年度报告', exact: true }).waitFor();
-  await page.getByRole('button', { name: '分享已保存的年度报告', exact: true }).click();
+  // The yearly page label has changed more than once ("年度报告" / "年度标本册"); match the share
+  // entry by pattern so a rename does not fail an unrelated publication check.
+  const yearlyShare = page.getByRole('button', { name: /^分享已保存的年度/ });
+  await yearlyShare.waitFor();
+  await yearlyShare.click();
   await page.locator('.review-share-dialog[open]').waitFor();
   await page.getByLabel('公众号稿', { exact: true }).check();
   await waitForComposer(page);
@@ -459,5 +411,5 @@ if (failure) {
   console.error(evidence.error);
   process.exitCode = 1;
 } else {
-  console.log(`PASS: publication share/composer editing, clipboard stub, ZIP/HTML/PNG inspection, privacy, draft restore, reorder, report/rank entry points, and 320/390/1280 light/dark layout. Evidence: ${path.join(outputDirectory, 'codex_check_publication.json')}`);
+  console.log(`PASS: publication share/composer editing, Markdown copy/export/share, privacy, draft restore, reorder, report/rank entry points, and 320/390/1280 light/dark layout. Evidence: ${path.join(outputDirectory, 'codex_check_publication.json')}`);
 }

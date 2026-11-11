@@ -186,3 +186,17 @@ a.journal-rank-item { color: #202724; }
 .journal-rank-info small { display: block; }
 .journal-rank-info p { margin: 2px 0 0; font-size: 13.5px; line-height: 1.7; white-space: pre-wrap; }
 .journal-rank-note textarea { min-height: 76px; }
+
+/* 年度报告（与年度总结分开）与新老专辑统计 */
+.annual-report-page > .eyebrow, .journal-era-summary .eyebrow, .annual-report-rank .eyebrow { display: block; margin-top: 18px; color: var(--journal-green); font: 800 10px/1.4 ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: .16em; text-transform: uppercase; }
+.annual-report-page h1 { margin-top: 8px; }
+.journal-era-summary, .annual-report-rank, .annual-report-editor { border-top: 1px solid #dfe5df; margin-top: 26px; padding-top: 8px; }
+.journal-era-facts { margin-top: 14px; }
+.annual-report-facts { margin-bottom: 8px; }
+.journal-era-badge { display: inline-block; margin-left: 8px; padding: 1px 7px; border-radius: 3px; background: var(--journal-green); color: #fff; font: 800 10px/1.6 ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: .1em; vertical-align: middle; }
+.annual-report-rank-list .journal-rank-info .journal-text-link { padding-block: 2px; font-size: 13px; }
+.annual-report-dates { font-size: 12px !important; line-height: 1.6 !important; }
+.annual-report-all { margin: 20px 0; padding: 12px; border: 1px solid #dfe5df; border-radius: 5px; background: #eff2ee; }
+.annual-report-all summary { min-height: 40px; cursor: pointer; font-weight: 600; }
+.annual-report-all p { margin: 8px 0; }
+.annual-report-footnote { margin-top: 26px !important; }

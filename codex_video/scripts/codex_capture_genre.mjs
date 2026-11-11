@@ -2,8 +2,7 @@ import assert from 'node:assert/strict';
 import {mkdir,readFile,writeFile} from 'node:fs/promises';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
-import {chromium} from 'playwright';
-import {createServer} from 'vite';
+import {openCaptureSession} from './codex_capture_session.mjs';
 
 const project=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const root=path.dirname(project),assets=path.join(project,'public/codex_genre'),qa=path.join(project,'qa/v6');
@@ -12,16 +11,10 @@ process.chdir(root);
 const demo=JSON.parse(await readFile(path.join(project,'public/codex_light/codex_demo_data.json'),'utf8'));
 const entries=demo.entries.map((entry,index)=>index===0?{...entry,tags:[]}:entry);
 const version=JSON.parse(await readFile(path.join(root,'package.json'),'utf8')).version;
-const server=await createServer({configFile:path.join(root,'mobile/vite.config.ts'),cacheDir:path.join(project,'.cache/vite_genre'),server:{host:'127.0.0.1',port:0,strictPort:true,forwardConsole:false}});
-let browser;
+let session;
 try{
- await server.listen();const origin=`http://127.0.0.1:${server.httpServer.address().port}`;
- browser=await chromium.launch({channel:'chrome',headless:true});
- const context=await browser.newContext({viewport:{width:390,height:844},deviceScaleFactor:3,timezoneId:'Asia/Shanghai',locale:'zh-CN',colorScheme:'light'});
- const page=await context.newPage(),errors=[];
- page.on('pageerror',error=>errors.push(error.message));page.setDefaultTimeout(15000);
- await page.clock.setFixedTime(new Date('2026-09-29T12:00:00+08:00'));
- await page.route('**/*',route=>{try{if(new URL(route.request().url()).origin===origin)return route.continue();}catch{}return route.abort();});
+ session=await openCaptureSession(root,project,'vite_genre');
+ const {page,origin,errors}=session;
  await page.goto(origin+'/#/privacy');
  await page.evaluate(entries=>{
   localStorage.setItem('music-feelings-mobile-entries',JSON.stringify(entries));
@@ -78,4 +71,4 @@ try{
  await writeFile(path.join(assets,'codex_sizes.json'),JSON.stringify(sizes,null,2));
  await writeFile(path.join(qa,'codex_capture_genre.json'),JSON.stringify({passed:true,version,theme:'light',syntheticOnly:true,recordsUnchanged:true,majorCategories,path:manifest.path,houseChildren:manifest.houseChildren,selectedTags:manifest.selectedTags,assets:manifest.assets,layout:manifest.layout,errors},null,2));
  console.log('PASS actual three-level genre capture');
-}finally{await browser?.close();await server.close();}
+}finally{await session?.close();}
