@@ -2195,6 +2195,8 @@ function BackupPage() {
   const restoreAvailable = typeof navigator.locks?.request === "function";
   const [exported, setExported] = useState<ExportedData | null>(null);
   const [includeCovers, setIncludeCovers] = useState(true);
+  const [mergeMode, setMergeMode] = useState(false);
+  const [syncName, setSyncName] = useState(false);
   const [skipCovers, setSkipCovers] = useState(false);
   const [exportAction, setExportAction] = useState<"save" | "share" | "copy" | null>(null);
   const [exportStatus, setExportStatus] = useState<{ tone: "success" | "error"; text: string } | null>(null);
@@ -2300,7 +2302,9 @@ function BackupPage() {
     try {
       const content = kind === "json" ? await store.exportBackup({ includeCovers }) : kind === "txt" ? await store.exportTxt() : await store.exportCsv();
       const meta = EXPORT_FILE_META[kind];
-      const fileName = kind === "json" && !includeCovers ? exportFileName(kind).replace(/\.json$/, "-no-covers.json") : exportFileName(kind);
+      const platform = Capacitor.getPlatform() === "android" ? "android" : Capacitor.getPlatform() === "electron" ? "windows" : "web";
+      const fileName = kind === "json" && syncName ? `xiaodongge-from-${platform}.json`
+        : kind === "json" && !includeCovers ? exportFileName(kind).replace(/\.json$/, "-no-covers.json") : exportFileName(kind);
       setExported({ kind, content, fileName, mimeType: meta.mimeType });
       setExportStatus({ tone: "success", text: `${EXPORT_LABELS[kind]} 已生成，可以保存、分享或复制` });
     } catch (err) {
@@ -2411,7 +2415,7 @@ function BackupPage() {
     setMessage("");
     setRestoreRehearsal(null);
     try {
-      const report = await store.rehearseRestore(importText, { includeCovers: !skipCovers });
+      const report = await store.rehearseRestore(importText, { includeCovers: !skipCovers, mode: mergeMode ? "merge" : "replace" });
       setRestoreRehearsal(report);
       setMessage(report.target === "windows-isolated-sqlite" ? "Windows 隔离数据库写入及回读通过；正式数据未覆盖" : report.target === "android-isolated-sqlite"
         ? "Android 隔离数据库写入及回读通过；正式数据未覆盖"
@@ -2465,7 +2469,7 @@ function BackupPage() {
     let nextPreview: BackupPreview;
     try {
       nextPreview = store.previewBackup(importText, { includeCovers: !skipCovers });
-      const currentDiff = await store.previewRestoreDiff(importText, { includeCovers: !skipCovers });
+      const currentDiff = await store.previewRestoreDiff(importText, { includeCovers: !skipCovers, mode: mergeMode ? "merge" : "replace" });
       if (currentDiff.inputSha256 !== restoreRehearsal.inputSha256
         || currentDiff.localSha256 !== restoreRehearsal.localSha256
         || currentDiff.includeCovers !== restoreRehearsal.includeCovers) {
@@ -2477,12 +2481,13 @@ function BackupPage() {
       setError(err instanceof Error ? err.message : "备份预览失败");
       return;
     }
-    if (!confirm(`导入会覆盖本机数据。备份包含 ${nextPreview.entryCount} 条记录、${nextPreview.summaryCount} 个年度总结、${nextPreview.monthlySummaryCount} 个月度作品。${draftImportImpact(nextPreview)}${skipCovers ? "跳过备份封面，保留当前封面；草稿的待保存封面也会移除。" : `封面将替换为备份中的 ${nextPreview.coverCount} 张封面。`}确认继续？`)) return;
+    const modeNote = mergeMode ? "合并导入会保留两端记录：同 ID 取更新时间较新的一方，本机未保存草稿优先保留。" : "导入会覆盖本机数据。";
+    if (!confirm(`${modeNote}备份包含 ${nextPreview.entryCount} 条记录、${nextPreview.summaryCount} 个年度总结、${nextPreview.monthlySummaryCount} 个月度作品。${draftImportImpact(nextPreview)}${skipCovers ? "跳过备份封面，保留当前封面；草稿的待保存封面也会移除。" : `封面将替换为备份中的 ${nextPreview.coverCount} 张封面。`}确认继续？`)) return;
     setMessage("");
     setError("");
     setBusy(true);
     try {
-      await store.importBackup(importText, { includeCovers: !skipCovers }, restoreRehearsal.localSha256);
+      await store.importBackup(importText, { includeCovers: !skipCovers, mode: mergeMode ? "merge" : "replace" }, restoreRehearsal.localSha256);
       setRestoreRehearsal(null);
       setUndoPreview(await store.previewImportUndo());
       publishBackupResult(`导入完成：${nextPreview.entryCount} 条记录、${nextPreview.summaryCount} 个年度总结、${nextPreview.monthlySummaryCount} 个月度作品。${skipCovers ? "已保留当前封面，缺少的封面可重新添加。" : `已恢复 ${nextPreview.coverCount} 张封面。`}`);
@@ -2551,6 +2556,8 @@ function BackupPage() {
       ) : null}
       <div className="backup-cover-options">
         <label><input type="checkbox" checked={includeCovers} disabled={exportAction !== null} onChange={(event) => { setIncludeCovers(event.target.checked); setExported(null); setExportStatus(null); }} />JSON 包含封面</label>
+        <label><input type="checkbox" checked={syncName} disabled={exportAction !== null} onChange={(event) => { setSyncName(event.target.checked); setExported(null); setExportStatus(null); }} />跨端同步：使用固定文件名</label>
+        <p className="hint">勾选后 JSON 固定为 xiaodongge-from-&lt;平台&gt;.json（手机 android / 电脑 windows），放进云盘或文件传输助手时始终覆盖同一文件；另一端用「合并导入」读取。保存时同名文件会被覆盖。</p>
         <p className="hint">取消勾选可导出不含封面的备份，乐评和总结完整保留，封面可之后重新添加。</p>
       </div>
       <div className="backup-export-actions">
@@ -2588,6 +2595,11 @@ function BackupPage() {
           <label><input type="checkbox" checked={skipCovers} disabled={busy} onChange={(event) => { setSkipCovers(event.target.checked); setMessage(""); setRestoreRehearsal(null); }} />跳过备份封面，保留当前封面</label>
           <p className="hint">封面损坏或暂时不需要恢复时可勾选，其他内容照常导入。</p>
         </div>
+        <div className="backup-cover-options">
+          <label><input type="checkbox" checked={mergeMode} disabled={busy} onChange={(event) => { setMergeMode(event.target.checked); setMessage(""); setRestoreRehearsal(null); }} />合并导入（跨端迁移建议勾选）</label>
+          <p className="hint">保留两端记录：同 ID 取更新时间较新的一方，年度总结按年份、月度作品按年月合并，本机未保存草稿优先保留。不勾选则整库覆盖。</p>
+        </div>
+        <p className="hint">公众号出稿页的推文草稿不在 JSON 备份内，跨端迁移前请在出稿页单独导出 Markdown 稿。</p>
         <label className="secondary-button file-input-button">
           选择 JSON 文件
           <input type="file" accept="*/*" disabled={busy} onChange={chooseImportFile} />
@@ -2605,6 +2617,7 @@ function BackupPage() {
           <section className="backup-diff-report" aria-label="恢复差异报告">
             <strong>{restoreRehearsal.target === "windows-isolated-sqlite" ? "Windows 隔离数据库恢复与回读通过" : restoreRehearsal.target === "android-isolated-sqlite" ? "Android 隔离数据库恢复与回读通过" : "Web 隔离存储模拟恢复与回读通过"}</strong>
             <p className="hint">报告绑定当前备份、封面选项和本机数据；任一变化后需重新预演。预演不能保证正式恢复时仍有足够存储空间。</p>
+            <p className="hint">{mergeMode ? "合并模式：以两端并集为目标，本机将移除数应为 0。" : "覆盖模式：目标快照即备份内容，差异中的移除项会在导入后消失。"}</p>
             <ul>{([
               ["正式记录", "entries"], ["年度总结", "summaries"], ["月度作品", "monthlySummaries"],
               ["重听记录", "listeningMoments"], ["封面", "covers"], ["榜单与应用数据", "appData"], ["草稿", "drafts"],
@@ -2614,7 +2627,7 @@ function BackupPage() {
             })}</ul>
           </section>
         ) : null}
-        <button className="danger-button" type="submit" disabled={busy || !restoreRehearsal || !restoreAvailable}>{busy ? "导入中" : "导入并覆盖当前数据"}</button>
+        <button className="danger-button" type="submit" disabled={busy || !restoreRehearsal || !restoreAvailable}>{busy ? "导入中" : mergeMode ? "合并导入" : "导入并覆盖当前数据"}</button>
       </form>
       {message ? <p className="hint">{message}</p> : null}
       {error ? <p className="error">{error}</p> : null}
