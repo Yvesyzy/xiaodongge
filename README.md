@@ -1,8 +1,10 @@
-# 小懂哥 v3.5.3（公众号稿评分结构统一与配图提醒移除）
+# 小懂哥 v3.5.4（公众号稿单篇标题去重）
 
-**v3.5.3** 统一公众号稿的评分与日期结构，并去掉稿件里的配图提醒。六项多维评分（制作/词/曲/人声/原创性/共鸣）现在固定输出，未填写的维度写「未填写」，不再因为记录缺项而整行消失；早期的「旧版词曲」评分不再进入稿件，六项稳定排成两行三项，共鸣不再被挤到单独一行。出稿页的「附上这一节的封面配图」已删除，Markdown 不再生成 `> 【配图位置】…` 提醒块，也不再有封面读取与横版封面预览，公众号编辑器里那个删不掉的提示框不会再出现。恢复本机推文草稿时元信息按当前乐评重建，旧草稿不会再退回单行评分与单日期。v3.5.1 起的按专辑／歌曲命名、v3.5.0 起的 Markdown 单一出稿通道保持不变。
+**v3.5.4** 修掉单篇稿件里重复的标题：单篇乐评的章节标题默认与推文标题相同，此前导出会同时写 `# 标题` 和 `## 同名标题`，导入公众号后顶部标题下面又出现一次同名小标题。现在两者相同时只保留顶部标题，改了章节标题或一篇里排了多节时照常输出章节标题；Markdown、纯文本与页面内预览三处一致。
 
-**v3.5.2（上一版）** 让电脑版与手机版之间的记录迁移不再互相覆盖：备份与恢复页新增「合并导入」，按记录 id／年份／年月取两端并集，同 id 以 `updatedAt` 较新者为准，本机未保存草稿优先保留；导出 JSON 可勾选固定同步文件名 `xiaodongge-from-android.json`（电脑端为 `xiaodongge-from-windows.json`）。同时修复了 v3.5.1 中恢复预演 `INSERT INTO ReviewEntry` 少一列 `releaseDate` 的问题——此前导入任何非空备份都会报 `column index out of range`，电脑 → 手机方向因此不可用。推文草稿仍不在 JSON 备份内，备份页已明确提示。
+**v3.5.3（上一版）** 统一公众号稿的评分与日期结构，并去掉稿件里的配图提醒。六项多维评分（制作/词/曲/人声/原创性/共鸣）现在固定输出，未填写的维度写「未填写」，不再因为记录缺项而整行消失；早期的「旧版词曲」评分不再进入稿件，六项稳定排成两行三项，共鸣不再被挤到单独一行。出稿页的「附上这一节的封面配图」已删除，Markdown 不再生成 `> 【配图位置】…` 提醒块，也不再有封面读取与横版封面预览，公众号编辑器里那个删不掉的提示框不会再出现。恢复本机推文草稿时元信息按当前乐评重建，旧草稿不会再退回单行评分与单日期。v3.5.1 起的按专辑／歌曲命名、v3.5.0 起的 Markdown 单一出稿通道保持不变。
+
+**v3.5.2** 让电脑版与手机版之间的记录迁移不再互相覆盖：备份与恢复页新增「合并导入」，按记录 id／年份／年月取两端并集，同 id 以 `updatedAt` 较新者为准，本机未保存草稿优先保留；导出 JSON 可勾选固定同步文件名 `xiaodongge-from-android.json`（电脑端为 `xiaodongge-from-windows.json`）。同时修复了 v3.5.1 中恢复预演 `INSERT INTO ReviewEntry` 少一列 `releaseDate` 的问题——此前导入任何非空备份都会报 `column index out of range`，电脑 → 手机方向因此不可用。推文草稿仍不在 JSON 备份内，备份页已明确提示。
 
 **v3.5.1** 把导出与分享的 Markdown 文件名改为按稿件主体命名：优先专辑名，专辑名为空时用歌曲名，多篇合辑与年度榜单用推文标题，全部候选为空时回退 `公众号稿.md`；名称会清洗路径分隔符、保留字符与控制字符，并按码点截断至 60 字符。详见[v3.5.1 发布说明](docs/codex_v351_release_notes.md)。
 
@@ -72,18 +74,18 @@ Yves 已报告封面功能在 vivo X100 上测试成功；这不代表全部 And
 
 ## 下载 APK
 
-当前版本 v3.5.3：
+当前版本 v3.5.4：
 
-- [v3.5.3 (46) APK](https://github.com/Yvesyzy/xiaodongge/releases/download/v3.5.3/codex_xiaodongge-v3.5.3-46.apk)
-- [SHA-256 校验](https://github.com/Yvesyzy/xiaodongge/releases/download/v3.5.3/codex_xiaodongge-v3.5.3-46.apk.sha256.txt)
-- [v3.5.3 发布说明](docs/codex_v353_release_notes.md)
-- [GitHub Release](https://github.com/Yvesyzy/xiaodongge/releases/tag/v3.5.3)
+- [v3.5.4 (47) APK](https://github.com/Yvesyzy/xiaodongge/releases/download/v3.5.4/codex_xiaodongge-v3.5.4-47.apk)
+- [SHA-256 校验](https://github.com/Yvesyzy/xiaodongge/releases/download/v3.5.4/codex_xiaodongge-v3.5.4-47.apk.sha256.txt)
+- [v3.5.4 发布说明](docs/codex_v354_release_notes.md)
+- [GitHub Release](https://github.com/Yvesyzy/xiaodongge/releases/tag/v3.5.4)
 
-版本为 `3.5.3 (46)`（npm `3.5.3`），包名 `com.yves.musicarchive` 和原发布签名保持不变，可覆盖安装同签名较低版本，包括 v3.5.2、v3.5.1、v3.5.0、v3.4.1、v3.2.0 及此前的本地测试版，无需卸载；versionCode 由 45 递增至 46，属正常升级而非降级。建议升级前导出完整 JSON 备份；既有档案、封面和乐评草稿沿用现有数据库及 JSON v6，推文草稿不在 JSON 备份内，迁移时需另导出 Markdown 稿。安装包大小 75,771,294 字节，SHA-256 为 `6c4120a3a27df4ccf2463c1d7ef6af2e3241d39a010b4bde9ea896ffceaddcbc`。验证：`typecheck:mobile`、共享与模型单测 37/37、公众号模型与打包 13/13、Vite 构建、`cap sync`、`assembleRelease`、`aapt2` 元数据、v2 签名证书摘要、包内 28 个 public 资源与 3 个平台资源逐字节一致，公众号浏览器 QA 覆盖六项评分、旧版词曲移除、配图提醒移除与旧草稿重建。完整范围见[发布说明](docs/codex_v353_release_notes.md)。16KB 原生库兼容、SDK 网络行为及真机系统文件提供器仍需专项验收。[v3.5.2](https://github.com/Yvesyzy/xiaodongge/releases/tag/v3.5.2)、[v3.5.1](https://github.com/Yvesyzy/xiaodongge/releases/tag/v3.5.1)、[v3.5.0](https://github.com/Yvesyzy/xiaodongge/releases/tag/v3.5.0)、[v3.4.1](https://github.com/Yvesyzy/xiaodongge/releases/tag/v3.4.1)保留为历史版本。
+版本为 `3.5.4 (47)`（npm `3.5.4`），包名 `com.yves.musicarchive` 和原发布签名保持不变，可覆盖安装同签名较低版本，包括 v3.5.3、v3.5.2、v3.5.1、v3.5.0、v3.4.1、v3.2.0 及此前的本地测试版，无需卸载；versionCode 由 46 递增至 47，属正常升级而非降级。建议升级前导出完整 JSON 备份；既有档案、封面和乐评草稿沿用现有数据库及 JSON v6，推文草稿不在 JSON 备份内，迁移时需另导出 Markdown 稿。安装包大小 75,771,306 字节，SHA-256 为 `b784937e7aebb4a08cce39bebffb153e7d83ebb0db2d8165dd54d083c45a7f3b`。验证：`typecheck:mobile`、公众号模型与打包单测 14/14、Vite 构建、`cap sync`、`assembleRelease`、`aapt2` 元数据、v2 签名证书摘要、包内 28 个 public 资源与 3 个平台资源逐字节一致，公众号浏览器 QA 覆盖单篇标题去重、六项评分、旧版词曲移除与配图提醒移除。完整范围见[发布说明](docs/codex_v354_release_notes.md)。16KB 原生库兼容、SDK 网络行为及真机系统文件提供器仍需专项验收。[v3.5.3](https://github.com/Yvesyzy/xiaodongge/releases/tag/v3.5.3)、[v3.5.2](https://github.com/Yvesyzy/xiaodongge/releases/tag/v3.5.2)、[v3.5.1](https://github.com/Yvesyzy/xiaodongge/releases/tag/v3.5.1)、[v3.5.0](https://github.com/Yvesyzy/xiaodongge/releases/tag/v3.5.0)、[v3.4.1](https://github.com/Yvesyzy/xiaodongge/releases/tag/v3.4.1)保留为历史版本。
 
 此前正式发布的 v3.0.1 下载：
 
-v3.0.1 为 `3.0.1 (29)`（npm 包版本 `3.0.1`），沿用 v2.5 至 v3.0 的长期发布签名。v3.5.3 继续沿用该签名，可覆盖这些正式版本及同签名的较低版本，无需卸载。更早旧签名版本和 debug 版本按签名兼容情况迁移。
+v3.0.1 为 `3.0.1 (29)`（npm 包版本 `3.0.1`），沿用 v2.5 至 v3.0 的长期发布签名。v3.5.4 继续沿用该签名，可覆盖这些正式版本及同签名的较低版本，无需卸载。更早旧签名版本和 debug 版本按签名兼容情况迁移。
 
 - [下载 v3.0.1 APK](https://github.com/Yvesyzy/xiaodongge/releases/download/v3.0.1/codex_xiaodongge-v3.0.1.apk)
 - [下载 SHA256 校验文件](https://github.com/Yvesyzy/xiaodongge/releases/download/v3.0.1/codex_xiaodongge-v3.0.1.sha256.txt)

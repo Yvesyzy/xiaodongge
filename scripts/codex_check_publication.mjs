@@ -214,6 +214,7 @@ try {
   await page.locator('.review-share-dialog[open]').waitFor();
   await page.getByLabel('公众号稿', { exact: true }).check();
   await waitForComposer(page);
+  assert.equal(await page.locator('.codex-publication-preview h2').count(), 0, 'a single review defaults to one title instead of repeating it');
   await page.getByLabel('推文标题', { exact: true }).fill('编辑标题 <script>bad()</script>');
   await page.getByLabel('署名（可选）', { exact: true }).fill('作者 & <img onerror=bad()>');
   await page.getByLabel('导语（可选）', { exact: true }).fill('导语 <script>bad()</script>');

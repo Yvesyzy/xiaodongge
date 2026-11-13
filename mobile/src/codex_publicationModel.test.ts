@@ -174,6 +174,24 @@ test("markdown groups three rating dimensions per paragraph and keeps every othe
   assert.match(legacy, /\n\n评分：评分私密词 9\/10\n\n/, "legacy fields also become separate paragraphs");
 });
 
+test("a single review whose section title equals the publication title exports one heading", () => {
+  const base = draft();
+  const single = (title: string, sectionTitle: string) =>
+    buildPublication({ ...base, title, sections: [{ ...base.sections[0]!, title: sectionTitle }] });
+
+  const same = single("商业与玩法", "商业与玩法");
+  assert.equal(same.markdown.split("\n").filter(line => line.startsWith("#")).length, 1, "only the H1 remains");
+  assert.equal(same.markdown.includes("## "), false, "the duplicated section heading is dropped");
+  assert.equal(same.htmlFragment.includes("<h2"), false, "the preview drops the duplicated heading too");
+  assert.equal(same.plainText.startsWith("商业与玩法\n"), false, "plain text does not repeat the title");
+
+  const different = single("推文标题", "章节标题");
+  assert.match(different.markdown, /^## 章节标题$/m, "a distinct section title is kept");
+  assert.match(different.htmlFragment, /<h2[^>]*>章节标题<\/h2>/);
+
+  assert.match(buildPublication(base).markdown, /## 第一篇/m, "multi-section drafts always keep their headings");
+});
+
 test("privacy hides every rating dimension and all three dates, keeping music fields", () => {
   const result = buildPublication(structuredDraft({ privacy: { hideRating: true, hideDate: true, hideBrand: false, hideContent: false } }));
   const all = [result.plainText, result.htmlFragment, result.htmlDocument, result.markdown].join("\n");

@@ -223,7 +223,12 @@ function metadataLines(section: PublicationSection, privacy: PublicationPrivacy)
   return lines;
 }
 
-// 公众号文档导入只可靠支持基础 Markdown；本地相对路径图片不会被转存，因此用文字占位。
+// 单篇且章节标题与推文标题相同时只保留顶部标题，避免导入后出现两遍同名标题。
+function sectionHeadingVisible(draft: PublicationDraft, section: PublicationSection): boolean {
+  return draft.sections.length > 1 || section.title !== draft.title;
+}
+
+// 公众号文档导入只可靠支持基础 Markdown；本地图片不会随 .md 转存，导出只保留文字。
 function mdSafe(value: string): string {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
@@ -250,7 +255,7 @@ function buildMarkdown(draft: PublicationDraft): string {
     blocks.push(draft.intro.split(/\r\n|\r|\n/).map((line) => `> ${mdSafe(line)}`).join("\n"));
   }
   for (const section of draft.sections) {
-    const lines: string[] = [`## ${oneLine(section.title)}`];
+    const lines: string[] = sectionHeadingVisible(draft, section) ? [`## ${oneLine(section.title)}`] : [];
     // 公众号文档导入会吞掉「行尾双空格」硬换行，只有空行分隔的段落能稳定保留逐行排版。
     for (const line of metadataLines(section, draft.privacy)) lines.push(mdMetaLine(line));
     if (!draft.privacy.hideContent && section.content.length > 0) lines.push(mdBody(section.content));
@@ -265,7 +270,7 @@ function buildPlainText(draft: PublicationDraft): string {
   if (draft.author.length > 0) blocks.push(`作者：${draft.author}`);
   if (!draft.privacy.hideContent && draft.intro.length > 0) blocks.push(`导语：\n${draft.intro}`);
   for (const section of draft.sections) {
-    const lines = [section.title, ...metadataLines(section, draft.privacy)];
+    const lines = [...(sectionHeadingVisible(draft, section) ? [section.title] : []), ...metadataLines(section, draft.privacy)];
     if (!draft.privacy.hideContent && section.content.length > 0) lines.push(`正文：\n${section.content}`);
     blocks.push(lines.join("\n"));
   }
@@ -286,7 +291,7 @@ function renderFragment(draft: PublicationDraft): string {
     chunks.push(`<div style="${FRAGMENT_SECTION_STYLE}"><p style="${FRAGMENT_META_STYLE}"><strong>导语</strong></p><p style="${FRAGMENT_BODY_STYLE}">${htmlText(draft.intro)}</p></div>`);
   }
   for (const section of draft.sections) {
-    const sectionChunks: string[] = [`<h2 style="${FRAGMENT_HEADING_STYLE}">${htmlText(section.title)}</h2>`];
+    const sectionChunks: string[] = sectionHeadingVisible(draft, section) ? [`<h2 style="${FRAGMENT_HEADING_STYLE}">${htmlText(section.title)}</h2>`] : [];
     for (const line of metadataLines(section, draft.privacy)) sectionChunks.push(`<p style="${FRAGMENT_META_STYLE}">${htmlText(line)}</p>`);
     if (!draft.privacy.hideContent && section.content.length > 0) sectionChunks.push(`<div style="${FRAGMENT_BODY_STYLE}">${htmlText(section.content)}</div>`);
     chunks.push(`<section style="${FRAGMENT_SECTION_STYLE}">${sectionChunks.join("")}</section>`);
@@ -302,7 +307,7 @@ function renderDocumentBody(draft: PublicationDraft): string {
     chunks.push(`<div style="${FRAGMENT_SECTION_STYLE}"><p style="${FRAGMENT_META_STYLE}"><strong>导语</strong></p><p style="${FRAGMENT_BODY_STYLE}">${htmlText(draft.intro)}</p></div>`);
   }
   for (const section of draft.sections) {
-    const sectionChunks: string[] = [`<h2 style="${FRAGMENT_HEADING_STYLE}">${htmlText(section.title)}</h2>`];
+    const sectionChunks: string[] = sectionHeadingVisible(draft, section) ? [`<h2 style="${FRAGMENT_HEADING_STYLE}">${htmlText(section.title)}</h2>`] : [];
     for (const line of metadataLines(section, draft.privacy)) sectionChunks.push(`<p style="${FRAGMENT_META_STYLE}">${htmlText(line)}</p>`);
     if (!draft.privacy.hideContent && section.content.length > 0) sectionChunks.push(`<div style="${FRAGMENT_BODY_STYLE}">${htmlText(section.content)}</div>`);
     chunks.push(`<section style="${FRAGMENT_SECTION_STYLE}">${sectionChunks.join("")}</section>`);
