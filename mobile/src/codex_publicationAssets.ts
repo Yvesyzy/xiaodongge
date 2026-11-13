@@ -23,7 +23,8 @@ const PUBLICATION_DATE_FIELDS: readonly [string, DateBasis][] = [
 // 与乐评表单的六项多维评分一致；旧版词曲只是历史兼容字段，不再进入稿件。
 function publicationMetaFields(entry: ReviewEntry): PublicationMetaField[] {
   const fields: PublicationMetaField[] = [];
-  for (const [label, value] of [["专辑", entry.albumName], ["歌曲", entry.songName], ["艺术家", entry.artistName]] as const) {
+  // 基本信息固定按 专辑 → 艺术家 → 歌曲 排列，与公众号正文的描述顺序一致。
+  for (const [label, value] of [["专辑", entry.albumName], ["艺术家", entry.artistName], ["歌曲", entry.songName]] as const) {
     if (value) fields.push({ label, value, kind: "music" });
   }
   fields.push({ label: "评分", value: journalRating(entry), kind: "rating" });
@@ -45,7 +46,7 @@ function publicationMetaFields(entry: ReviewEntry): PublicationMetaField[] {
 export async function publicationSections(entries: ReviewEntry[]): Promise<{ sections: PublicationSection[]; warnings: string[] }> {
   const sections = entries.map((entry): PublicationSection => ({
     id: entry.id, title: entry.title, content: entry.content,
-    musicLabel: [entry.albumName, entry.songName, entry.artistName].filter(Boolean).join(" / "),
+    musicLabel: [entry.albumName, entry.artistName, entry.songName].filter(Boolean).join(" / "),
     ratingText: entry.rating === null ? "" : journalRating(entry), dateText: journalDate(entry),
     metaFields: publicationMetaFields(entry),
   }));

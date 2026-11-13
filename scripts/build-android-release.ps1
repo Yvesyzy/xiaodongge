@@ -1,4 +1,4 @@
-param([string]$OutputDirectory, [switch]$OfficialRelease)
+﻿param([string]$OutputDirectory, [switch]$OfficialRelease)
 
 $ErrorActionPreference = 'Stop'
 $root = (Resolve-Path -LiteralPath (Split-Path -Parent $PSScriptRoot)).Path
@@ -9,8 +9,10 @@ if ($releaseItem.LinkType -or (($releaseItem.Attributes -band [IO.FileAttributes
   throw "Refusing linked release directory: $releasePath"
 }
 $releaseRoot = (Resolve-Path -LiteralPath $releasePath).Path
-$baselineApk = Join-Path $releaseRoot 'codex_v320_release_20261010/codex_xiaodongge-v3.2.0-36.apk'
-$baselineHash = '6ba2da51083118f72d4d7c0d11831aaf2c405ba84c4368eface556bd8d98195f'
+# 签名基线：固定保存一份已发布官方签名 APK，用于校验新包的签名证书与 versionCode 只增不减。
+# 该文件不得随 release 清理删除；基线轮换时同步更新 hash 并在 codex_SIGNING_RECOVERY.md 记录。
+$baselineApk = Join-Path $releaseRoot 'codex_signing_baseline/codex_xiaodongge-v3.5.4-47.apk'
+$baselineHash = 'b784937e7aebb4a08cce39bebffb153e7d83ebb0db2d8165dd54d083c45a7f3b'
 $officialSigner = '6386734ef9b4a3fe106d690a8d31ae952697c2ea652ea1ee82f3f7ab488f1022'
 
 if (-not (Test-Path -LiteralPath $baselineApk -PathType Leaf)) { throw "Verified baseline APK missing: $baselineApk" }

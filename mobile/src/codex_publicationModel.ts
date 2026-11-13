@@ -192,36 +192,40 @@ const PUBLICATION_BRAND = "小懂哥 · 私人音乐档案";
 
 const RATING_DIMENSIONS_PER_LINE = 3;
 
-// 六个评分维度比较密集，每三项合成同一段落；其余元信息仍各占一行。
-// 用「 · 」在段落内分隔，不依赖公众号导入器不支持的行尾双空格硬换行。
-function groupedMetadataLines(fields: PublicationMetaField[], privacy: PublicationPrivacy): string[] {
-  const lines: string[] = [];
-  let group: string[] = [];
-  const flush = () => { if (group.length > 0) lines.push(group.join(" · ")); group = []; };
+// 元信息分三组：基本信息（专辑/艺术家/歌曲）→ 评分 → 日期。组内每行一段，组间留两个空行。
+// 六个评分维度比较密集，每三项合成同一段落；用「 · 」在段落内分隔，
+// 不依赖公众号导入器不支持的行尾双空格硬换行。
+function metadataGroups(section: PublicationSection, privacy: PublicationPrivacy): string[][] {
+  const fields = section.metaFields;
+  if (!fields || fields.length === 0) {
+    const groups: string[][] = [];
+    if (section.musicLabel.length > 0) groups.push([`音乐：${section.musicLabel}`]);
+    if (!privacy.hideRating && section.ratingText.length > 0) groups.push([`评分：${section.ratingText}`]);
+    if (!privacy.hideDate && section.dateText.length > 0) groups.push([`日期：${section.dateText}`]);
+    return groups;
+  }
+  const music: string[] = [];
+  const ratings: string[] = [];
+  const dates: string[] = [];
+  let dimensionLine: string[] = [];
+  const flushDimensions = () => {
+    if (dimensionLine.length === 0) return;
+    ratings.push(dimensionLine.join(" · "));
+    dimensionLine = [];
+  };
   for (const field of fields) {
     if ((field.kind === "rating" && privacy.hideRating) || (field.kind === "date" && privacy.hideDate)) continue;
     const line = `${field.label}：${field.value}`;
-    if (field.kind === "rating" && field.label !== "评分") {
-      group.push(line);
-      if (group.length === RATING_DIMENSIONS_PER_LINE) flush();
-    } else {
-      flush();
-      lines.push(line);
-    }
+    if (field.kind === "music") { music.push(line); continue; }
+    if (field.kind === "date") { dates.push(line); continue; }
+    if (field.label === "评分") { flushDimensions(); ratings.push(line); continue; }
+    dimensionLine.push(line);
+    if (dimensionLine.length === RATING_DIMENSIONS_PER_LINE) flushDimensions();
   }
-  flush();
-  return lines;
+  flushDimensions();
+  return [music, ratings, dates].filter((group) => group.length > 0);
 }
 
-function metadataLines(section: PublicationSection, privacy: PublicationPrivacy): string[] {
-  const fields = section.metaFields;
-  if (fields && fields.length > 0) return groupedMetadataLines(fields, privacy);
-  const lines: string[] = [];
-  if (section.musicLabel.length > 0) lines.push(`音乐：${section.musicLabel}`);
-  if (!privacy.hideRating && section.ratingText.length > 0) lines.push(`评分：${section.ratingText}`);
-  if (!privacy.hideDate && section.dateText.length > 0) lines.push(`日期：${section.dateText}`);
-  return lines;
-}
 
 // 单篇且章节标题与推文标题相同时只保留顶部标题，避免导入后出现两遍同名标题。
 function sectionHeadingVisible(draft: PublicationDraft, section: PublicationSection): boolean {
@@ -255,11 +259,15 @@ function buildMarkdown(draft: PublicationDraft): string {
     blocks.push(draft.intro.split(/\r\n|\r|\n/).map((line) => `> ${mdSafe(line)}`).join("\n"));
   }
   for (const section of draft.sections) {
-    const lines: string[] = sectionHeadingVisible(draft, section) ? [`## ${oneLine(section.title)}`] : [];
+    const sectionBlocks: string[] = sectionHeadingVisible(draft, section) ? [`## ${oneLine(section.title)}`] : [];
     // 公众号文档导入会吞掉「行尾双空格」硬换行，只有空行分隔的段落能稳定保留逐行排版。
-    for (const line of metadataLines(section, draft.privacy)) lines.push(mdMetaLine(line));
-    if (!draft.privacy.hideContent && section.content.length > 0) lines.push(mdBody(section.content));
-    blocks.push(lines.join("\n\n"));
+    // 组内一个空行、组间两个空行，导入后基本信息 / 评分 / 日期三块自然分开。
+    const groups = metadataGroups(section, draft.privacy);
+    if (groups.length > 0) {
+      sectionBlocks.push(groups.map((group) => group.map(mdMetaLine).join("\n\n")).join("\n\n\n"));
+    }
+    if (!draft.privacy.hideContent && section.content.length > 0) sectionBlocks.push(mdBody(section.content));
+    if (sectionBlocks.length > 0) blocks.push(sectionBlocks.join("\n\n"));
   }
   if (!draft.privacy.hideBrand) blocks.push(`---\n\n${PUBLICATION_BRAND}`);
   return `${blocks.join("\n\n")}\n`;
@@ -270,7 +278,9 @@ function buildPlainText(draft: PublicationDraft): string {
   if (draft.author.length > 0) blocks.push(`作者：${draft.author}`);
   if (!draft.privacy.hideContent && draft.intro.length > 0) blocks.push(`导语：\n${draft.intro}`);
   for (const section of draft.sections) {
-    const lines = [...(sectionHeadingVisible(draft, section) ? [section.title] : []), ...metadataLines(section, draft.privacy)];
+    const lines = [...(sectionHeadingVisible(draft, section) ? [section.title] : [])];
+    const meta = metadataGroups(section, draft.privacy).map((group) => group.join("\n")).join("\n\n");
+    if (meta.length > 0) lines.push(meta);
     if (!draft.privacy.hideContent && section.content.length > 0) lines.push(`正文：\n${section.content}`);
     blocks.push(lines.join("\n"));
   }
@@ -281,6 +291,9 @@ function buildPlainText(draft: PublicationDraft): string {
 const FRAGMENT_SECTION_STYLE = "margin:0 0 24px 0;line-height:1.8;color:#202020;";
 const FRAGMENT_HEADING_STYLE = "margin:0 0 8px 0;font-size:20px;line-height:1.5;font-weight:700;";
 const FRAGMENT_META_STYLE = "margin:0;color:#666;font-size:14px;line-height:1.7;";
+// 组内每行留一个行距、组间再多留一段，与 Markdown 的「组内空一行、组间空两行」对齐。
+const FRAGMENT_META_LINE_STYLE = "margin:0 0 8px 0;color:#666;font-size:14px;line-height:1.7;";
+const FRAGMENT_META_GROUP_STYLE = "margin:0 0 8px 0;";
 const FRAGMENT_BODY_STYLE = "margin:10px 0 0 0;white-space:normal;line-height:1.9;";
 const FRAGMENT_FOOTER_STYLE = "margin:28px 0 0 0;color:#666;font-size:13px;line-height:1.7;";
 
@@ -292,7 +305,9 @@ function renderFragment(draft: PublicationDraft): string {
   }
   for (const section of draft.sections) {
     const sectionChunks: string[] = sectionHeadingVisible(draft, section) ? [`<h2 style="${FRAGMENT_HEADING_STYLE}">${htmlText(section.title)}</h2>`] : [];
-    for (const line of metadataLines(section, draft.privacy)) sectionChunks.push(`<p style="${FRAGMENT_META_STYLE}">${htmlText(line)}</p>`);
+    for (const group of metadataGroups(section, draft.privacy)) {
+      sectionChunks.push(`<div style="${FRAGMENT_META_GROUP_STYLE}">${group.map((line) => `<p style="${FRAGMENT_META_LINE_STYLE}">${htmlText(line)}</p>`).join("")}</div>`);
+    }
     if (!draft.privacy.hideContent && section.content.length > 0) sectionChunks.push(`<div style="${FRAGMENT_BODY_STYLE}">${htmlText(section.content)}</div>`);
     chunks.push(`<section style="${FRAGMENT_SECTION_STYLE}">${sectionChunks.join("")}</section>`);
   }
@@ -308,7 +323,9 @@ function renderDocumentBody(draft: PublicationDraft): string {
   }
   for (const section of draft.sections) {
     const sectionChunks: string[] = sectionHeadingVisible(draft, section) ? [`<h2 style="${FRAGMENT_HEADING_STYLE}">${htmlText(section.title)}</h2>`] : [];
-    for (const line of metadataLines(section, draft.privacy)) sectionChunks.push(`<p style="${FRAGMENT_META_STYLE}">${htmlText(line)}</p>`);
+    for (const group of metadataGroups(section, draft.privacy)) {
+      sectionChunks.push(`<div style="${FRAGMENT_META_GROUP_STYLE}">${group.map((line) => `<p style="${FRAGMENT_META_LINE_STYLE}">${htmlText(line)}</p>`).join("")}</div>`);
+    }
     if (!draft.privacy.hideContent && section.content.length > 0) sectionChunks.push(`<div style="${FRAGMENT_BODY_STYLE}">${htmlText(section.content)}</div>`);
     chunks.push(`<section style="${FRAGMENT_SECTION_STYLE}">${sectionChunks.join("")}</section>`);
   }

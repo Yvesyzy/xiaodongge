@@ -119,8 +119,8 @@ test("text limits reject without silent truncation", () => {
 
 const STRUCTURED_META: readonly PublicationMetaField[] = [
   { label: "专辑", value: "商业与玩法", kind: "music" },
-  { label: "歌曲", value: "cut：我真的还想再活500年", kind: "music" },
   { label: "艺术家", value: "卡力老虎 / 周乘羽", kind: "music" },
+  { label: "歌曲", value: "cut：我真的还想再活500年", kind: "music" },
   { label: "评分", value: "8.3 / 10", kind: "rating" },
   { label: "制作", value: "9/10", kind: "rating" },
   { label: "词", value: "8/10", kind: "rating" },
@@ -154,19 +154,13 @@ test("markdown groups three rating dimensions per paragraph and keeps every othe
     assert.ok(result.plainText.includes(group), `plain text keeps the compact rating group: ${group}`);
     assert.ok(result.htmlFragment.includes(group), `HTML keeps the compact rating group: ${group}`);
   }
-  const blocks = result.markdown.split("\n\n");
-  const heading = blocks.indexOf("## 第一篇 &lt;标题&gt;");
-  assert.deepEqual(blocks.slice(heading + 1, heading + 10), [
-    "专辑：商业与玩法",
-    "歌曲：cut：我真的还想再活500年",
-    "艺术家：卡力老虎 / 周乘羽",
-    "评分：8.3 / 10",
-    dimensionGroups[0],
-    dimensionGroups[1],
-    "专辑/歌曲发行时间：未填写",
-    "首次收听时间：2026.05.20",
-    "乐评记录时间：2026.09.30",
-  ], "music, overall rating, two rating groups and three dates each keep their own paragraph");
+  const musicGroup = ["专辑：商业与玩法", "艺术家：卡力老虎 / 周乘羽", "歌曲：cut：我真的还想再活500年"].join("\n\n");
+  const ratingGroup = ["评分：8.3 / 10", ...dimensionGroups].join("\n\n");
+  const dateGroup = ["专辑/歌曲发行时间：未填写", "首次收听时间：2026.05.20", "乐评记录时间：2026.09.30"].join("\n\n");
+  assert.ok(
+    result.markdown.includes(`## 第一篇 &lt;标题&gt;\n\n${musicGroup}\n\n\n${ratingGroup}\n\n\n${dateGroup}`),
+    "music, overall rating and dates form three blocks separated by two blank lines, one blank line inside",
+  );
   assert.equal(result.markdown.includes("  \n"), false, "no importer-unsupported trailing-space hard breaks");
   assert.equal(result.markdown.includes("音乐：品牌私密词"), false, "structured fields replace the collapsed one-line label");
   const legacy = buildPublication(draft()).markdown;
