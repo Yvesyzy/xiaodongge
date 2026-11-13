@@ -16,7 +16,7 @@ export function loadPublicationDraft(ids: string[]): PublicationDraft | null {
   return draft;
 }
 export function savePublicationDraft(ids: string[], draft: PublicationDraft) {
-  const safe = parsePublicationDraft({ ...draft, sections: draft.sections.map(section => ({ ...section, coverDataUrl: null })) });
+  const safe = parsePublicationDraft(draft);
   const value = JSON.stringify({ version: 1, ids, draft: safe });
   if (value.length > 3 * 1024 * 1024) throw new Error("推文草稿过大，无法自动保存；请先导出稿件");
   localStorage.setItem(key(ids), value);

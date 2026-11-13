@@ -47,7 +47,8 @@ const entries = [
     ratingVocals: 9,
     ratingOriginality: 8,
     ratingResonance: 7.5,
-    ratingSongwriting: null,
+    // Legacy songwriting rating is still stored, but must never appear in the export.
+    ratingSongwriting: 7,
     compositeRatingLocked: true,
     // Exercise all three date bases end to end in the exported Markdown.
     releaseDate: '2026-01-15',
@@ -238,8 +239,7 @@ try {
   evidence.checks.push('Markdown full-text copy verified through explicit stub clipboard');
 
   const imageDetails = page.locator('details.codex-publication-images');
-  await imageDetails.locator('summary').click();
-  await page.getByAltText('公众号稿横版封面预览', { exact: true }).waitFor();
+  assert.equal(await imageDetails.count(), 0, 'the cover/image preview block is gone');
 
   const mdBytes = await downloadBytes(page, page.getByRole('button', { name: '导出 Markdown 稿', exact: true }), 'codex_publication_album_name.md', '恶意专辑.md');
   const markdown = mdBytes.toString('utf8');
@@ -248,7 +248,7 @@ try {
   assert.match(markdown, /编辑正文 &lt;img src=x onerror=bad\(\)&gt;/, 'MD export keeps edited body text');
   assert.equal(/<script\b/i.test(markdown), false, 'MD export has no raw script tag');
   assert.equal(markdown.includes('!['), false, 'MD export has no broken relative-path images');
-  assert.match(markdown, /【配图位置】codex_publication_image_001\.png/, 'MD export marks image placement');
+  assert.equal(markdown.includes('【配图位置】'), false, 'MD export carries no image placement reminder block');
   // Each metadata item must be its own block: the WeChat document importer drops
   // trailing-space hard breaks, so only blank-line separated paragraphs survive.
   assert.equal(markdown.includes('  \n'), false, 'MD export uses no trailing-space hard breaks');
@@ -260,6 +260,8 @@ try {
     '专辑/歌曲发行时间：2026.01.15', '首次收听时间：2026.05.20', '乐评记录时间：2026.06.02',
   ]) assert.ok(markdown.includes(`\n\n${line}\n\n`), `MD export separates "${line}" into its own paragraph`);
   assert.equal(markdown.includes('\n\n制作：9/10\n\n'), false, 'rating dimensions are no longer one line each');
+  assert.equal(markdown.includes('旧版词曲'), false, 'the legacy songwriting rating never reaches the export');
+  assert.deepEqual(markdown.split('\n\n').filter(block => /^(制作|人声)：/.test(block)), [ratingGroupOne, ratingGroupTwo], 'exactly two rating rows carry the six dimensions');
   assert.equal(markdown.includes('\n\n日期：2026.06.02\n\n'), false, 'the old single date line is replaced by three separate dates');
   const at = (line) => markdown.indexOf(`\n\n${line}\n\n`);
   assert.ok(at('评分：8.5+ / 10') < at(ratingGroupOne) && at(ratingGroupOne) < at(ratingGroupTwo), 'overall rating precedes both three-item dimension rows');
@@ -314,6 +316,28 @@ try {
   assert.equal(await page.getByLabel('署名（可选）', { exact: true }).inputValue(), '作者 & <img onerror=bad()>', 'draft author restored');
   assert.equal(await page.locator('.codex-publication-section-editor textarea').first().inputValue(), '编辑正文 <img src=x onerror=bad()>\n换行 é👨‍👩‍👧‍👦', 'draft body restored');
   evidence.checks.push('single-review publication draft survives close/reopen and restores edited fields');
+
+  // A draft written by an older build has no structured metaFields; the composer must rebuild it
+  // from the current record so ratings and dates never fall back to the collapsed one-line form.
+  const legacyDraft = await page.evaluate(() => {
+    const key = Object.keys(localStorage).find(name => name.startsWith('codex.publication.draft.v1:'));
+    if (!key) return false;
+    const stored = JSON.parse(localStorage.getItem(key));
+    for (const section of stored.draft.sections) { delete section.metaFields; delete section.includeImage; }
+    stored.draft.privacy = { hideRating: false, hideDate: false, hideBrand: false, hideContent: false };
+    localStorage.setItem(key, JSON.stringify(stored));
+    return true;
+  });
+  assert.equal(legacyDraft, true, 'a saved draft exists to simulate the legacy shape');
+  await page.reload();
+  await page.locator('.review-share-dialog[open]').waitFor();
+  await page.getByLabel('公众号稿', { exact: true }).check();
+  await waitForComposer(page);
+  const rebuiltPreview = await page.getByLabel('公众号正文预览', { exact: true }).innerText();
+  assert.ok(rebuiltPreview.includes('制作：9/10 · 词：8/10 · 曲：8.5/10'), 'legacy draft metadata is rebuilt from the current record');
+  assert.ok(rebuiltPreview.includes('人声：9/10 · 原创性：8/10 · 共鸣：7.5/10'), 'the rebuilt metadata keeps both three-item rating rows');
+  assert.equal(rebuiltPreview.includes('旧版词曲'), false, 'rebuilt metadata never re-introduces the legacy songwriting rating');
+  evidence.checks.push('legacy drafts without structured metadata are rebuilt from the current record');
   await page.getByRole('button', { name: '关闭分享预览', exact: true }).click();
 
   // Standalone publication entry supports multi-selection and explicit reordering.
@@ -329,6 +353,9 @@ try {
   await waitForComposer(page);
   const multiText = await page.getByLabel('公众号正文预览', { exact: true }).innerText();
   assert.ok(multiText.indexOf(entries[1].title) < multiText.indexOf(entries[0].title), 'preview preserves reordered source order');
+  assert.ok(multiText.includes('制作：未填写 · 词：未填写 · 曲：未填写'), 'a record without dimension scores still exports six fixed rating slots');
+  assert.ok(multiText.includes('人声：未填写 · 原创性：未填写 · 共鸣：未填写'), 'the second rating row keeps three slots for the same record');
+  assert.equal(multiText.includes('旧版词曲'), false, 'legacy songwriting rating is excluded from every section');
   await page.getByRole('button', { name: '返回选择', exact: true }).click();
   await page.getByRole('button', { name: '生成公众号稿', exact: true }).click();
   await waitForComposer(page);

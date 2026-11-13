@@ -1,10 +1,12 @@
-# 小懂哥 v3.5.2（跨端合并导入与备份恢复修复）
+# 小懂哥 v3.5.3（公众号稿评分结构统一与配图提醒移除）
 
-**v3.5.2** 让电脑版与手机版之间的记录迁移不再互相覆盖：备份与恢复页新增「合并导入」，按记录 id／年份／年月取两端并集，同 id 以 `updatedAt` 较新者为准，本机未保存草稿优先保留；导出 JSON 可勾选固定同步文件名 `xiaodongge-from-android.json`（电脑端为 `xiaodongge-from-windows.json`）。同时修复了 v3.5.1 中恢复预演 `INSERT INTO ReviewEntry` 少一列 `releaseDate` 的问题——此前导入任何非空备份都会报 `column index out of range`，电脑 → 手机方向因此不可用。推文草稿仍不在 JSON 备份内，备份页已明确提示。
+**v3.5.3** 统一公众号稿的评分与日期结构，并去掉稿件里的配图提醒。六项多维评分（制作/词/曲/人声/原创性/共鸣）现在固定输出，未填写的维度写「未填写」，不再因为记录缺项而整行消失；早期的「旧版词曲」评分不再进入稿件，六项稳定排成两行三项，共鸣不再被挤到单独一行。出稿页的「附上这一节的封面配图」已删除，Markdown 不再生成 `> 【配图位置】…` 提醒块，也不再有封面读取与横版封面预览，公众号编辑器里那个删不掉的提示框不会再出现。恢复本机推文草稿时元信息按当前乐评重建，旧草稿不会再退回单行评分与单日期。v3.5.1 起的按专辑／歌曲命名、v3.5.0 起的 Markdown 单一出稿通道保持不变。
 
-**v3.5.1（上一版）** 把导出与分享的 Markdown 文件名从固定的 `codex_publication_article.md` 改为按稿件主体命名：**优先专辑名，专辑名为空时用歌曲名**；多篇合辑与年度榜单使用推文标题，全部候选为空时回退 `公众号稿.md`。文件名会清洗路径分隔符、保留字符、控制字符与首尾点号，按码点截断至 60 字符，避免 Android 文件提供器拒绝保存。v3.5.0 建立的 Markdown 单一出稿通道保持不变：删除此前无效的 HTML 稿、横版封面、ZIP 素材包等旧导出按钮，只保留「导出 Markdown 稿」「分享 MD 文件」「复制 Markdown 全文」和页面内全文折叠框；稿件元信息按填写时逐项独立成段，多维评分逐项列出、六个维度每三项合成一行；专辑/歌曲发行时间、首次收听时间、乐评记录时间三项日期全部统计，缺失显示「未填写」。时间轴与日期滚轮录入优化、归档／月报双口径切换与年度报告继续可用。3.4.1 起的原图封面保留继续可用（可访问原文件保留原字节，仅提供 Bitmap 时保留原尺寸并用 PNG 保存，限额 4MiB / 20MP）。
+**v3.5.2（上一版）** 让电脑版与手机版之间的记录迁移不再互相覆盖：备份与恢复页新增「合并导入」，按记录 id／年份／年月取两端并集，同 id 以 `updatedAt` 较新者为准，本机未保存草稿优先保留；导出 JSON 可勾选固定同步文件名 `xiaodongge-from-android.json`（电脑端为 `xiaodongge-from-windows.json`）。同时修复了 v3.5.1 中恢复预演 `INSERT INTO ReviewEntry` 少一列 `releaseDate` 的问题——此前导入任何非空备份都会报 `column index out of range`，电脑 → 手机方向因此不可用。推文草稿仍不在 JSON 备份内，备份页已明确提示。
 
-本版一并包含公众号出稿：从乐评、月报／年报或年度榜单整理可编辑稿件，导出 .md、系统分享或复制 Markdown 全文，供公众号后台「文档导入」或粘贴转换使用；配图在后台自行上传。推文草稿保存在本机，不包含在乐评JSON备份中，迁移时需另导出 Markdown 稿。见[出稿说明](docs/codex_publication_guide_20261012.md)。好友圈为自部署测试功能，支持独立账号、邀请码加好友、好友可见动态、点赞评论和系统文字分享；私人档案仍保存在本机，只上传主动发布的快照。当前没有公共服务，使用 `npm.cmd run social:preview` 可本机双浏览器联调；Android 需要自行部署的 HTTPS 服务地址。见[好友圈说明](docs/codex_social_test_guide_20261010.md)和[服务端部署说明](social/codex_README.md)。
+**v3.5.1** 把导出与分享的 Markdown 文件名改为按稿件主体命名：优先专辑名，专辑名为空时用歌曲名，多篇合辑与年度榜单用推文标题，全部候选为空时回退 `公众号稿.md`；名称会清洗路径分隔符、保留字符与控制字符，并按码点截断至 60 字符。详见[v3.5.1 发布说明](docs/codex_v351_release_notes.md)。
+
+本版一并包含公众号出稿：从乐评、月报／年报或年度榜单整理可编辑稿件，导出 .md、系统分享或复制 Markdown 全文，供公众号后台「文档导入」或粘贴转换使用。推文草稿保存在本机，不包含在乐评JSON备份中，迁移时需另导出 Markdown 稿。见[出稿说明](docs/codex_publication_guide_20261012.md)。好友圈为自部署测试功能，支持独立账号、邀请码加好友、好友可见动态、点赞评论和系统文字分享；私人档案仍保存在本机，只上传主动发布的快照。当前没有公共服务，使用 `npm.cmd run social:preview` 可本机双浏览器联调；Android 需要自行部署的 HTTPS 服务地址。见[好友圈说明](docs/codex_social_test_guide_20261010.md)和[服务端部署说明](social/codex_README.md)。
 
 一个在安卓手机本地运行、以专辑为中心的私人音乐感受记录 APK。它只保存你手动输入或确认过的信息，不自动编造歌曲、专辑、歌手或感受。读取系统播放封面后，可在乐评和速记中预览，随草稿保留，确认保存后补齐本地封面；已有手动封面优先。系统未提供图片或图片不可访问时仍可手动选图。包含鸿蒙/卓易通相册保存、文件互通与接口缺失处理，以及首页优化、隐私选择和按需 OCR。六项评分、草稿、盲重听、跨年轨迹、恢复预演与榜单导出继续可用。
 
@@ -70,18 +72,18 @@ Yves 已报告封面功能在 vivo X100 上测试成功；这不代表全部 And
 
 ## 下载 APK
 
-当前版本 v3.5.2：
+当前版本 v3.5.3：
 
-- [v3.5.2 (45) APK](https://github.com/Yvesyzy/xiaodongge/releases/download/v3.5.2/codex_xiaodongge-v3.5.2-45.apk)
-- [SHA-256 校验](https://github.com/Yvesyzy/xiaodongge/releases/download/v3.5.2/codex_xiaodongge-v3.5.2-45.apk.sha256.txt)
-- [v3.5.2 发布说明](docs/codex_v352_release_notes.md)
-- [GitHub Release](https://github.com/Yvesyzy/xiaodongge/releases/tag/v3.5.2)
+- [v3.5.3 (46) APK](https://github.com/Yvesyzy/xiaodongge/releases/download/v3.5.3/codex_xiaodongge-v3.5.3-46.apk)
+- [SHA-256 校验](https://github.com/Yvesyzy/xiaodongge/releases/download/v3.5.3/codex_xiaodongge-v3.5.3-46.apk.sha256.txt)
+- [v3.5.3 发布说明](docs/codex_v353_release_notes.md)
+- [GitHub Release](https://github.com/Yvesyzy/xiaodongge/releases/tag/v3.5.3)
 
-版本为 `3.5.2 (45)`（npm `3.5.2`），包名 `com.yves.musicarchive` 和原发布签名保持不变，可覆盖安装同签名较低版本，包括 v3.5.1、v3.5.0、v3.4.1、v3.2.0 及此前的本地测试版，无需卸载；versionCode 由 44 递增至 45，属正常升级而非降级。建议升级前导出完整 JSON 备份；既有档案、封面和乐评草稿沿用现有数据库及 JSON v6，推文草稿不在 JSON 备份内，迁移时需另导出 Markdown 稿。安装包大小 75,774,662 字节，SHA-256 为 `09a9c8b3b32d6b6612e49b5df48e4155aa3432cbfeb257e7486d87778913185b`。验证：`typecheck:mobile`、共享与模型单测 37/37、Vite 构建、`cap sync`、`assembleRelease`／`lintVitalRelease`、`aapt2` 元数据、v2 签名证书摘要、包内 28 个 public 资源与 3 个平台资源逐字节一致。完整范围见[发布说明](docs/codex_v352_release_notes.md)。16KB 原生库兼容、SDK 网络行为及真机系统文件提供器仍需专项验收。[v3.5.1](https://github.com/Yvesyzy/xiaodongge/releases/tag/v3.5.1)、[v3.5.0](https://github.com/Yvesyzy/xiaodongge/releases/tag/v3.5.0)、[v3.4.1](https://github.com/Yvesyzy/xiaodongge/releases/tag/v3.4.1)保留为历史版本。
+版本为 `3.5.3 (46)`（npm `3.5.3`），包名 `com.yves.musicarchive` 和原发布签名保持不变，可覆盖安装同签名较低版本，包括 v3.5.2、v3.5.1、v3.5.0、v3.4.1、v3.2.0 及此前的本地测试版，无需卸载；versionCode 由 45 递增至 46，属正常升级而非降级。建议升级前导出完整 JSON 备份；既有档案、封面和乐评草稿沿用现有数据库及 JSON v6，推文草稿不在 JSON 备份内，迁移时需另导出 Markdown 稿。安装包大小 75,771,294 字节，SHA-256 为 `6c4120a3a27df4ccf2463c1d7ef6af2e3241d39a010b4bde9ea896ffceaddcbc`。验证：`typecheck:mobile`、共享与模型单测 37/37、公众号模型与打包 13/13、Vite 构建、`cap sync`、`assembleRelease`、`aapt2` 元数据、v2 签名证书摘要、包内 28 个 public 资源与 3 个平台资源逐字节一致，公众号浏览器 QA 覆盖六项评分、旧版词曲移除、配图提醒移除与旧草稿重建。完整范围见[发布说明](docs/codex_v353_release_notes.md)。16KB 原生库兼容、SDK 网络行为及真机系统文件提供器仍需专项验收。[v3.5.2](https://github.com/Yvesyzy/xiaodongge/releases/tag/v3.5.2)、[v3.5.1](https://github.com/Yvesyzy/xiaodongge/releases/tag/v3.5.1)、[v3.5.0](https://github.com/Yvesyzy/xiaodongge/releases/tag/v3.5.0)、[v3.4.1](https://github.com/Yvesyzy/xiaodongge/releases/tag/v3.4.1)保留为历史版本。
 
 此前正式发布的 v3.0.1 下载：
 
-v3.0.1 为 `3.0.1 (29)`（npm 包版本 `3.0.1`），沿用 v2.5 至 v3.0 的长期发布签名。v3.5.2 继续沿用该签名，可覆盖这些正式版本及同签名的较低版本，无需卸载。更早旧签名版本和 debug 版本按签名兼容情况迁移。
+v3.0.1 为 `3.0.1 (29)`（npm 包版本 `3.0.1`），沿用 v2.5 至 v3.0 的长期发布签名。v3.5.3 继续沿用该签名，可覆盖这些正式版本及同签名的较低版本，无需卸载。更早旧签名版本和 debug 版本按签名兼容情况迁移。
 
 - [下载 v3.0.1 APK](https://github.com/Yvesyzy/xiaodongge/releases/download/v3.0.1/codex_xiaodongge-v3.0.1.apk)
 - [下载 SHA256 校验文件](https://github.com/Yvesyzy/xiaodongge/releases/download/v3.0.1/codex_xiaodongge-v3.0.1.sha256.txt)

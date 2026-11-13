@@ -3,7 +3,7 @@ import { copyText } from "./nativeExport";
 import { canLeavePage, useBackGuard } from "./codex_Navigation";
 import { buildPublication, publicationMarkdownFileName, type PublicationDraft, type PublicationPrivacy, type PublicationSection } from "./codex_publicationModel";
 import { loadPublicationDraft, removePublicationDraft, savePublicationDraft } from "./codex_publicationDraft";
-import { DEFAULT_PUBLICATION_PRIVACY, publicationCover, publicationSections, publicationRankSections, savePublicationBlob, sharePublicationBlob } from "./codex_publicationAssets";
+import { DEFAULT_PUBLICATION_PRIVACY, publicationSections, publicationRankSections, savePublicationBlob, sharePublicationBlob } from "./codex_publicationAssets";
 import type { ReviewEntry } from "./types";
 import type { YearTopAlbums } from "../../shared/backupAppData";
 import "./codex_publication.css";
@@ -23,7 +23,13 @@ export default function PublicationComposer({ sections, title, privacy, onClose,
     try {
       const restored = loadPublicationDraft(ids);
       if (!restored) return { draft: original, restored: false, error: "" };
-      return { draft: { ...restored, sections: restored.sections.map(section => ({ ...section, coverDataUrl: sections.find(source => source.id === section.id)?.coverDataUrl || null })),
+      // 元信息始终按当前乐评重新生成，旧草稿里的过期或缺失字段不会让评分与日期退回单行。
+      const fresh = new Map(sections.map(section => [section.id, section]));
+      const merged = restored.sections.map(section => {
+        const freshSection = fresh.get(section.id);
+        return freshSection ? { ...freshSection, title: section.title, content: section.content } : section;
+      });
+      return { draft: { ...restored, sections: merged,
         privacy: { hideContent: restored.privacy.hideContent || original.privacy.hideContent, hideRating: restored.privacy.hideRating || original.privacy.hideRating, hideDate: restored.privacy.hideDate || original.privacy.hideDate, hideBrand: restored.privacy.hideBrand || original.privacy.hideBrand } }, restored: true, error: "" };
     } catch { return { draft: original, restored: false, error: "本机推文草稿读取或校验失败，旧副本已保留。当前稿件仍可复制、导出。" }; }
   });
@@ -38,14 +44,10 @@ export default function PublicationComposer({ sections, title, privacy, onClose,
   const mounted = useRef(true);
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
-  const [cover, setCover] = useState<{ blob: Blob; url: string } | null>(null);
-  const [coverError, setCoverError] = useState("");
   const lastSaved = useRef("");
   const deferred = useDeferredValue(draft);
   const output = useMemo(() => { try { return { value: buildPublication(deferred), error: "" }; } catch (reason) { return { value: null, error: errorText(reason) }; } }, [deferred]);
   const updating = deferred !== draft;
-  const firstImage = draft.sections.find(section => section.includeImage && section.coverDataUrl)?.coverDataUrl;
-  const coverInput = useMemo(() => draft, [draft.title, draft.author, draft.privacy.hideBrand, firstImage]);
 
   function change(update: (value: PublicationDraft) => PublicationDraft) {
     setDraft(value => { const next = update(value); current.current = next; return next; });
@@ -54,7 +56,7 @@ export default function PublicationComposer({ sections, title, privacy, onClose,
   function saveNow() {
     if (restoreBlocked.current) return false;
     try {
-      const signature = JSON.stringify({ ...current.current, sections: current.current.sections.map(section => ({ ...section, coverDataUrl: null })) });
+      const signature = JSON.stringify(current.current);
       if (signature !== lastSaved.current) { savePublicationDraft(ids, current.current); lastSaved.current = signature; }
       if (mounted.current) { setSaveError(""); setSaved(true); }
       return true;
@@ -70,12 +72,6 @@ export default function PublicationComposer({ sections, title, privacy, onClose,
     const unload = (event: BeforeUnloadEvent) => { if (lock.current || !saveNow()) { event.preventDefault(); event.returnValue = ""; } };
     window.addEventListener("beforeunload", unload); return () => window.removeEventListener("beforeunload", unload);
   }, []);
-  useEffect(() => {
-    let active = true; let url: string | null = null;
-    setCover(null); setCoverError("");
-    void publicationCover(coverInput).then(blob => { if (active) { url = URL.createObjectURL(blob); setCover({ blob, url }); } }).catch(reason => { if (active) setCoverError(errorText(reason)); });
-    return () => { active = false; if (url) URL.revokeObjectURL(url); };
-  }, [coverInput]);
 
   async function action(run: () => Promise<string>) {
     if (lock.current) return;
@@ -94,7 +90,7 @@ export default function PublicationComposer({ sections, title, privacy, onClose,
   }
   return <section className="codex-publication" aria-labelledby="codex-publication-heading">
     <header className="codex-publication-heading"><div><h2 id="codex-publication-heading">生成公众号稿</h2><p>整理选定原文，预览确认后带到公众号后台。</p></div>{onClose ? <button className="secondary-button" type="button" disabled={busy} onClick={() => { if (canLeavePage()) onClose(); }}>返回选择</button> : null}</header>
-    <p className="codex-publication-note">不修改原乐评，不联网改写或上传。图片需在公众号编辑器另行上传，粘贴效果以实际编辑器为准。</p>
+    <p className="codex-publication-note">不修改原乐评，不联网改写或上传。粘贴效果以公众号实际编辑器为准。</p>
     {initial.restored ? <p role="status">已恢复这组来源的本机推文草稿。</p> : null}
     {restoreError ? <p role="alert" className="error">{restoreError}</p> : null}
     <div className="codex-publication-layout">
@@ -107,17 +103,15 @@ export default function PublicationComposer({ sections, title, privacy, onClose,
           <summary>第 {index + 1} 节 · {section.title || "未命名"}</summary>
           <label>第 {index + 1} 节标题<input value={section.title} maxLength={200} onChange={event => change(value => ({ ...value, sections: value.sections.map((item, i) => i === index ? { ...item, title: event.target.value } : item) }))} /></label>
           <label>第 {index + 1} 节正文<textarea rows={8} value={section.content} disabled={draft.privacy.hideContent} onChange={event => change(value => ({ ...value, sections: value.sections.map((item, i) => i === index ? { ...item, content: event.target.value } : item) }))} /></label>
-          {section.coverDataUrl ? <label className="codex-publication-image-option"><input type="checkbox" checked={section.includeImage} onChange={event => change(value => ({ ...value, sections: value.sections.map((item, i) => i === index ? { ...item, includeImage: event.target.checked } : item) }))} />附上这一节的封面配图</label> : <p className="codex-publication-note">这一节没有本地封面配图。</p>}
         </details>)}
         <button className="secondary-button" type="button" onClick={reset}>从原文重新生成</button>
       </fieldset><p role="status" className="codex-publication-note">{saved ? "推文草稿已保存在本机。" : restoreError || saveError ? "推文草稿尚未成功保存。" : "正在保存推文草稿…"} 该草稿不属于乐评JSON备份，可导出 Markdown 稿另存。</p>{saveError ? <p className="error" role="alert">{saveError}</p> : null}</div>
       <div><h3>正文排版预览</h3>{updating ? <p role="status">正在更新预览…</p> : null}{output.value ? <article className="codex-publication-preview" aria-label="公众号正文预览" dangerouslySetInnerHTML={{ __html: output.value.htmlFragment }} /> : <p role="alert" className="error">{output.error}</p>}
-        <details className="codex-publication-images"><summary>横版封面与配图预览</summary>{cover ? <figure><img src={cover.url} alt="公众号稿横版封面预览" /><figcaption>横版封面 · 1200×510，仅供预览。</figcaption></figure> : <p role={coverError ? "alert" : "status"}>{coverError || "正在准备横版封面…"}</p>}{output.value?.images.map(image => <figure key={image.fileName}><img src={image.dataUrl} alt={image.caption} loading="lazy" /><figcaption>{image.fileName} · {image.caption}</figcaption></figure>)}</details>
       </div>
     </div>
     <footer className="codex-publication-actions"><div><button className="primary-button" type="button" disabled={busy || updating || !output.value} onClick={() => void action(async () => saveMessage(await savePublicationBlob(markdownBlob(current.current), publicationMarkdownFileName(current.current), MD_MIME_TYPE), "Markdown 稿"))}>导出 Markdown 稿</button><button className="secondary-button" type="button" disabled={busy || updating || !output.value} onClick={() => void action(async () => (await sharePublicationBlob(markdownBlob(current.current), publicationMarkdownFileName(current.current), MD_MIME_TYPE)) === "cancelled" ? "已取消分享，稿件仍保留。" : "已打开系统分享，可把 .md 文件发到电脑或文件传输助手。")}>分享 MD 文件</button><button className="secondary-button" type="button" disabled={busy || updating || !output.value} onClick={() => void action(async () => { await copyText(buildPublication(current.current).markdown); return "已复制 Markdown 全文；粘贴到公众号编辑器可自动识别，或另存为 .md 后导入。"; })}>复制 Markdown 全文</button></div>
       <details className="codex-publication-markdown"><summary>Markdown 全文（无需系统文件选择器，可直接长按复制）</summary><textarea aria-label="Markdown 全文" readOnly rows={12} value={output.value?.markdown || ""} /></details>
-      <p className="codex-publication-note">Markdown 稿可在公众号后台「文档导入」上传（支持 markdown，不超过15MB），也可把全文粘贴到编辑器后点「转换格式」。标题仍需单独填入标题栏，可从上方全文第一行复制；配图位置已在稿内标注，请在公众号编辑器自行上传。若保存或分享在你的设备上不可用，展开全文直接复制即可，这条路径不依赖系统文件选择器。</p>
+      <p className="codex-publication-note">Markdown 稿可在公众号后台「文档导入」上传（支持 markdown，不超过15MB），也可把全文粘贴到编辑器后点「转换格式」。标题仍需单独填入标题栏，可从上方全文第一行复制。若保存或分享在你的设备上不可用，展开全文直接复制即可，这条路径不依赖系统文件选择器。</p>
       {busy ? <p role="status">正在处理，请稍候…</p> : null}{status ? <p role="status" className="codex-publication-status">{status}</p> : null}{error ? <p role="alert" className="error">{error}</p> : null}
     </footer>
   </section>;
